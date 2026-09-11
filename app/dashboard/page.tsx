@@ -1,85 +1,313 @@
 "use client";
 
 import { Page } from "@/components/Page";
-import { Card, SectionHeader, StatCard, Tag } from "@/components/ui";
+import { Card, Tag } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
-import { MapPin, Building2, Clock, CircleDollarSign, Database, CloudOff, ArrowRight } from "lucide-react";
+import {
+  MapPin, Building2, Clock, CircleDollarSign, Database, CloudOff,
+  ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText, Bell,
+  Calendar, AlertCircle, TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
 
 export default function Dashboard() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+
   const recent = [
-    { code: "LP-2569-0042", name: "ที่ดินสถานีรังสิต", type: "land", time: "2h ago", status: "synced" },
-    { code: "BL-2569-0117", name: "อาคารสำนักงานใหญ่", type: "building", time: "3h ago", status: "pending" },
-    { code: "LP-2569-0041", name: "ที่ดินสถานีชุมทางบางซื่อ", type: "land", time: "5h ago", status: "offline" },
-    { code: "BL-2569-0116", name: "โกดังเก็บพัสดุ", type: "building", time: "yesterday", status: "synced" },
+    { code: "LP-2569-0042", name: "ที่ดินสถานีรังสิต", type: "land", progress: 78, status: "synced", time: "2h ago" },
+    { code: "BL-2569-0117", name: "อาคารสำนักงานใหญ่", type: "building", progress: 42, status: "pending", time: "3h ago" },
+    { code: "LP-2569-0041", name: "ที่ดินสถานีชุมทางบางซื่อ", type: "land", progress: 100, status: "offline", time: "5h ago" },
+    { code: "BL-2569-0116", name: "โกดังเก็บพัสดุ", type: "building", progress: 95, status: "synced", time: "yesterday" },
   ];
+
+  const stats = [
+    {
+      label: t("cardParcels"),
+      value: "1,284",
+      sub: "+12 this month",
+      delta: "+0.94%",
+      deltaUp: true,
+      icon: MapPin,
+      color: "blue",
+      chart: [22, 28, 25, 32, 30, 38, 42],
+    },
+    {
+      label: t("cardBuildings"),
+      value: "3,562",
+      sub: "+47 this month",
+      delta: "+1.34%",
+      deltaUp: true,
+      icon: Building2,
+      color: "gold",
+      chart: [30, 34, 31, 40, 38, 45, 52],
+    },
+    {
+      label: t("cardPending"),
+      value: "28",
+      sub: lang === "th" ? "รอตรวจสอบ" : "Need review",
+      delta: "-8.5%",
+      deltaUp: false,
+      icon: AlertCircle,
+      color: "amber",
+      chart: [40, 36, 32, 30, 28, 26, 24],
+    },
+    {
+      label: t("cardSynced"),
+      value: "98.2%",
+      sub: "2,847 / 2,899",
+      delta: "+0.6%",
+      deltaUp: true,
+      icon: Database,
+      color: "green",
+      chart: [88, 90, 92, 93, 95, 96, 98],
+    },
+  ];
+
+  const quickActions = [
+    { href: "/land", label: t("navLand"), icon: MapPin, tone: "blue" as const },
+    { href: "/building", label: t("navBuilding"), icon: Building2, tone: "gold" as const },
+    { href: "/tax", label: t("navTax"), icon: CircleDollarSign, tone: "rose" as const },
+    { href: "/dashboard", label: lang === "th" ? "รายงาน" : "Reports", icon: FileText, tone: "emerald" as const },
+  ];
+
+  const news = [
+    {
+      tag: lang === "th" ? "ประกาศ" : "Notice",
+      title: lang === "th" ? "กำหนดยื่นแบบแสดงรายการภาษี ปี 2569" : "Tax Filing Deadline 2026",
+      date: "25 ก.ย. 2569",
+      tone: "gold" as const,
+    },
+    {
+      tag: lang === "th" ? "อบรม" : "Training",
+      title: lang === "th" ? "อบรมการใช้งานระบบสำรวจภาคสนาม" : "Field Survey System Training",
+      date: "15 ต.ค. 2569",
+      tone: "blue" as const,
+    },
+    {
+      tag: lang === "th" ? "ข่าว" : "News",
+      title: lang === "th" ? "ปรับปรุงระบบ PWA รองรับ iOS 17" : "PWA Update for iOS 17",
+      date: "10 ก.ย. 2569",
+      tone: "green" as const,
+    },
+  ];
+
+  const upcoming = [
+    { date: "25 ก.ย.", title: lang === "th" ? "ยื่นแบบภาษีที่ดิน Q3" : "Land Tax Filing Q3", icon: CircleDollarSign, urgent: true },
+    { date: "30 ก.ย.", title: lang === "th" ? "ครบกำหนดสำรวจอาคาร สถานีหลัก" : "Main station survey deadline", icon: Building2, urgent: false },
+    { date: "5 ต.ค.", title: lang === "th" ? "ประชุมคณะกรรมการทรัพย์สิน" : "Asset committee meeting", icon: Calendar, urgent: false },
+  ];
+
+  const colorMap: Record<string, { bg: string; icon: string }> = {
+    blue: { bg: "bg-blue-50", icon: "text-blue-600" },
+    gold: { bg: "bg-amber-50", icon: "text-amber-600" },
+    emerald: { bg: "bg-emerald-50", icon: "text-emerald-600" },
+    rose: { bg: "bg-rose-50", icon: "text-rose-600" },
+    green: { bg: "bg-emerald-50", icon: "text-emerald-600" },
+    amber: { bg: "bg-amber-50", icon: "text-amber-600" },
+  };
+
   return (
     <Page>
-      <SectionHeader title={t("dashTitle")} sub={t("dashSub")} />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-        <StatCard label={t("cardParcels")} value="1,284" hint="+12 this month" tone="blue" />
-        <StatCard label={t("cardBuildings")} value="3,562" hint="+47 this month" tone="gold" />
-        <StatCard label={t("cardPending")} value="28" hint="รอตรวจสอบ" tone="amber" />
-        <StatCard label={t("cardTax")} value="฿ 42.8M" hint="ปีภาษี 2569" tone="red" />
-        <StatCard label={t("cardSynced")} value="98.2%" hint="สำเร็จ 2,847 / 2,899" tone="green" />
-        <StatCard label={t("cardOffline")} value="14" hint="คิวรอส่ง" tone="blue" />
+      {/* Welcome header */}
+      <div className="mb-5 sm:mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-govblue-800">
+            {t("dashWelcome")}, <span className="text-govblue-600">เจ้าหน้าที่</span> 👋
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">{t("dashSubtitle")}</p>
+        </div>
+        <button className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-govblue-700 hover:bg-govblue-600 text-white text-sm font-medium rounded-lg shadow-sm transition">
+          <Plus size={16} /> {lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}
+        </button>
       </div>
 
-      <div className="mt-4 sm:mt-6">
-        <Card className="p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-govblue-700 text-sm sm:text-base">{t("recentTitle")}</h3>
-            <button className="text-xs text-govblue-600 hover:underline inline-flex items-center gap-1">
-              {t("viewAll")} <ArrowRight size={12} />
-            </button>
-          </div>
-          <div className="overflow-x-auto -mx-3 sm:-mx-4">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase text-gray-500 border-b">
-                  <th className="px-3 sm:px-4 py-2">Code</th>
-                  <th className="px-3 sm:px-4 py-2">Name</th>
-                  <th className="px-3 sm:px-4 py-2 hidden sm:table-cell">Type</th>
-                  <th className="px-3 sm:px-4 py-2 hidden md:table-cell">Time</th>
-                  <th className="px-3 sm:px-4 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((r) => (
-                  <tr key={r.code} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-3 sm:px-4 py-2 font-mono text-xs text-govblue-700 whitespace-nowrap">{r.code}</td>
-                    <td className="px-3 sm:px-4 py-2">{r.name}</td>
-                    <td className="px-3 sm:px-4 py-2 hidden sm:table-cell">
-                      {r.type === "land" ? (
-                        <Tag tone="green">
-                          <MapPin size={10} className="mr-1" /> {t("navLand")}
-                        </Tag>
-                      ) : (
-                        <Tag tone="gold">
-                          <Building2 size={10} className="mr-1" /> {t("navBuilding")}
-                        </Tag>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2 text-gray-500 text-xs hidden md:table-cell whitespace-nowrap">
-                      <Clock size={10} className="inline mr-1" />
-                      {r.time}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2">
-                      {r.status === "synced" && <Tag tone="green">✓ Synced</Tag>}
-                      {r.status === "pending" && <Tag tone="gold">⏳ Pending</Tag>}
-                      {r.status === "offline" && (
-                        <Tag tone="gray">
-                          <CloudOff size={10} className="mr-1" /> Offline
-                        </Tag>
-                      )}
-                    </td>
-                  </tr>
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
+        {stats.map((s) => {
+          const Icon = s.icon;
+          return (
+            <div
+              key={s.label}
+              className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm hover:shadow-md transition"
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center ${colorMap[s.color].bg}`}>
+                  <Icon size={16} className={colorMap[s.color].icon} />
+                </div>
+                <span
+                  className={`inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded ${
+                    s.deltaUp ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
+                  }`}
+                >
+                  {s.deltaUp ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                  {s.delta}
+                </span>
+              </div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-gray-500 leading-tight">
+                {s.label}
+              </div>
+              <div className="text-xl sm:text-2xl font-bold text-govblue-800 leading-tight mt-1">
+                {s.value}
+              </div>
+              <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{s.sub}</div>
+
+              {/* Mini sparkline */}
+              <div className="mt-2 sm:mt-3 flex items-end gap-0.5 h-6 sm:h-8">
+                {s.chart.map((h, i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-sm ${s.deltaUp ? "bg-emerald-200" : "bg-rose-200"}`}
+                    style={{ height: `${h}%` }}
+                  />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {/* Quick actions — mobile only */}
+      <div className="md:hidden mb-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2.5">{t("quickActions")}</h3>
+        <div className="grid grid-cols-4 gap-2">
+          {quickActions.map((a) => {
+            const Icon = a.icon;
+            return (
+              <Link
+                key={a.href}
+                href={a.href}
+                className="flex flex-col items-center gap-1.5 p-2.5 bg-white border border-gray-200 rounded-xl hover:border-govblue-300 hover:shadow-sm transition"
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorMap[a.tone].bg}`}>
+                  <Icon size={18} className={colorMap[a.tone].icon} />
+                </div>
+                <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">
+                  {a.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main grid: Recent + News */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
+        {/* Recent surveys */}
+        <div className="lg:col-span-2">
+          <Card className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-govblue-800 text-base">{t("recentTitle")}</h3>
+                <p className="text-[11px] text-gray-500 mt-0.5">{lang === "th" ? "งานสำรวจที่กำลังดำเนินการ" : "Active survey tasks"}</p>
+              </div>
+              <button className="text-xs text-govblue-600 hover:underline inline-flex items-center gap-1 font-medium">
+                {t("viewAll")} <ArrowRight size={12} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              {recent.map((r) => (
+                <div key={r.code} className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      r.type === "land" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                    }`}
+                  >
+                    {r.type === "land" ? <MapPin size={16} /> : <Building2 size={16} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-[11px] text-govblue-700 font-semibold">{r.code}</span>
+                      <span className="text-sm text-gray-800 truncate">{r.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${
+                            r.progress >= 80 ? "bg-emerald-500" : r.progress >= 50 ? "bg-govblue-500" : "bg-amber-500"
+                          }`}
+                          style={{ width: `${r.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-gray-500 tabular-nums">{r.progress}%</span>
+                    </div>
+                  </div>
+                  {r.status === "synced" && <Tag tone="green">✓</Tag>}
+                  {r.status === "pending" && <Tag tone="gold">⏳</Tag>}
+                  {r.status === "offline" && <Tag tone="gray">☁️</Tag>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* News */}
+        <div>
+          <Card className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-govblue-800 text-base">{t("newsTitle")}</h3>
+              <button className="text-xs text-govblue-600 hover:underline font-medium">
+                <ArrowRight size={12} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              {news.map((n, i) => (
+                <div key={i} className="flex gap-3 group cursor-pointer">
+                  <div className="w-1 self-stretch rounded-full bg-gradient-to-b from-govblue-400 to-govgold-400 group-hover:from-govblue-600 group-hover:to-govgold-500 transition" />
+                  <div className="flex-1 min-w-0">
+                    <Tag tone={n.tone}>{n.tag}</Tag>
+                    <div className="text-sm text-gray-800 mt-1.5 leading-snug">{n.title}</div>
+                    <div className="text-[11px] text-gray-500 mt-1 inline-flex items-center gap-1">
+                      <Clock size={10} /> {n.date}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Upcoming */}
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-govblue-800 text-base">{t("upcomingTitle")}</h3>
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">
+              <Bell size={10} /> 3
+            </span>
+          </div>
+          <button className="text-xs text-govblue-600 hover:underline font-medium">
+            {t("viewAll")}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+          {upcoming.map((u, i) => {
+            const Icon = u.icon;
+            return (
+              <div
+                key={i}
+                className={`p-3 rounded-lg border ${
+                  u.urgent ? "border-rose-200 bg-rose-50/50" : "border-gray-200 bg-white"
+                } hover:shadow-sm transition`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      u.urgent ? "bg-rose-100 text-rose-600" : "bg-govblue-50 text-govblue-600"
+                    }`}
+                  >
+                    <Icon size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] text-gray-500 mb-0.5">{u.date}</div>
+                    <div className="text-sm font-medium text-gray-800 leading-snug">{u.title}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </Page>
   );
 }
