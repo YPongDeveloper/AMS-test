@@ -34,11 +34,7 @@ export function Topbar() {
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
       {/* Row 1: utility (online + lang) */}
       <div className="bg-gradient-to-r from-govblue-800 to-govblue-700 text-white">
-        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-1.5 flex items-center justify-between text-[11px] sm:text-xs">
-          <div className="flex items-center gap-2 text-govgold-300">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-govgold-400" />
-            <span className="tracking-wider hidden sm:inline">{t("orgSub")}</span>
-          </div>
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-1.5 flex items-center justify-end text-[11px] sm:text-xs">
           <div className="flex items-center gap-2 sm:gap-3">
             <span
               className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -46,7 +42,7 @@ export function Topbar() {
               }`}
             >
               {online ? <Wifi size={11} /> : <WifiOff size={11} />}
-              <span className="hidden xs:inline">{online ? t("online") : t("offline")}</span>
+              <span className="hidden sm:inline">{online ? t("online") : t("offline")}</span>
             </span>
             <button
               onClick={() => setLang(lang === "th" ? "en" : "th")}
@@ -98,8 +94,7 @@ export function Topbar() {
               <User size={16} />
             </div>
             <div className="hidden sm:block text-left leading-tight">
-              <div className="text-xs font-semibold text-gray-800">เจ้าหน้าที่ สนาม</div>
-              <div className="text-[10px] text-gray-500">srt.field.001</div>
+              <div className="text-xs font-semibold text-gray-800">เจ้าหน้าที่</div>
             </div>
           </button>
         </div>

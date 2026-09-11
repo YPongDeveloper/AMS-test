@@ -4,9 +4,9 @@ import { Page } from "@/components/Page";
 import { Card, Tag } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
 import {
-  MapPin, Building2, Clock, CircleDollarSign, Database, CloudOff,
-  ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText, Bell,
-  Calendar, AlertCircle, TrendingUp,
+  MapPin, Building2, CircleDollarSign, Database,
+  ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText,
+  Calendar, AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,7 +44,7 @@ export default function Dashboard() {
     {
       label: t("cardPending"),
       value: "28",
-      sub: lang === "th" ? "รอตรวจสอบ" : "Need review",
+      sub: lang === "th" ? "จาก 156 รายการ" : "of 156 items",
       delta: "-8.5%",
       deltaUp: false,
       icon: AlertCircle,
@@ -109,15 +109,16 @@ export default function Dashboard() {
   return (
     <Page>
       {/* Welcome header */}
-      <div className="mb-5 sm:mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-govblue-800">
-            {t("dashWelcome")}, <span className="text-govblue-600">เจ้าหน้าที่</span> 👋
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">{t("dashSubtitle")}</p>
-        </div>
-        <button className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-govblue-700 hover:bg-govblue-600 text-white text-sm font-medium rounded-lg shadow-sm transition">
-          <Plus size={16} /> {lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}
+      <div className="mb-5 sm:mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-govblue-800">
+          {t("dashWelcome")}, <span className="text-govblue-600">เจ้าหน้าที่</span> 👋
+        </h1>
+        <button
+          aria-label={lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-govblue-700 hover:bg-govblue-600 text-white text-sm font-medium rounded-lg shadow-sm transition"
+        >
+          <Plus size={16} />
+          <span className="hidden sm:inline">{lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}</span>
         </button>
       </div>
 
@@ -196,12 +197,9 @@ export default function Dashboard() {
         <div className="lg:col-span-2">
           <Card className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-semibold text-govblue-800 text-base">{t("recentTitle")}</h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">{lang === "th" ? "งานสำรวจที่กำลังดำเนินการ" : "Active survey tasks"}</p>
-              </div>
-              <button className="text-xs text-govblue-600 hover:underline inline-flex items-center gap-1 font-medium">
-                {t("viewAll")} <ArrowRight size={12} />
+              <h3 className="font-semibold text-govblue-800 text-base">{t("recentTitle")}</h3>
+              <button aria-label={t("viewAll")} className="text-govblue-600 hover:text-govblue-800 p-1">
+                <ArrowRight size={14} />
               </button>
             </div>
             <div className="space-y-3">
@@ -245,8 +243,8 @@ export default function Dashboard() {
           <Card className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-govblue-800 text-base">{t("newsTitle")}</h3>
-              <button className="text-xs text-govblue-600 hover:underline font-medium">
-                <ArrowRight size={12} />
+              <button aria-label={t("viewAll")} className="text-govblue-600 hover:text-govblue-800 p-1">
+                <ArrowRight size={14} />
               </button>
             </div>
             <div className="space-y-3">
@@ -256,9 +254,7 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <Tag tone={n.tone}>{n.tag}</Tag>
                     <div className="text-sm text-gray-800 mt-1.5 leading-snug">{n.title}</div>
-                    <div className="text-[11px] text-gray-500 mt-1 inline-flex items-center gap-1">
-                      <Clock size={10} /> {n.date}
-                    </div>
+                    <div className="text-[11px] text-gray-500 mt-1">{n.date}</div>
                   </div>
                 </div>
               ))}
@@ -270,14 +266,9 @@ export default function Dashboard() {
       {/* Upcoming */}
       <Card className="p-4 sm:p-5">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-govblue-800 text-base">{t("upcomingTitle")}</h3>
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">
-              <Bell size={10} /> 3
-            </span>
-          </div>
-          <button className="text-xs text-govblue-600 hover:underline font-medium">
-            {t("viewAll")}
+          <h3 className="font-semibold text-govblue-800 text-base">{t("upcomingTitle")}</h3>
+          <button aria-label={t("viewAll")} className="text-govblue-600 hover:text-govblue-800 p-1">
+            <ArrowRight size={14} />
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">

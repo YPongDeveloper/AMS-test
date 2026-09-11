@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
-import { Languages, Building2, ChevronRight } from "lucide-react";
+import { Languages, ChevronRight } from "lucide-react";
 
 export default function LoginPage() {
   const { t, lang, setLang } = useI18n();
@@ -26,17 +26,12 @@ export default function LoginPage() {
           <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center text-govgold-400 font-bold text-2xl shadow-lg ring-4 ring-white">
             รฟ
           </div>
-          <div className="text-xs tracking-wider text-gray-500 mt-3 uppercase">{t("orgSub")}</div>
-          <div className="text-xl font-bold text-govblue-800 mt-1">{t("orgName")}</div>
-          <div className="text-sm text-govblue-500 mt-1">{t("appTitle")}</div>
+          <div className="text-xl font-bold text-govblue-800 mt-4">{t("orgName")}</div>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
-          <div className="mb-5">
-            <h1 className="text-lg font-semibold text-govblue-800">{t("loginTitle")}</h1>
-            <p className="text-xs text-gray-500 mt-1">{t("loginSub")}</p>
-          </div>
+          <h1 className="text-lg font-semibold text-govblue-800 mb-5">{t("loginTitle")}</h1>
 
           <form
             onSubmit={(e) => {
@@ -72,13 +67,7 @@ export default function LoginPage() {
             >
               {t("loginSignIn")} <ChevronRight size={16} />
             </button>
-
-            <p className="text-[11px] text-center text-gray-500 pt-1">{t("loginHint")}</p>
           </form>
-        </div>
-
-        <div className="text-center mt-6 text-[11px] text-gray-400">
-          © 2569 {t("orgName")} — v0.1 (Mockup)
         </div>
       </div>
     </div>
