@@ -36,10 +36,10 @@ export function StatCard({
     amber: "from-amber-600 to-orange-600",
   };
   return (
-    <div className={`rounded-md p-4 text-white shadow bg-gradient-to-br ${tones[tone]}`}>
-      <div className="text-[11px] uppercase tracking-wider opacity-80">{label}</div>
-      <div className="text-2xl font-bold leading-tight mt-1">{value}</div>
-      {hint && <div className="text-[11px] opacity-80 mt-1">{hint}</div>}
+    <div className={`rounded-md p-3 sm:p-4 text-white shadow bg-gradient-to-br ${tones[tone]}`}>
+      <div className="text-[10px] sm:text-[11px] uppercase tracking-wider opacity-80 leading-tight">{label}</div>
+      <div className="text-lg sm:text-2xl font-bold leading-tight mt-1 break-words">{value}</div>
+      {hint && <div className="text-[10px] sm:text-[11px] opacity-80 mt-0.5 sm:mt-1 leading-tight">{hint}</div>}
     </div>
   );
 }
