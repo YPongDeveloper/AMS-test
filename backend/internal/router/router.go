@@ -49,5 +49,5 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	mux.Handle("GET /api/dashboard", middleware.Auth(deps.Secret)(http.HandlerFunc(dashH.Get)))
 	mux.HandleFunc("GET /ws", wsH.Serve)
 
-	return middleware.CORS(deps.AllowedOrigins, mux)
+	return middleware.RequestLogging(middleware.CORS(deps.AllowedOrigins, mux))
 }
