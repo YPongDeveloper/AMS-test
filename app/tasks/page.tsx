@@ -80,16 +80,16 @@ export default function TasksPage() {
   async function setStatus(t: Task, status: TaskStatus) {
     setErr("");
     try {
-      await api<Task>(`/api/tasks/${t.id}/status`, { method: "PATCH", json: { status } });
+      await api<Task>(`/api/tasks/${t.public_id}/status`, { method: "PATCH", json: { status } });
       loadTasks();
     } catch (e) {
       setErr((e as Error).message);
     }
   }
 
-  async function changeRole(u: AppUser, role: string) {
+  async function changeRole(publicId: string, role: string) {
     try {
-      await api(`/api/users/${u.id}/role`, { method: "PATCH", json: { role } });
+      await api(`/api/users/${publicId}/role`, { method: "PATCH", json: { role } });
       loadUsers();
     } catch (e) {
       alert((e as Error).message);
@@ -190,9 +190,9 @@ export default function TasksPage() {
         )}
         {tasks.map((task) => {
           const next = NEXT_STATUS[task.status];
-          const mine = task.assigned_to === me.id;
+          const mine = task.assignee_public_id === me.public_id;
           return (
-            <div key={task.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div key={task.public_id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-[11px] font-mono text-gray-500">{task.code}</span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[task.status]}`}>
@@ -265,7 +265,7 @@ export default function TasksPage() {
           </h2>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
             {users.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+              <div key={u.public_id} className="flex items-center gap-3 px-4 py-3">
                 {u.picture_url ? (
                   <img src={u.picture_url} alt="" className="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200" />
                 ) : (
@@ -275,11 +275,10 @@ export default function TasksPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-gray-800 truncate">{u.display_name}</div>
-                  <div className="text-[11px] text-gray-400">ID {u.id}</div>
                 </div>
                 <select
                   value={u.role}
-                  onChange={(e) => changeRole(u, e.target.value)}
+                  onChange={(e) => changeRole(u.public_id, e.target.value)}
                   className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-govblue-500/20"
                 >
                   <option value="subordinate">{t("ลูกน้อง", "Subordinate")}</option>

@@ -2,7 +2,7 @@
 
 // useMe — bootstrap ตัวตนผู้ใช้กับ backend (LINE ID Token → /api/auth/line)
 import { useCallback, useEffect, useState } from "react";
-import { api, API_CONFIGURED, clearToken, getToken, loginWithLineIdToken, type AppUser } from "./api";
+import { api, API_CONFIGURED, clearTokens, getAccessToken, loginWithLineIdToken, type AppUser } from "./api";
 import { getLineIdToken, loginWithLiff } from "./liff";
 
 export function useMe() {
@@ -19,7 +19,7 @@ export function useMe() {
     let cancelled = false;
     (async () => {
       // 1) token เดิมยังใช้ได้ไหม
-      if (getToken()) {
+      if (getAccessToken()) {
         try {
           const u = await api<AppUser>("/api/me");
           if (!cancelled) {
@@ -28,14 +28,14 @@ export function useMe() {
           }
           return;
         } catch {
-          clearToken();
+          clearTokens();
         }
       }
       // 2) แลกจาก LINE ID Token (กรณีเปิดใน LIFF / login LINE ไว้แล้ว)
       const idToken = await getLineIdToken();
       if (idToken) {
         try {
-          const { user } = await loginWithLineIdToken(idToken);
+          const user = await loginWithLineIdToken(idToken);
           if (!cancelled) {
             setMe(user);
             setLoading(false);
@@ -63,7 +63,7 @@ export function useMe() {
       return;
     }
     try {
-      const { user } = await loginWithLineIdToken(idToken);
+      const user = await loginWithLineIdToken(idToken);
       setMe(user);
       setNeedLogin(false);
     } catch {

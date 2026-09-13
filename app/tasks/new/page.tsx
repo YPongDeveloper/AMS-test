@@ -18,7 +18,7 @@ export default function NewTaskPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [title, setTitle] = useState("");
   const [taskType, setTaskType] = useState("survey");
-  const [assignee, setAssignee] = useState<number | null>(null);
+  const [assignee, setAssignee] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [dueLocal, setDueLocal] = useState("");
   const [lat, setLat] = useState<number | null>(null);
@@ -32,7 +32,7 @@ export default function NewTaskPage() {
       api<AppUser[]>("/api/users?role=subordinate")
         .then((us) => {
           setUsers(us);
-          if (us.length > 0) setAssignee(us[0].id);
+          if (us.length > 0) setAssignee(us[0].public_id);
         })
         .catch(() => {});
     }
@@ -86,7 +86,7 @@ export default function NewTaskPage() {
           title: title.trim(),
           task_type: taskType,
           description: description.trim(),
-          assigned_to: assignee,
+          assignee_public_id: assignee,
           due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
           lat,
           lng,
@@ -138,10 +138,10 @@ export default function NewTaskPage() {
           </div>
           <div>
             <label className={labelCls}>{t("ผู้รับงาน (ลูกน้องในสังกัด) *", "Assignee *")}</label>
-            <select className={inputCls} value={assignee ?? ""} onChange={(e) => setAssignee(Number(e.target.value))}>
+            <select className={inputCls} value={assignee ?? ""} onChange={(e) => setAssignee(e.target.value || null)}>
               {users.length === 0 && <option value="">{t("— ยังไม่มีลูกน้องในระบบ —", "— no subordinates yet —")}</option>}
               {users.map((u) => (
-                <option key={u.id} value={u.id}>
+                <option key={u.public_id} value={u.public_id}>
                   {u.display_name}
                 </option>
               ))}

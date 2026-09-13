@@ -70,16 +70,38 @@
 
 ## API สรุป (สำหรับอ้างอิง/ทดสอบ)
 
+ทุก response เป็น envelope เดียวกัน: `{"status": <http code>, "message": "<ข้อความ>", "data": <object|null>}`
+
+**ระบบ token:** login ได้ **access token (อายุ 15 นาที) + refresh token (อายุ 30 วัน)** — เมื่อ access token หมดอายุ frontend เรียก `/api/auth/refresh` ต่ออายุอัตโนมัติ (refresh token rotate ทุกครั้ง) ทุก API ที่ต้องรู้ตัวตน ให้ส่ง `Authorization: Bearer <access_token>` แล้ว server ดึง uid/role จาก token เสมอ **ระบบไม่ expose id ตัวเลข** — ทุก entity ใช้ `public_id` (UUID) ใน API
+
 | Method | Path | ใครใช้ได้ | คำอธิบาย |
 |---|---|---|---|
-| POST | `/api/auth/line` | ทุกคน | body `{id_token}` จาก LIFF → ได้ JWT + user |
-| GET | `/api/me` | login | ข้อมูลตัวเอง |
+| POST | `/api/auth/line` | ทุกคน | body `{id_token}` จาก LIFF → data: `{user, token:{access_token, refresh_token}}` |
+| POST | `/api/auth/refresh` | ทุกคน | body `{refresh_token}` → คู่ token ใหม่ (rotate) |
+| POST | `/api/auth/logout` | ทุกคน | body `{refresh_token}` → revoke |
+| GET | `/api/me` | login | โปรไฟล์ตัวเอง (จาก token) |
 | GET | `/api/users` | หัวหน้า | รายชื่อสมาชิก (`?role=subordinate`) |
-| PATCH | `/api/users/{id}/role` | หัวหน้า | `{role: "supervisor"\|"subordinate"}` |
+| PATCH | `/api/users/{public_id}/role` | หัวหน้า | `{role: "supervisor"\|"subordinate"}` |
 | GET | `/api/tasks` | login | ลูกน้อง=งานตัวเอง, หัวหน้า=ทั้งหมด (`?status=`) |
-| POST | `/api/tasks` | หัวหน้า | สั่งงาน → WS + LINE push |
-| PATCH | `/api/tasks/{id}/status` | ผู้รับ/หัวหน้า | เปลี่ยนสถานะงาน |
-| GET | `/ws?token=` | login | WebSocket realtime (`task.new`, `task.update`) |
+| POST | `/api/tasks` | หัวหน้า | body มี `assignee_public_id` → WS + LINE push |
+| PATCH | `/api/tasks/{public_id}/status` | ผู้รับ/หัวหน้า | เปลี่ยนสถานะงาน |
+| GET | `/ws?token=<access_token>` | login | WebSocket realtime (`task.new`, `task.update`) |
+
+## โครงสร้างโค้ด backend (มาตรฐาน router → handler → service → repository)
+
+```
+backend/
+├── cmd/server/main.go          # entry point — wire ทุกชั้นเข้าด้วยกัน
+└── internal/
+    ├── config/                 # อ่าน env
+    ├── model/                  # domain structs (User, Task, Role, Status)
+    ├── repository/             # SQL ล้วน (user, task, refresh_token + migrate)
+    ├── service/                # business logic (auth/JWT, users, tasks, LINE push)
+    ├── handler/                # HTTP + response envelope
+    ├── middleware/             # Auth(Bearer), RequireRole, CORS
+    ├── router/                 # ประกาศ routes
+    └── ws/                     # WebSocket hub + handler
+```
 
 ## แก้ปัญหาเจอบ่อย
 
