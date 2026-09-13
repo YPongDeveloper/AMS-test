@@ -58,6 +58,19 @@ export async function loginWithLiff(): Promise<boolean> {
   }
 }
 
+/** ดึง LINE ID Token (สำหรับยืนยันตัวตนกับ backend) — คืน null ถ้ายังไม่ login */
+export async function getLineIdToken(): Promise<string | null> {
+  if (!LIFF_ID || typeof window === "undefined") return null;
+  try {
+    const liff = (await import("@line/liff")).default;
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) return null;
+    return liff.getIDToken();
+  } catch {
+    return null;
+  }
+}
+
 export function getStoredLineProfile(): LineProfile | null {
   if (typeof window === "undefined") return null;
   try {

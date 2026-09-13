@@ -15,6 +15,7 @@ const dict: Record<string, { th: string; en: string }> = {
   navBuilding: { th: "สำรวจอาคาร", en: "Building Survey" },
   navMap: { th: "แผนที่ทรัพย์สิน", en: "Asset Map" },
   navTax: { th: "คำนวณภาษี", en: "Tax Calculation" },
+  navTasks: { th: "งานสั่งงาน", en: "Task Orders" },
   navLogout: { th: "ออกจากระบบ", en: "Sign out" },
   // Login
   loginTitle: { th: "เข้าสู่ระบบ", en: "Sign in" },
