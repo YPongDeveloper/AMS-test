@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { Languages, ChevronRight } from "lucide-react";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const { t, lang, setLang } = useI18n();
@@ -23,8 +24,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo header */}
         <div className="text-center mb-6">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center text-govgold-400 font-bold text-2xl shadow-lg ring-4 ring-white">
-            รฟ
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center shadow-lg ring-4 ring-white">
+            <Logo className="w-10 h-10 text-white" />
           </div>
           <div className="text-xl font-bold text-govblue-800 mt-4">{t("orgName")}</div>
         </div>

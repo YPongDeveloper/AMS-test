@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { Wifi, WifiOff, Languages, Search, Bell, User } from "lucide-react";
 import { useEffect, useState } from "react";
+import Logo from "./Logo";
 
 export function Topbar() {
   const { t, lang, setLang } = useI18n();
@@ -57,8 +58,8 @@ export function Topbar() {
       {/* Row 2: logo + search + user */}
       <div className="mx-auto max-w-7xl px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
         <Link href="/dashboard" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center font-bold text-govgold-400 text-base sm:text-lg shadow-sm">
-            รฟ
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center shadow-sm">
+            <Logo className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
           </div>
           <div className="min-w-0 hidden sm:block">
             <div className="text-sm sm:text-base font-semibold text-govblue-800 leading-tight truncate">

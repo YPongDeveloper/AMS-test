@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Download, Share, X, Smartphone, Check } from "lucide-react";
+import Logo from "./Logo";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -59,8 +60,8 @@ export function InstallPWA() {
         <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 max-w-sm animate-in">
           <div className="bg-white border border-gray-200 rounded-lg shadow-2xl p-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center text-govgold-400 font-bold text-sm flex-shrink-0">
-                รฟ
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center flex-shrink-0">
+                <Logo className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-govblue-700 text-sm">ติดตั้งเป็นแอป PWA</div>
