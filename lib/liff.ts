@@ -12,26 +12,49 @@ export function liffConfigured(): boolean {
 }
 
 /**
- * Init LIFF และคืนโปรไฟล์ผู้ใช้ LINE (ถ้ามี)
- * - ยังไม่ตั้ง NEXT_PUBLIC_LIFF_ID → คืน null (ใช้โหมดสาธิตเดิม)
- * - ยังไม่ login → เรียก liff.login() ซึ่งจะ redirect ไปหน้า auth ของ LINE
- * - init ล้มเหลว (เช่นเปิดนอก LINE แล้ว config ผิด) → คืน null แล้วใช้โหมดสาธิตต่อ
+ * Init LIFF และคืนสถานะ login
+ * - ยังไม่ตั้ง NEXT_PUBLIC_LIFF_ID → คืน null (เว็บใช้โหมดสาธิต กดเข้าได้เลย)
+ * - เปิดในแอป LINE (LIFF) และยังไม่ login → redirect เข้า LINE อัตโนมัติ
+ * - เปิดผ่านเว็บทั่วไป → ไม่บังคับ login LINE ใช้เว็บแบบเดิมได้ทันที
+ *   (จะ login ด้วย LINE เมื่อกดปุ่ม ใช้ loginWithLiff())
  */
-export async function initLiff(): Promise<LineProfile | null> {
+export async function initLiff(): Promise<{
+  profile: LineProfile | null;
+  inClient: boolean;
+} | null> {
   if (!LIFF_ID || typeof window === "undefined") return null;
   try {
     const liff = (await import("@line/liff")).default;
-    await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true });
+    await liff.init({ liffId: LIFF_ID });
+    const inClient = liff.isInClient();
     if (!liff.isLoggedIn()) {
-      liff.login(); // redirect ไป LINE OAuth แล้วกลับมาที่หน้านี้อีกครั้ง
-      return null;
+      if (inClient) liff.login(); // ใน LINE: ดึงตัวตนอัตโนมัติ
+      return { profile: null, inClient };
     }
     const profile = (await liff.getProfile()) as LineProfile;
     localStorage.setItem("lineProfile", JSON.stringify(profile));
-    return profile;
+    return { profile, inClient };
   } catch (e) {
     console.warn("LIFF init failed, fallback to demo login:", e);
     return null;
+  }
+}
+
+/** กดปุ่ม "เข้าสู่ระบบด้วย LINE" (ทำงานได้ทั้งในและนอกแอป LINE) */
+export async function loginWithLiff(): Promise<boolean> {
+  if (!LIFF_ID || typeof window === "undefined") return false;
+  try {
+    const liff = (await import("@line/liff")).default;
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return true; // กำลัง redirect ไปหน้า auth ของ LINE
+    }
+    const profile = (await liff.getProfile()) as LineProfile;
+    localStorage.setItem("lineProfile", JSON.stringify(profile));
+    return true;
+  } catch (e) {
+    console.warn("LIFF login failed:", e);
+    return false;
   }
 }
 
