@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { Languages, ChevronRight } from "lucide-react";
-import { initLiff, liffConfigured } from "@/lib/liff";
+import { initLiff, liffConfigured, loginWithLiff } from "@/lib/liff";
 import Logo from "@/components/Logo";
 
 export default function LoginPage() {
@@ -16,9 +16,9 @@ export default function LoginPage() {
   useEffect(() => {
     if (!liffConfigured()) return;
     let cancelled = false;
-    initLiff().then((profile) => {
+    initLiff().then((res) => {
       if (cancelled) return;
-      if (profile) {
+      if (res?.profile) {
         router.replace("/dashboard");
       } else {
         setLineChecking(false);
@@ -96,7 +96,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => {
                 setLineChecking(true);
-                initLiff();
+                loginWithLiff();
               }}
               disabled={lineChecking}
               className="w-full mt-4 bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-2 shadow-sm hover:shadow transition disabled:opacity-60"
