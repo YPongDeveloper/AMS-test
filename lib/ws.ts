@@ -1,5 +1,5 @@
-// WebSocket client — เชื่อมหลังบ้านแบบ realtime (reconnect อัตโนมัติ)
-import { wsUrl, type Task } from "./api";
+// WebSocket client — เชื่อมหลังบ้านแบบ realtime (reconnect อัตโนมัติ + ต่ออายุ token ก่อนเชื่อม)
+import { ensureFreshAccessToken, wsUrl, type Task } from "./api";
 
 export interface WSEvent {
   type: "task.new" | "task.update";
@@ -7,16 +7,23 @@ export interface WSEvent {
 }
 
 export function connectTaskWS(onEvent: (e: WSEvent) => void, onStatus?: (connected: boolean) => void): () => void {
-  const url = wsUrl();
-  if (!url) return () => {};
+  if (!wsUrl()) return () => {};
 
   let ws: WebSocket | null = null;
   let closed = false;
   let retryMs = 2000;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const connect = () => {
+  const connect = async () => {
     if (closed) return;
+    // ต่ออายุ access token ก่อนทุกครั้ง (กัน token หมดอายุ → 401 วนลูป)
+    try {
+      await ensureFreshAccessToken();
+    } catch {
+      /* ต่ออายุไม่ได้ก็ลองเชื่อมด้วยของเดิม */
+    }
+    const url = wsUrl();
+    if (!url) return;
     try {
       ws = new WebSocket(url);
     } catch {

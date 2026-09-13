@@ -45,6 +45,7 @@ export class ApiError extends Error {
   }
 }
 
+const ISSUED_KEY = "ams_token_issued";
 const ACCESS_KEY = "ams_access_token";
 const REFRESH_KEY = "ams_refresh_token";
 
@@ -61,11 +62,13 @@ export function getRefreshToken(): string | null {
 function saveTokens(access: string, refresh: string) {
   window.localStorage.setItem(ACCESS_KEY, access);
   window.localStorage.setItem(REFRESH_KEY, refresh);
+  window.localStorage.setItem(ISSUED_KEY, String(Date.now()));
 }
 
 export function clearTokens() {
   window.localStorage.removeItem(ACCESS_KEY);
   window.localStorage.removeItem(REFRESH_KEY);
+  window.localStorage.removeItem(ISSUED_KEY);
   window.localStorage.removeItem(USER_KEY);
 }
 
@@ -196,6 +199,16 @@ export async function logout() {
 export function wsUrl(): string | null {
   if (!API_CONFIGURED) return null;
   return API_URL.replace(/^http/, "ws") + "/ws?token=" + encodeURIComponent(getAccessToken() || "");
+}
+
+// ensureFreshAccessToken — access token อายุ 15 นาที; ถ้าใกล้หมดอายุ (>=13 นาที) ให้ต่ออายุก่อน
+// (ใช้ก่อนเชื่อม WebSocket เพื่อไม่ให้โดน 401 วนลูป)
+export async function ensureFreshAccessToken(): Promise<void> {
+  if (!API_CONFIGURED || !getRefreshToken()) return;
+  const issued = Number(window.localStorage.getItem(ISSUED_KEY) || 0);
+  const ageMin = (Date.now() - issued) / 60000;
+  if (issued > 0 && ageMin < 13 && getAccessToken()) return;
+  await refreshTokens();
 }
 
 // ---- labels ----

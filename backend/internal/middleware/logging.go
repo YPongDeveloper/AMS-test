@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bufio"
+	"errors"
 	"log"
+	"net"
 	"net/http"
 	"time"
 )
@@ -16,11 +19,28 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
+// Hijack — passthrough ให้ WebSocket upgrade ทำงานได้ (gorilla ต้องการ http.Hijacker)
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("response writer does not support hijacking")
+	}
+	return h.Hijack()
+}
+
+// Flush — passthrough สำหรับ streaming responses
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // RequestLogging — log ทุก request (method, path, status, duration) เพื่อวินิจฉัยปัญหา
+// (/ws ไม่ log เพราะ connection ยาว + upgrade พิเศษ)
 func RequestLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
-			next.ServeHTTP(w, r) // ไม่ log health probe ที่ถี่ ๆ
+		if r.URL.Path == "/health" || r.URL.Path == "/ws" {
+			next.ServeHTTP(w, r)
 			return
 		}
 		start := time.Now()
