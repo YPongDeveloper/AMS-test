@@ -83,9 +83,10 @@ func seedDashboard(ctx context.Context, pool *pgxpool.Pool) {
 		},
 	}
 	b, _ := json.Marshal(dashboard)
+	// ส่งเป็น string เข้าคอลัมน์ JSONB (ส่ง []byte จะถูก encode เป็น bytea แล้ว error)
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO dashboard_content (key, data) VALUES ('dashboard', $1) ON CONFLICT (key) DO NOTHING`,
-		b); err != nil {
+		string(b)); err != nil {
 		log.Println("seed dashboard:", err)
 		return
 	}

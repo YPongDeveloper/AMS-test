@@ -20,7 +20,8 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-const userCols = `id, public_id, line_user_id, username, password_hash, display_name, picture_url, role, created_at`
+// COALESCE line_user_id — บัญชี username/password ไม่มี LINE (NULL) ต้อง scan เป็น string ได้
+const userCols = `id, public_id, COALESCE(line_user_id,'') AS line_user_id, username, password_hash, display_name, picture_url, role, created_at`
 
 func scanUser(row pgx.Row) (*model.User, error) {
 	var u model.User
