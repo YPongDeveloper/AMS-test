@@ -1,4 +1,6 @@
 // API client สำหรับระบบสั่งงาน — ตั้งค่า NEXT_PUBLIC_API_URL เพื่อเปิดใช้งาน
+// Response envelope: { status, message, data } — api() คืน data เสมอ
+// Token: JWT access (15 นาที) + refresh (30 วัน) — ต่ออายุอัตโนมัติเมื่อโดน 401
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 export const API_CONFIGURED = API_URL.length > 0;
@@ -6,8 +8,7 @@ export const API_CONFIGURED = API_URL.length > 0;
 export type Role = "supervisor" | "subordinate";
 
 export interface AppUser {
-  id: number;
-  line_user_id: string;
+  public_id: string;
   display_name: string;
   picture_url: string | null;
   role: Role;
@@ -17,15 +18,15 @@ export interface AppUser {
 export type TaskStatus = "pending" | "accepted" | "in_progress" | "done" | "cancelled";
 
 export interface Task {
-  id: number;
+  public_id: string;
   code: string | null;
   title: string;
   task_type: "survey" | "inspect" | "other";
   description: string;
   status: TaskStatus;
-  assigned_to: number;
+  assignee_public_id: string;
   assignee_name: string;
-  assigned_by: number;
+  assigner_public_id: string;
   assigner_name: string;
   due_at: string | null;
   lat: number | null;
@@ -43,51 +44,126 @@ export class ApiError extends Error {
   }
 }
 
-const TOKEN_KEY = "ams_api_token";
+const ACCESS_KEY = "ams_access_token";
+const REFRESH_KEY = "ams_refresh_token";
 
-export function getToken(): string | null {
+export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.localStorage.getItem(ACCESS_KEY);
 }
 
-export function setToken(t: string) {
-  window.localStorage.setItem(TOKEN_KEY, t);
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_KEY);
 }
 
-export function clearToken() {
-  window.localStorage.removeItem(TOKEN_KEY);
+function saveTokens(access: string, refresh: string) {
+  window.localStorage.setItem(ACCESS_KEY, access);
+  window.localStorage.setItem(REFRESH_KEY, refresh);
+}
+
+export function clearTokens() {
+  window.localStorage.removeItem(ACCESS_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
+}
+
+interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+interface Envelope<T> {
+  status: number;
+  message: string;
+  data: T | null;
+}
+
+let refreshing: Promise<boolean> | null = null;
+
+// ต่ออายุ access token ด้วย refresh token (single-flight)
+async function refreshTokens(): Promise<boolean> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const rt = getRefreshToken();
+    if (!rt) return false;
+    try {
+      const res = await fetch(API_URL + "/api/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+      if (!res.ok) return false;
+      const env = (await res.json()) as Envelope<{ token: TokenPair; user: AppUser }>;
+      if (!env.data?.token) return false;
+      saveTokens(env.data.token.access_token, env.data.token.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
 }
 
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   if (!API_CONFIGURED) throw new ApiError("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_API_URL", 0);
-  const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  let body = init?.body;
-  if (init && "json" in init && init.json !== undefined) {
-    headers["Content-Type"] = "application/json";
-    body = JSON.stringify(init.json);
+
+  const doFetch = async (): Promise<Response> => {
+    const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    let body = init?.body;
+    if (init && "json" in init && init.json !== undefined) {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(init.json);
+    }
+    return fetch(API_URL + path, { ...init, headers, body });
+  };
+
+  let res = await doFetch();
+
+  // access token หมดอายุ → ต่ออายุแล้วลองอีกครั้งเดียว
+  if (res.status === 401 && getRefreshToken()) {
+    const ok = await refreshTokens();
+    if (ok) res = await doFetch();
   }
-  const res = await fetch(API_URL + path, { ...init, headers, body });
-  if (res.status === 401) clearToken();
-  const data = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError((data as { error?: string })?.error || `HTTP ${res.status}`, res.status);
-  return data as T;
+  if (res.status === 401) clearTokens();
+
+  const env = (await res.json().catch(() => null)) as Envelope<T> | null;
+  if (!res.ok) {
+    throw new ApiError(env?.message || `HTTP ${res.status}`, res.status);
+  }
+  return env?.data as T;
 }
 
-// แลก LINE ID Token (จาก LIFF) เป็นบัญชี + token ของระบบ
-export async function loginWithLineIdToken(idToken: string): Promise<{ token: string; user: AppUser }> {
-  const data = await api<{ token: string; user: AppUser }>("/api/auth/line", {
+// แลก LINE ID Token (จาก LIFF) เป็นบัญชี + token pair
+export async function loginWithLineIdToken(idToken: string): Promise<AppUser> {
+  const data = await api<{ user: AppUser; token: TokenPair }>("/api/auth/line", {
     method: "POST",
     json: { id_token: idToken },
   });
-  setToken(data.token);
-  return data;
+  if (data?.token) saveTokens(data.token.access_token, data.token.refresh_token);
+  return data.user;
+}
+
+export async function logout() {
+  const rt = getRefreshToken();
+  if (rt && API_CONFIGURED) {
+    try {
+      await api("/api/auth/logout", { method: "POST", json: { refresh_token: rt } });
+    } catch {
+      /* ignore */
+    }
+  }
+  clearTokens();
 }
 
 export function wsUrl(): string | null {
   if (!API_CONFIGURED) return null;
-  return API_URL.replace(/^http/, "ws") + "/ws?token=" + encodeURIComponent(getToken() || "");
+  return API_URL.replace(/^http/, "ws") + "/ws?token=" + encodeURIComponent(getAccessToken() || "");
 }
 
 // ---- labels ----

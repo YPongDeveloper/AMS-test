@@ -4,7 +4,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /ams-backend .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /ams-backend ./cmd/server
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /ams-backend /ams-backend
