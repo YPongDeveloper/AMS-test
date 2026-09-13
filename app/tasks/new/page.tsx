@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { api, TYPE_LABEL, type AppUser } from "@/lib/api";
 import { useMe } from "@/lib/useMe";
+import { Page } from "@/components/Page";
 import MapPicker from "@/components/MapPicker";
 import { ClipboardList } from "lucide-react";
 
@@ -13,7 +14,7 @@ export default function NewTaskPage() {
   const th = lang === "th";
   const t = (thTxt: string, enTxt: string) => (th ? thTxt : enTxt);
   const router = useRouter();
-  const { me, loading, needLogin, authing, signInWithLine } = useMe();
+  const { me, loading, needLogin, serverDown, authing, signInWithLine, retry } = useMe();
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [title, setTitle] = useState("");
@@ -38,83 +39,57 @@ export default function NewTaskPage() {
     }
   }, [me]);
 
-  if (!loading && needLogin) {
-    return (
-      <main className="max-w-md mx-auto px-4 py-16 text-center">
-        <ClipboardList size={40} className="mx-auto text-govblue-600" />
-        <p className="text-sm text-gray-600 mt-4">{t("เข้าสู่ระบบด้วย LINE เพื่อสั่งงาน", "Sign in with LINE to assign tasks")}</p>
-        <button
-          onClick={signInWithLine}
-          disabled={authing}
-          className="mt-4 w-full bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg transition disabled:opacity-60"
-        >
-          {t("เข้าสู่ระบบด้วย LINE", "Sign in with LINE")}
-        </button>
-      </main>
-    );
-  }
-
-  if (loading || !me) {
-    return <main className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-400 animate-pulse">...</main>;
-  }
-
-  if (me.role !== "supervisor") {
-    return (
-      <main className="max-w-md mx-auto px-4 py-16 text-center">
-        <p className="text-sm text-gray-600">
-          {t("เฉพาะหัวหน้างานเท่านั้นที่สั่งงานได้", "Only supervisors can assign tasks")}
-        </p>
-      </main>
-    );
-  }
-
-  async function submit() {
-    setErr("");
-    if (!title.trim()) {
-      setErr(t("กรุณากรอกชื่องาน", "Task title is required"));
-      return;
-    }
-    if (!assignee) {
-      setErr(t("กรุณาเลือกผู้รับงาน", "Select an assignee"));
-      return;
-    }
-    setSaving(true);
-    try {
-      await api("/api/tasks", {
-        method: "POST",
-        json: {
-          title: title.trim(),
-          task_type: taskType,
-          description: description.trim(),
-          assignee_public_id: assignee,
-          due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
-          lat,
-          lng,
-          place_name: placeName.trim() || null,
-        },
-      });
-      router.push("/tasks");
-    } catch (e) {
-      setErr((e as Error).message);
-      setSaving(false);
-    }
-  }
-
   const inputCls =
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";
   const labelCls = "text-xs font-medium text-gray-700 mb-1.5 block";
 
-  return (
-    <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
-      <h1 className="text-xl sm:text-2xl font-bold text-govblue-800 mb-1">{t("สั่งงานใหม่", "New task")}</h1>
-      <p className="text-xs text-gray-500 mb-5">
-        {t(
-          "เมื่อกดสั่งงาน ระบบจะแจ้งเตือนลูกน้องทันทีทั้ง Realtime บนหน้าเว็บและข้อความ LINE",
-          "On submit, the assignee gets an instant realtime alert on the web plus a LINE message",
-        )}
-      </p>
+  const body = () => {
+    if (!loading && needLogin && !me) {
+      return (
+        <div className="py-16 text-center max-w-md mx-auto">
+          <ClipboardList size={40} className="mx-auto text-govblue-600" />
+          <p className="text-sm text-gray-600 mt-4">
+            {t("เข้าสู่ระบบด้วย LINE เพื่อสั่งงาน", "Sign in with LINE to assign tasks")}
+          </p>
+          <button
+            onClick={signInWithLine}
+            disabled={authing}
+            className="mt-4 w-full bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg transition disabled:opacity-60"
+          >
+            {t("เข้าสู่ระบบด้วย LINE", "Sign in with LINE")}
+          </button>
+        </div>
+      );
+    }
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 space-y-4">
+    if (!loading && serverDown && !me) {
+      return (
+        <div className="py-16 text-center max-w-md mx-auto">
+          <p className="text-sm text-gray-600">{t("เซิร์ฟเวอร์กำลังเริ่มทำงาน ลองใหม่อีกครั้ง", "Server is waking up — retry")}</p>
+          <button
+            onClick={retry}
+            className="mt-4 w-full bg-govblue-700 hover:bg-govblue-600 text-white font-medium py-2.5 rounded-lg transition"
+          >
+            {t("ลองเชื่อมต่อใหม่", "Retry connection")}
+          </button>
+        </div>
+      );
+    }
+
+    if (loading || !me) {
+      return <div className="py-16 text-center text-gray-400 animate-pulse">...</div>;
+    }
+
+    if (me.role !== "supervisor") {
+      return (
+        <div className="py-16 text-center">
+          <p className="text-sm text-gray-600">{t("เฉพาะหัวหน้างานเท่านั้นที่สั่งงานได้", "Only supervisors can assign tasks")}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-6 space-y-4">
         <div>
           <label className={labelCls}>{t("ชื่องาน *", "Title *")}</label>
           <input
@@ -193,6 +168,53 @@ export default function NewTaskPage() {
           </button>
         </div>
       </div>
-    </main>
+    );
+  };
+
+  async function submit() {
+    setErr("");
+    if (!title.trim()) {
+      setErr(t("กรุณากรอกชื่องาน", "Task title is required"));
+      return;
+    }
+    if (!assignee) {
+      setErr(t("กรุณาเลือกผู้รับงาน", "Select an assignee"));
+      return;
+    }
+    setSaving(true);
+    try {
+      await api("/api/tasks", {
+        method: "POST",
+        json: {
+          title: title.trim(),
+          task_type: taskType,
+          description: description.trim(),
+          assignee_public_id: assignee,
+          due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
+          lat,
+          lng,
+          place_name: placeName.trim() || null,
+        },
+      });
+      router.push("/tasks");
+    } catch (e) {
+      setErr((e as Error).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Page>
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-xl sm:text-2xl font-bold text-govblue-800 mb-1">{t("สั่งงานใหม่", "New task")}</h1>
+        <p className="text-xs text-gray-500 mb-5">
+          {t(
+            "เมื่อกดสั่งงาน ระบบจะแจ้งเตือนลูกน้องทันทีทั้ง Realtime บนหน้าเว็บและข้อความ LINE",
+            "On submit, the assignee gets an instant realtime alert on the web plus a LINE message",
+          )}
+        </p>
+        {body()}
+      </div>
+    </Page>
   );
 }
