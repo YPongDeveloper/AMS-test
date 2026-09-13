@@ -27,18 +27,26 @@ func (s *UserService) List(ctx context.Context, role *string) ([]model.User, err
 	return s.users.List(ctx, role)
 }
 
-// ChangeRole — หัวหน้าเปลี่ยนบทบาทสมาชิก (target ระบุด้วย public_id เสมอ)
+// ChangeRole — admin/supervisor เปลี่ยนบทบาทสมาชิก (target ระบุด้วย public_id เสมอ)
+// - admin ตั้งได้ทุก role (รวม admin)
+// - supervisor ตั้งได้เฉพาะ supervisor/subordinate
 func (s *UserService) ChangeRole(ctx context.Context, actor *Claims, targetPublicID string, role model.Role) error {
 	target, err := s.users.FindByPublicID(ctx, targetPublicID)
 	if err != nil {
 		return ErrBadRequest
 	}
-	if role != model.RoleSupervisor && role != model.RoleSubordinate {
+	valid := map[model.Role]bool{
+		model.RoleAdmin:       actor.Role == string(model.RoleAdmin),
+		model.RoleSupervisor:  true,
+		model.RoleSubordinate: true,
+	}
+	if !valid[role] {
 		return ErrBadRequest
 	}
-	if target.ID == actor.UserID && role != model.RoleSupervisor {
+	if target.ID == actor.UserID && string(role) != actor.Role {
 		return ErrSelfDemote
 	}
+	// กันหัวหน้าหมดระบบ (นับเฉพาะ supervisor — admin ไม่นับ)
 	if role == model.RoleSubordinate && target.Role == string(model.RoleSupervisor) {
 		n, err := s.users.CountSupervisors(ctx)
 		if err != nil {

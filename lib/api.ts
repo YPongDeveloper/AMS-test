@@ -5,10 +5,11 @@
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 export const API_CONFIGURED = API_URL.length > 0;
 
-export type Role = "supervisor" | "subordinate";
+export type Role = "admin" | "supervisor" | "subordinate";
 
 export interface AppUser {
   public_id: string;
+  username?: string | null;
   display_name: string;
   picture_url: string | null;
   role: Role;
@@ -65,6 +66,7 @@ function saveTokens(access: string, refresh: string) {
 export function clearTokens() {
   window.localStorage.removeItem(ACCESS_KEY);
   window.localStorage.removeItem(REFRESH_KEY);
+  window.localStorage.removeItem(USER_KEY);
 }
 
 interface TokenPair {
@@ -146,7 +148,37 @@ export async function loginWithLineIdToken(idToken: string): Promise<AppUser> {
     json: { id_token: idToken },
   });
   if (data?.token) saveTokens(data.token.access_token, data.token.refresh_token);
+  saveCurrentUser(data.user);
   return data.user;
+}
+
+// เข้าสู่ระบบด้วย username/password (บัญชีที่ admin จัดการ: admin/leader/normal)
+export async function loginWithPassword(username: string, password: string): Promise<AppUser> {
+  const data = await api<{ user: AppUser; token: TokenPair }>("/api/auth/login", {
+    method: "POST",
+    json: { username, password },
+  });
+  if (data?.token) saveTokens(data.token.access_token, data.token.refresh_token);
+  saveCurrentUser(data.user);
+  return data.user;
+}
+
+// ---- current user cache (ให้ Topbar อ่าน role โดยไม่ต้องยิง API ซ้ำ) ----
+
+const USER_KEY = "ams_current_user";
+
+export function saveCurrentUser(u: AppUser) {
+  window.localStorage.setItem(USER_KEY, JSON.stringify(u));
+}
+
+export function getCurrentUser(): AppUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as AppUser) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function logout() {
