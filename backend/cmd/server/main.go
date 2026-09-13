@@ -26,28 +26,21 @@ func main() {
 	if err := repository.Migrate(ctx, pool); err != nil {
 		log.Fatal("migrate: ", err)
 	}
+	repository.Seed(ctx, pool)
 	log.Println("DB connected + schema ready")
 
 	hub := ws.NewHub()
-	authSvc := service.NewAuthService(
-		repository.NewUserRepository(pool),
-		repository.NewRefreshTokenRepository(pool),
-		cfg.JWTSecret,
-		cfg.LineChannelID,
-	)
-	userSvc := service.NewUserService(repository.NewUserRepository(pool))
+	userRepo := repository.NewUserRepository(pool)
+	authSvc := service.NewAuthService(userRepo, repository.NewRefreshTokenRepository(pool), cfg.JWTSecret, cfg.LineChannelID)
+	userSvc := service.NewUserService(userRepo)
 	lineNotifier := service.NewLineNotifier(cfg.LineChannelAccessToken, cfg.LiffID)
-	taskSvc := service.NewTaskService(
-		repository.NewTaskRepository(pool),
-		repository.NewUserRepository(pool),
-		hub,
-		lineNotifier,
-	)
+	taskSvc := service.NewTaskService(repository.NewTaskRepository(pool), userRepo, hub, lineNotifier)
+	dashRepo := repository.NewDashboardRepository(pool)
 
-	handler := router.New(struct {
-		Secret         string
-		AllowedOrigins []string
-	}{cfg.JWTSecret, cfg.AllowedOrigins}, authSvc, userSvc, taskSvc, hub)
+	handler := router.New(router.Deps{
+		Secret:         cfg.JWTSecret,
+		AllowedOrigins: cfg.AllowedOrigins,
+	}, authSvc, userSvc, taskSvc, hub, dashRepo)
 
 	log.Println("AMS backend listening on :" + cfg.Port)
 	srv := &http.Server{

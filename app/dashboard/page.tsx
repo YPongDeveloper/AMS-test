@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Page } from "@/components/Page";
 import { Card, Tag } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
+import { api, API_CONFIGURED, getAccessToken } from "@/lib/api";
 import {
   MapPin, Building2, CircleDollarSign, Database,
   ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText,
@@ -13,55 +15,31 @@ import Link from "next/link";
 export default function Dashboard() {
   const { t, lang } = useI18n();
 
-  const recent = [
-    { code: "LP-2569-0042", name: "ที่ดินสถานีรังสิต", type: "land", progress: 78, status: "synced", time: "2h ago" },
-    { code: "BL-2569-0117", name: "อาคารสำนักงานใหญ่", type: "building", progress: 42, status: "pending", time: "3h ago" },
-    { code: "LP-2569-0041", name: "ที่ดินสถานีชุมทางบางซื่อ", type: "land", progress: 100, status: "offline", time: "5h ago" },
-    { code: "BL-2569-0116", name: "โกดังเก็บพัสดุ", type: "building", progress: 95, status: "synced", time: "yesterday" },
-  ];
+  // เนื้อหาจากหลังบ้าน (mock data) — ถ้าไม่ได้เชื่อม API ใช้ค่าเริ่มต้นด้านล่าง
+  const [content, setContent] = useState<any>(null);
+  useEffect(() => {
+    if (!API_CONFIGURED || !getAccessToken()) return;
+    api<any>("/api/dashboard")
+      .then((d) => d && Object.keys(d).length > 0 && setContent(d))
+      .catch(() => {});
+  }, []);
 
-  const stats = [
-    {
-      label: t("cardParcels"),
-      value: "1,284",
-      sub: "+12 this month",
-      delta: "+0.94%",
-      deltaUp: true,
-      icon: MapPin,
-      color: "blue",
-      chart: [22, 28, 25, 32, 30, 38, 42],
-    },
-    {
-      label: t("cardBuildings"),
-      value: "3,562",
-      sub: "+47 this month",
-      delta: "+1.34%",
-      deltaUp: true,
-      icon: Building2,
-      color: "gold",
-      chart: [30, 34, 31, 40, 38, 45, 52],
-    },
-    {
-      label: t("cardPending"),
-      value: "28",
-      sub: lang === "th" ? "จาก 156 รายการ" : "of 156 items",
-      delta: "-8.5%",
-      deltaUp: false,
-      icon: AlertCircle,
-      color: "amber",
-      chart: [40, 36, 32, 30, 28, 26, 24],
-    },
-    {
-      label: t("cardSynced"),
-      value: "98.2%",
-      sub: "2,847 / 2,899",
-      delta: "+0.6%",
-      deltaUp: true,
-      icon: Database,
-      color: "green",
-      chart: [88, 90, 92, 93, 95, 96, 98],
-    },
+  const fallbackStats = [
+    { key: "parcels", value: "1,284", sub: "+12 this month", delta: "+0.94%", up: true, chart: [22, 28, 25, 32, 30, 38, 42] },
+    { key: "buildings", value: "3,562", sub: "+47 this month", delta: "+1.34%", up: true, chart: [30, 34, 31, 40, 38, 45, 52] },
+    { key: "pending", value: "28", sub: lang === "th" ? "จาก 156 รายการ" : "of 156 items", delta: "-8.5%", up: false, chart: [40, 36, 32, 30, 28, 26, 24] },
+    { key: "synced", value: "98.2%", sub: "2,847 / 2,899", delta: "+0.6%", up: true, chart: [88, 90, 92, 93, 95, 96, 98] },
   ];
+  const statsMeta: Record<string, { label: string; icon: any; color: string }> = {
+    parcels: { label: t("cardParcels"), icon: MapPin, color: "blue" },
+    buildings: { label: t("cardBuildings"), icon: Building2, color: "gold" },
+    pending: { label: t("cardPending"), icon: AlertCircle, color: "amber" },
+    synced: { label: t("cardSynced"), icon: Database, color: "green" },
+  };
+  const stats = ((content?.stats ?? fallbackStats) as any[]).map((s: any) => ({
+    ...s,
+    ...(statsMeta[s.key] || statsMeta.parcels),
+  }));
 
   const quickActions = [
     { href: "/land", label: t("navLand"), icon: MapPin, tone: "blue" as const },
@@ -70,7 +48,16 @@ export default function Dashboard() {
     { href: "/dashboard", label: lang === "th" ? "รายงาน" : "Reports", icon: FileText, tone: "emerald" as const },
   ];
 
-  const news = [
+  const fallbackRecent = [
+    { code: "LP-2569-0042", name: "ที่ดินสถานีรังสิต", type: "land", progress: 78, status: "synced" },
+    { code: "BL-2569-0117", name: "อาคารสำนักงานใหญ่", type: "building", progress: 42, status: "pending" },
+    { code: "LP-2569-0041", name: "ที่ดินสถานีชุมทางบางซื่อ", type: "land", progress: 100, status: "offline" },
+    { code: "BL-2569-0116", name: "โกดังเก็บพัสดุ", type: "building", progress: 95, status: "synced" },
+  ];
+  const recent = (content?.recent ?? fallbackRecent) as Array<{ code: string; name: string; type: string; progress: number; status: string; }>;
+
+
+  const fallbackNews = [
     {
       tag: lang === "th" ? "ประกาศ" : "Notice",
       title: lang === "th" ? "กำหนดยื่นแบบแสดงรายการภาษี ปี 2569" : "Tax Filing Deadline 2026",
@@ -90,12 +77,19 @@ export default function Dashboard() {
       tone: "green" as const,
     },
   ];
+  const news = (content?.news ?? fallbackNews) as Array<{ tag: string; title: string; date: string; tone: "gold" | "blue" | "green" }>;
 
-  const upcoming = [
+
+  const fallbackUpcoming = [
     { date: "25 ก.ย.", title: lang === "th" ? "ยื่นแบบภาษีที่ดิน Q3" : "Land Tax Filing Q3", icon: CircleDollarSign, urgent: true },
     { date: "30 ก.ย.", title: lang === "th" ? "ครบกำหนดสำรวจอาคาร สถานีหลัก" : "Main station survey deadline", icon: Building2, urgent: false },
     { date: "5 ต.ค.", title: lang === "th" ? "ประชุมคณะกรรมการทรัพย์สิน" : "Asset committee meeting", icon: Calendar, urgent: false },
   ];
+  const upcomingIcon: Record<string, any> = { tax: CircleDollarSign, building: Building2, calendar: Calendar };
+  const upcoming = ((content?.upcoming ?? fallbackUpcoming) as Array<{ date: string; title: string; icon: string; urgent: boolean }>).map((u: any) => ({
+    ...u,
+    icon: upcomingIcon[u.icon] || FileText,
+  }));
 
   const colorMap: Record<string, { bg: string; icon: string }> = {
     blue: { bg: "bg-blue-50", icon: "text-blue-600" },
@@ -137,10 +131,10 @@ export default function Dashboard() {
                 </div>
                 <span
                   className={`inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded ${
-                    s.deltaUp ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
+                    s.up ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"
                   }`}
                 >
-                  {s.deltaUp ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                  {s.up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                   {s.delta}
                 </span>
               </div>
@@ -154,10 +148,10 @@ export default function Dashboard() {
 
               {/* Mini sparkline */}
               <div className="mt-2 sm:mt-3 flex items-end gap-0.5 h-6 sm:h-8">
-                {s.chart.map((h, i) => (
+                {s.chart.map((h: number, i: number) => (
                   <div
                     key={i}
-                    className={`flex-1 rounded-sm ${s.deltaUp ? "bg-emerald-200" : "bg-rose-200"}`}
+                    className={`flex-1 rounded-sm ${s.up ? "bg-emerald-200" : "bg-rose-200"}`}
                     style={{ height: `${h}%` }}
                   />
                 ))}

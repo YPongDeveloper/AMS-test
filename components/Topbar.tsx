@@ -1,20 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
-import { Wifi, WifiOff, Languages, Search, Bell, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Wifi, WifiOff, Languages, Search, Bell, User, ChevronDown, Smartphone, LogOut, Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Logo from "./Logo";
 import { getStoredLineProfile, LineProfile } from "@/lib/liff";
+import { clearTokens, getCurrentUser, logout, type AppUser } from "@/lib/api";
+import { usePwaInstall } from "@/lib/usePwaInstall";
 
 export function Topbar() {
   const { t, lang, setLang } = useI18n();
   const pathname = usePathname();
+  const router = useRouter();
   const [online, setOnline] = useState(true);
   const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { canInstall, promptInstall } = usePwaInstall();
 
   useEffect(() => {
+    setUser(getCurrentUser());
     setLineProfile(getStoredLineProfile());
   }, []);
 
@@ -30,13 +38,51 @@ export function Topbar() {
     };
   }, []);
 
+  // ปิด dropdown เมื่อคลิกนอก
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [menuOpen]);
+
   const navItems = [
     { href: "/dashboard", key: "navDashboard" },
-    { href: "/tasks", key: "navTasks" },
+    { href: "/tasks", key: "navTasks", roles: ["supervisor"] },
     { href: "/land", key: "navLand" },
     { href: "/building", key: "navBuilding" },
     { href: "/tax", key: "navTax" },
-  ];
+    { href: "/admin", key: "navAdmin", roles: ["admin"] },
+  ].filter((it) => !it.roles || (user && it.roles.includes(user.role)));
+
+  async function handleLogout() {
+    setMenuOpen(false);
+    await logout();
+    setUser(null);
+    router.push("/");
+  }
+
+  async function handleInstall() {
+    const result = await promptInstall();
+    if (result === "manual") {
+      alert(
+        lang === "th"
+          ? "บน iPhone/iPad: กดปุ่มแชร์ (Share) ด้านล่าง แล้วเลือก “เพิ่มลงหน้าจอหลัก”"
+          : "On iOS: tap the Share button, then choose “Add to Home Screen”"
+      );
+    }
+    setMenuOpen(false);
+  }
+
+  const displayName = user?.display_name || lineProfile?.displayName || t("officerName");
+  const roleLabel =
+    user?.role === "admin"
+      ? lang === "th" ? "ผู้ดูแลระบบ" : "Administrator"
+      : user?.role === "supervisor"
+        ? lang === "th" ? "หัวหน้างาน" : "Supervisor"
+        : lang === "th" ? "เจ้าหน้าที่" : "Officer";
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
@@ -97,24 +143,67 @@ export function Topbar() {
             <Bell size={18} />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
           </button>
-          <button className="flex items-center gap-2 pl-1 pr-2 sm:pr-3 py-1 rounded-lg hover:bg-gray-100">
-            {lineProfile?.pictureUrl ? (
-              <img
-                src={lineProfile.pictureUrl}
-                alt=""
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-1 ring-gray-200"
-              />
-            ) : (
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govblue-600 to-govblue-700 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
-                {lineProfile ? lineProfile.displayName.charAt(0) : <User size={16} />}
+
+          {/* Profile + dropdown */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2 pl-1 pr-2 sm:pr-3 py-1 rounded-lg hover:bg-gray-100"
+            >
+              {lineProfile?.pictureUrl ? (
+                <img
+                  src={lineProfile.pictureUrl}
+                  alt=""
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-1 ring-gray-200"
+                />
+              ) : (
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govblue-600 to-govblue-700 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
+                  {user?.display_name ? user.display_name.charAt(0) : <User size={16} />}
+                </div>
+              )}
+              <div className="hidden sm:block text-left leading-tight">
+                <div className="text-xs font-semibold text-gray-800">{displayName}</div>
+              </div>
+              <ChevronDown size={14} className={`text-gray-400 transition ${menuOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
+                {/* user header */}
+                <div className="px-4 py-2.5 border-b border-gray-100">
+                  <div className="text-sm font-semibold text-gray-800 truncate">{displayName}</div>
+                  <div className="text-[11px] text-govblue-600 font-medium">{roleLabel}</div>
+                </div>
+
+                {user?.role === "admin" && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Settings size={15} /> {t("manageUsers")}
+                  </Link>
+                )}
+
+                {canInstall && (
+                  <button
+                    onClick={handleInstall}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                  >
+                    <Smartphone size={15} /> {t("installMobile")}
+                  </button>
+                )}
+
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 text-left"
+                >
+                  <LogOut size={15} /> {t("logout")}
+                </button>
               </div>
             )}
-            <div className="hidden sm:block text-left leading-tight">
-              <div className="text-xs font-semibold text-gray-800">
-                {lineProfile ? lineProfile.displayName : "เจ้าหน้าที่"}
-              </div>
-            </div>
-          </button>
+          </div>
         </div>
       </div>
 

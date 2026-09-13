@@ -38,12 +38,23 @@ const schema = `
 CREATE TABLE IF NOT EXISTS users (
 	id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	public_id     UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-	line_user_id  TEXT UNIQUE NOT NULL,
+	line_user_id  TEXT UNIQUE,
+	username      TEXT UNIQUE,
+	password_hash TEXT,
 	display_name  TEXT NOT NULL,
 	picture_url   TEXT,
-	role          TEXT NOT NULL DEFAULT 'subordinate' CHECK (role IN ('supervisor','subordinate')),
+	role          TEXT NOT NULL DEFAULT 'subordinate' CHECK (role IN ('admin','supervisor','subordinate')),
 	created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- อัปเกรดฐานที่สร้างไว้ก่อนหน้า (constraint เดิมไม่มี admin / ไม่มีคอลัมน์ username)
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','supervisor','subordinate'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ALTER COLUMN line_user_id DROP NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_line ON users(line_user_id) WHERE line_user_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS tasks (
 	id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -71,6 +82,13 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 	expires_at TIMESTAMPTZ NOT NULL,
 	revoked    BOOLEAN NOT NULL DEFAULT false,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- เนื้อหาหน้า dashboard (mock data รองรับหน้าบ้าน)
+CREATE TABLE IF NOT EXISTS dashboard_content (
+	key        TEXT PRIMARY KEY,
+	data       JSONB NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);

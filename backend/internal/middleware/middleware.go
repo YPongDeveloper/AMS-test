@@ -27,16 +27,27 @@ func Auth(secret string) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireRole — จำกัด role
+// RequireRole — จำกัด role เดียว
 func RequireRole(role string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := handler.ClaimsFrom(r)
-		if c == nil || c.Role != role {
-			handler.WriteErr(w, http.StatusForbidden, "ต้องเป็นหัวหน้างานเท่านั้น")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return RequireAnyRole(role)(next)
+}
+
+// RequireAnyRole — ยอมรับหลาย role (เช่น user management: supervisor + admin)
+func RequireAnyRole(roles ...string) func(http.Handler) http.Handler {
+	allowed := map[string]bool{}
+	for _, r := range roles {
+		allowed[r] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c := handler.ClaimsFrom(r)
+			if c == nil || !allowed[c.Role] {
+				handler.WriteErr(w, http.StatusForbidden, "ไม่มีสิทธิ์เข้าถึงส่วนนี้")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func CORS(allowedOrigins []string, next http.Handler) http.Handler {

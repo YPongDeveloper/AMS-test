@@ -20,11 +20,11 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-const userCols = `id, public_id, line_user_id, display_name, picture_url, role, created_at`
+const userCols = `id, public_id, line_user_id, username, password_hash, display_name, picture_url, role, created_at`
 
 func scanUser(row pgx.Row) (*model.User, error) {
 	var u model.User
-	err := row.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt)
+	err := row.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +40,18 @@ func (r *UserRepository) CountAll(ctx context.Context) (int, error) {
 func (r *UserRepository) FindByLineUserID(ctx context.Context, lineUserID string) (*model.User, error) {
 	return scanUser(r.db.QueryRow(ctx,
 		`SELECT `+userCols+` FROM users WHERE line_user_id=$1`, lineUserID))
+}
+
+func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*model.User, error) {
+	return scanUser(r.db.QueryRow(ctx,
+		`SELECT `+userCols+` FROM users WHERE username=$1`, username))
+}
+
+func (r *UserRepository) CreateWithPassword(ctx context.Context, username, passwordHash, displayName string, role model.Role) (*model.User, error) {
+	return scanUser(r.db.QueryRow(ctx,
+		`INSERT INTO users (username, password_hash, display_name, role)
+		 VALUES ($1,$2,$3,$4) RETURNING `+userCols,
+		username, passwordHash, displayName, string(role)))
 }
 
 func (r *UserRepository) Create(ctx context.Context, lineUserID, displayName string, pictureURL *string, role model.Role) (*model.User, error) {

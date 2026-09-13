@@ -33,6 +33,26 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// LoginPassword — POST /api/auth/login { username, password }
+func (h *AuthHandler) LoginPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if !ReadJSON(w, r, &body) {
+		return
+	}
+	user, pair, err := h.auth.LoginWithPassword(r.Context(), body.Username, body.Password)
+	if err != nil {
+		WriteErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	WriteOK(w, http.StatusOK, "เข้าสู่ระบบสำเร็จ", map[string]any{
+		"user":  user,
+		"token": pair,
+	})
+}
+
 // Refresh — POST /api/auth/refresh { refresh_token }
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var body struct {

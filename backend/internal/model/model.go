@@ -5,6 +5,7 @@ import "time"
 type Role string
 
 const (
+	RoleAdmin       Role = "admin"
 	RoleSupervisor  Role = "supervisor"
 	RoleSubordinate Role = "subordinate"
 )
@@ -46,13 +47,15 @@ func TaskTypeLabel(t string) string {
 
 // User — id (internal) ไม่ expose ออกนอกระบบ ใช้ PublicID (UUID) เสมอ
 type User struct {
-	ID          int64     `json:"-"`
-	PublicID    string    `json:"public_id"`
-	LineUserID  string    `json:"-"`
-	DisplayName string    `json:"display_name"`
-	PictureURL  *string   `json:"picture_url"`
-	Role        string    `json:"role"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           int64     `json:"-"`
+	PublicID     string    `json:"public_id"`
+	LineUserID   string    `json:"-"`
+	Username     *string   `json:"username,omitempty"`
+	PasswordHash string    `json:"-"`
+	DisplayName  string    `json:"display_name"`
+	PictureURL   *string   `json:"picture_url"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // Task — เช่นเดียวกับ User ใช้ PublicID แทน id ตัวเลข

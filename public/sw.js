@@ -1,19 +1,13 @@
 // SRT Asset Management - Service Worker
-const CACHE = 'srt-asset-v1';
-const ASSETS = [
-  '/',
-  '/dashboard/',
-  '/land/',
-  '/building/',
-  '/tax/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-];
+// หลักการ: หน้าเว็บ (navigation) ใช้ network-first เสมอ เพื่อไม่ให้เห็น HTML เก่า
+// (HTML เก่าชี้ไฟล์ CSS/JS hash เก่าที่ถูกลบหลัง deploy = หน้าเว็บไม่มีสไตล์)
+// ไฟล์ static (_next/static, ไอคอน) ใช้ cache-first เพราะชื่อไฟล์มี hash เปลี่ยนทุก build
+const CACHE = 'srt-asset-v3';
+const PRECACHE = ['/manifest.json', '/icon-192.png', '/icon-512.png', '/favicon.ico'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
   );
 });
 
@@ -27,19 +21,46 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const { request } = e;
-  if (request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(request).then((cached) => {
-      const fetched = fetch(request)
+  if (request.method !== 'GET' || !request.url.startsWith('http')) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // API ภายนอกไม่แตะ
+
+  // 1) หน้าเว็บ (navigation) — network-first, offline ค่อยใช้ cache
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      fetch(request)
         .then((res) => {
-          if (res && res.status === 200 && res.type === 'basic') {
-            const clone = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, clone));
-          }
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, clone));
           return res;
         })
-        .catch(() => cached);
-      return cached || fetched;
-    })
+        .catch(() => caches.match(request).then((c) => c || caches.match('/')))
+    );
+    return;
+  }
+
+  // 2) static assets — cache-first (stale-while-revalidate)
+  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icon') || url.pathname === '/favicon.ico') {
+    e.respondWith(
+      caches.match(request).then((cached) => {
+        const fetched = fetch(request)
+          .then((res) => {
+            if (res && res.status === 200) {
+              const clone = res.clone();
+              caches.open(CACHE).then((c) => c.put(request, clone));
+            }
+            return res;
+          })
+          .catch(() => cached);
+        return cached || fetched;
+      })
+    );
+    return;
+  }
+
+  // 3) อื่น ๆ (manifest ฯลฯ) — network-first
+  e.respondWith(
+    fetch(request)
+      .catch(() => caches.match(request).then((c) => c || Response.error()))
   );
 });

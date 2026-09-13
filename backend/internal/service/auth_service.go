@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 
 	"ams-backend/internal/model"
 	"ams-backend/internal/repository"
@@ -202,6 +203,34 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 // Me — โปรไฟล์ผู้ใช้จาก internal id (มาจาก claims ของ token เสมอ)
 func (s *AuthService) Me(ctx context.Context, userID int64) (*model.User, error) {
 	return s.users.FindByID(ctx, userID)
+}
+
+// LoginWithPassword — เข้าสู่ระบบด้วย username/password (บัญชีที่ seed: admin/leader/normal)
+func (s *AuthService) LoginWithPassword(ctx context.Context, username, password string) (*model.User, *TokenPair, error) {
+	if username == "" || password == "" {
+		return nil, nil, errors.New("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน")
+	}
+	u, err := s.users.FindByUsername(ctx, username)
+	if err != nil {
+		return nil, nil, errors.New("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+	}
+	if u.PasswordHash == "" || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+		return nil, nil, errors.New("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+	}
+	at, err := s.signAccessToken(u)
+	if err != nil {
+		return nil, nil, err
+	}
+	rt, err := s.issueRefreshToken(ctx, u.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, &TokenPair{
+		AccessToken:  at,
+		RefreshToken: rt,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(AccessTokenTTL.Seconds()),
+	}, nil
 }
 
 type lineVerifyResp struct {

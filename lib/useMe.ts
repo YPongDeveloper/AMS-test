@@ -19,6 +19,14 @@ import { getLineIdToken, loginWithLiff } from "./liff";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// authenticateWithLine — ใช้ LINE session (LIFF) แลกเป็นบัญชีระบบ (retry รอ server ตื่น)
+// ใช้ทั้งจาก useMe bootstrap และหน้า login; throw ถ้าไม่สำเร็จ
+export async function authenticateWithLine(): Promise<AppUser> {
+  const idToken = await getLineIdToken();
+  if (!idToken) throw new Error("no line session");
+  return exchangeIdToken(idToken);
+}
+
 async function exchangeIdToken(idToken: string): Promise<AppUser> {
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -67,25 +75,20 @@ export function useMe() {
       }
     }
     // 2) ใน LIFF: ตัวตน LINE มีอยู่แล้ว — แลกเป็นบัญชีระบบเลย ไม่ต้อง login ซ้ำ
-    const idToken = await getLineIdToken();
-    if (idToken) {
-      try {
-        setMe(await exchangeIdToken(idToken));
-        setLoading(false);
-        return;
-      } catch (e) {
-        if (e instanceof ApiError && (e.status === 400 || e.status === 401)) {
-          setNeedLogin(true); // LINE session หมดจริง — ให้กดปุ่มเพื่อ login ใหม่
-          setLoading(false);
-          return;
-        }
-        setServerDown(true); // backend ยังหลับ — แสดงปุ่ม retry
+    try {
+      setMe(await authenticateWithLine());
+      setLoading(false);
+      return;
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 400 || e.status === 401)) {
+        setNeedLogin(true); // LINE session หมดจริง — ให้กดปุ่มเพื่อ login ใหม่
         setLoading(false);
         return;
       }
+      setServerDown(true); // backend ยังหลับ — แสดงปุ่ม retry
+      setLoading(false);
+      return;
     }
-    setNeedLogin(true);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
