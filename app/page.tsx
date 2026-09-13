@@ -17,6 +17,12 @@ export default function LoginPage() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [lineChecking, setLineChecking] = useState(API_CONFIGURED && liffConfigured());
+  const [lineProgress, setLineProgress] = useState("");
+
+  const onLineProgress = (attempt: number, total: number) =>
+    setLineProgress(
+      t2(`กำลังเชื่อมต่อเซิร์ฟเวอร์ (${attempt}/${total}) — แพลนฟรีตื่นช้า ใช้เวลาไม่เกิน ~1 นาที`, `Connecting to server (${attempt}/${total}) — free tier cold start takes up to ~1 min`),
+    );
 
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
 
@@ -39,12 +45,15 @@ export default function LoginPage() {
     // 2) เปิดผ่าน LINE (LIFF) — session มีอยู่แล้ว ไม่ต้อง login ซ้ำ
     if (API_CONFIGURED && liffConfigured()) {
       let cancelled = false;
-      authenticateWithLine()
+      authenticateWithLine(onLineProgress)
         .then((u) => {
           if (!cancelled) routeByRole(u);
         })
         .catch(() => {
-          if (!cancelled) setLineChecking(false);
+          if (!cancelled) {
+            setLineChecking(false);
+            setLineProgress("");
+          }
         });
       return () => {
         cancelled = true;
@@ -100,8 +109,8 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold text-govblue-800 mb-5">{t("loginTitle")}</h1>
 
           {lineChecking && (
-            <div className="text-center text-sm text-gray-400 animate-pulse py-2">
-              {t2("กำลังตรวจสอบตัวตน LINE...", "Checking LINE identity...")}
+            <div className="text-center text-sm text-govblue-600 bg-govblue-50 border border-govblue-100 rounded-lg px-3 py-2.5 animate-pulse mb-4">
+              {lineProgress || t2("กำลังตรวจสอบตัวตน LINE...", "Checking LINE identity...")}
             </div>
           )}
 
@@ -161,13 +170,15 @@ export default function LoginPage() {
                 type="button"
                 onClick={async () => {
                   setLineChecking(true);
+                  setErr("");
                   try {
-                    const u = await authenticateWithLine();
+                    const u = await authenticateWithLine(onLineProgress);
                     if (u.role === "supervisor") router.replace("/tasks");
                     else if (u.role === "admin") router.replace("/admin");
                     else router.replace("/dashboard");
                   } catch {
                     setLineChecking(false);
+                    setLineProgress("");
                     setErr(t2("เข้าสู่ระบบด้วย LINE ไม่สำเร็จ ลองอีกครั้ง", "LINE sign-in failed, try again"));
                   }
                 }}
