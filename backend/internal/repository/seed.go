@@ -60,10 +60,10 @@ func seedDashboard(ctx context.Context, pool *pgxpool.Pool) {
 	}
 	dashboard := map[string]any{
 		"stats": []map[string]any{
-			{"key": "parcels", "value": "1,284", "sub": "+12 this month", "delta": "+0.94%", "up": true},
-			{"key": "buildings", "value": "3,562", "sub": "+47 this month", "delta": "+1.34%", "up": true},
-			{"key": "pending", "value": "28", "sub": "จาก 156 รายการ", "delta": "-8.5%", "up": false},
-			{"key": "synced", "value": "98.2%", "sub": "2,847 / 2,899", "delta": "+0.6%", "up": true},
+			{"key": "parcels", "value": "1,284", "sub": "+12 this month", "delta": "+0.94%", "up": true, "chart": []int{22, 28, 25, 32, 30, 38, 42}},
+			{"key": "buildings", "value": "3,562", "sub": "+47 this month", "delta": "+1.34%", "up": true, "chart": []int{30, 34, 31, 40, 38, 45, 52}},
+			{"key": "pending", "value": "28", "sub": "จาก 156 รายการ", "delta": "-8.5%", "up": false, "chart": []int{40, 36, 32, 30, 28, 26, 24}},
+			{"key": "synced", "value": "98.2%", "sub": "2,847 / 2,899", "delta": "+0.6%", "up": true, "chart": []int{88, 90, 92, 93, 95, 96, 98}},
 		},
 		"recent": []map[string]any{
 			{"code": "LP-2569-0042", "name": "ที่ดินสถานีรังสิต", "type": "land", "progress": 78, "status": "synced"},

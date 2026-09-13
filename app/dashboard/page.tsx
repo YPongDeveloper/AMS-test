@@ -37,6 +37,7 @@ export default function Dashboard() {
     synced: { label: t("cardSynced"), icon: Database, color: "green" },
   };
   const stats = ((content?.stats ?? fallbackStats) as any[]).map((s: any) => ({
+    chart: Array.isArray(s.chart) ? s.chart : [20, 24, 22, 28, 26, 30, 32],
     ...s,
     ...(statsMeta[s.key] || statsMeta.parcels),
   }));
