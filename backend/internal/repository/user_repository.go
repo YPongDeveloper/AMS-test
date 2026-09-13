@@ -95,7 +95,7 @@ func (r *UserRepository) List(ctx context.Context, role *string) ([]model.User, 
 	out := []model.User{}
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
