@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { Languages, ChevronRight, AlertCircle } from "lucide-react";
 import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, type AppUser } from "@/lib/api";
-import { liffConfigured } from "@/lib/liff";
+import { liffConfigured, loginWithLiff, getLineIdToken } from "@/lib/liff";
 import { authenticateWithLine } from "@/lib/useMe";
 import Logo from "@/components/Logo";
 
@@ -172,11 +172,22 @@ export default function LoginPage() {
                   setLineChecking(true);
                   setErr("");
                   try {
+                    // ไม่มี session LIFF → ให้ LIFF ทำ login ให้ก่อน (redirect กลับมาแล้ว auto-auth ทำงาน)
+                    const existing = await getLineIdToken();
+                    if (!existing) {
+                      await loginWithLiff();
+                      return;
+                    }
                     const u = await authenticateWithLine(onLineProgress);
                     if (u.role === "supervisor") router.replace("/tasks");
                     else if (u.role === "admin") router.replace("/admin");
                     else router.replace("/dashboard");
-                  } catch {
+                  } catch (e) {
+                    // token ถูกปฏิเสธ → เรียก session ใหม่ผ่าน LIFF (redirect)
+                    if ((e as Error).message === "no line session") {
+                      await loginWithLiff();
+                      return;
+                    }
                     setLineChecking(false);
                     setLineProgress("");
                     setErr(t2("เข้าสู่ระบบด้วย LINE ไม่สำเร็จ ลองอีกครั้ง", "LINE sign-in failed, try again"));
