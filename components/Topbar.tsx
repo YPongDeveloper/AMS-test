@@ -32,6 +32,7 @@ export function Topbar() {
 
   const navItems = [
     { href: "/dashboard", key: "navDashboard" },
+    { href: "/tasks", key: "navTasks" },
     { href: "/land", key: "navLand" },
     { href: "/building", key: "navBuilding" },
     { href: "/tax", key: "navTax" },
