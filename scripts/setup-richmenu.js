@@ -34,6 +34,7 @@ if (!fs.existsSync(image)) {
 }
 
 const API = "https://api.line.me/v2/bot";
+const API_DATA = "https://api-data.line.me/v2/bot";
 const liffUrl = (p) => `https://liff.line.me/${liffId}${p}`;
 
 const richMenu = {
@@ -64,10 +65,10 @@ const richMenu = {
   console.log("✅ สร้าง rich menu แล้ว:", richMenuId);
 
   // 2) อัปโหลดภาพ
-  res = await fetch(`${API}/richmenu/${richMenuId}/content`, {
+  res = await fetch(`${API_DATA}/richmenu/${richMenuId}/content`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/png" },
-    body: fs.readFileSync(image),
+    body: new Uint8Array(fs.readFileSync(image)),
   });
   if (!res.ok) {
     console.error("❌ อัปโหลดภาพไม่สำเร็จ:", await res.text());
@@ -78,7 +79,7 @@ const richMenu = {
   // 3) ตั้งเป็น default ของผู้ใช้ทุกคน
   res = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "Content-Length": "0" },
   });
   if (!res.ok) {
     console.error("❌ ตั้ง rich menu เริ่มต้นไม่สำเร็จ:", await res.text());
