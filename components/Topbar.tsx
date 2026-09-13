@@ -6,11 +6,17 @@ import { useI18n } from "@/lib/i18n";
 import { Wifi, WifiOff, Languages, Search, Bell, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import Logo from "./Logo";
+import { getStoredLineProfile, LineProfile } from "@/lib/liff";
 
 export function Topbar() {
   const { t, lang, setLang } = useI18n();
   const pathname = usePathname();
   const [online, setOnline] = useState(true);
+  const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
+
+  useEffect(() => {
+    setLineProfile(getStoredLineProfile());
+  }, []);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -91,11 +97,21 @@ export function Topbar() {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
           </button>
           <button className="flex items-center gap-2 pl-1 pr-2 sm:pr-3 py-1 rounded-lg hover:bg-gray-100">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govblue-600 to-govblue-700 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
-              <User size={16} />
-            </div>
+            {lineProfile?.pictureUrl ? (
+              <img
+                src={lineProfile.pictureUrl}
+                alt=""
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-1 ring-gray-200"
+              />
+            ) : (
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govblue-600 to-govblue-700 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
+                {lineProfile ? lineProfile.displayName.charAt(0) : <User size={16} />}
+              </div>
+            )}
             <div className="hidden sm:block text-left leading-tight">
-              <div className="text-xs font-semibold text-gray-800">เจ้าหน้าที่</div>
+              <div className="text-xs font-semibold text-gray-800">
+                {lineProfile ? lineProfile.displayName : "เจ้าหน้าที่"}
+              </div>
             </div>
           </button>
         </div>

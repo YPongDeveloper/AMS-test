@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2500" height="843" viewBox="0 0 2500 843">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16305e"/>
+      <stop offset="100%" stop-color="#0f2052"/>
+    </linearGradient>
+  </defs>
+  <rect width="2500" height="843" fill="url(#bg)"/>
+  <rect x="0" y="0" width="2500" height="14" fill="#e0b14a"/>
+
+  <!-- dividers -->
+  <line x1="833" y1="80" x2="833" y2="763" stroke="#ffffff" stroke-opacity="0.22" stroke-width="5"/>
+  <line x1="1666" y1="80" x2="1666" y2="763" stroke="#ffffff" stroke-opacity="0.22" stroke-width="5"/>
+
+  <!-- cell 1: home -->
+  <g transform="translate(416,330)" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M-130 20 L0 -95 L130 20"/>
+    <path d="M-90 -18 V95 H90 V-18"/>
+    <path d="M-25 95 V35 H25 V95"/>
+  </g>
+  <text x="416" y="620" font-family="Leelawadee UI, Tahoma, sans-serif" font-size="112" font-weight="600" fill="#ffffff" text-anchor="middle">หน้าแรก</text>
+
+  <!-- cell 2: survey (map pin + plot) -->
+  <g transform="translate(1250,330)" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M-95 95 H95"/>
+    <path d="M0 95 C-70 20 -70 -20 -70 -35 A70 70 0 0 1 70 -35 C70 -20 70 20 0 95 Z"/>
+    <circle cx="0" cy="-35" r="24"/>
+  </g>
+  <text x="1250" y="620" font-family="Leelawadee UI, Tahoma, sans-serif" font-size="112" font-weight="600" fill="#ffffff" text-anchor="middle">สำรวจทรัพย์สิน</text>
+
+  <!-- cell 3: tax (document with ฿) -->
+  <g transform="translate(2083,330)">
+    <g stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M-85 -110 H30 L85 -55 V110 H-85 Z"/>
+      <path d="M25 -110 V-50 H85"/>
+      <line x1="-45" y1="5" x2="45" y2="5"/>
+      <line x1="-45" y1="60" x2="20" y2="60"/>
+    </g>
+    <text x="0" y="-18" font-family="Leelawadee UI, Tahoma, sans-serif" font-size="86" font-weight="700" fill="#e0b14a" text-anchor="middle">฿</text>
+  </g>
+  <text x="2083" y="620" font-family="Leelawadee UI, Tahoma, sans-serif" font-size="112" font-weight="600" fill="#ffffff" text-anchor="middle">คำนวณภาษี</text>
+</svg>
