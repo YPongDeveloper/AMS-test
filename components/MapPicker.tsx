@@ -195,6 +195,15 @@ export default function MapPicker({
         draggable: !readOnly,
       }).addTo(map);
 
+      if (readOnly) {
+        marker.bindPopup(`
+          <div style="font-family: sans-serif; font-size: 12px; line-height: 1.5; padding: 2px;">
+            <b style="color: #1e3a8a;">📍 จุดปฏิบัติงานที่ได้รับมอบหมาย</b><br/>
+            <span style="color: #4b5563; font-family: monospace; font-size: 11px;">${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}</span>
+          </div>
+        `);
+      }
+
       if (!readOnly) {
         // เมื่อลากหมุดเสร็จ
         marker.on("dragend", () => {
@@ -378,17 +387,44 @@ export default function MapPicker({
     }
   };
 
+  // เลื่อนมุมมองแผนที่ไปยังจุดพิกัดงานที่ได้รับมอบหมาย (Pan/Fly to target)
+  const handleCenterOnTarget = useCallback(() => {
+    if (!mapInstanceRef.current) return;
+    const targetLat = lat ?? defaultCenter.lat;
+    const targetLng = lng ?? defaultCenter.lng;
+    mapInstanceRef.current.flyTo([targetLat, targetLng], 17, {
+      animate: true,
+      duration: 1.0,
+    });
+    if (markerInstanceRef.current) {
+      setTimeout(() => {
+        if (markerInstanceRef.current) {
+          markerInstanceRef.current.openPopup();
+        }
+      }, 500);
+    }
+  }, [lat, lng, defaultCenter.lat, defaultCenter.lng]);
+
   const renderMapBox = () => (
     <div className="relative w-full h-full flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-inner bg-slate-100">
       {/* Search & Tool Bar ด้านบนแผนที่ */}
       <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-col sm:flex-row gap-1.5 items-stretch sm:items-center justify-between pointer-events-none">
-        {/* ช่องค้นหา / วางลิงก์ Google Maps (เฉพาะโหมดเลือกพิกัด) หรือ ป้ายแสดงพิกัดงาน (โหมดดูอย่างเดียว) */}
+        {/* ช่องค้นหา / วางลิงก์ Google Maps (เฉพาะโหมดเลือกพิกัด) หรือ ปุ่มเลื่อนไปยังจุดพิกัดงาน (โหมดดูอย่างเดียว) */}
         <div className="pointer-events-auto flex-1 max-w-md">
           {readOnly ? (
-            <div className="inline-flex items-center gap-2 bg-white/95 backdrop-blur px-3 py-1.5 rounded-lg shadow-md border border-gray-200 text-xs font-semibold text-govblue-900">
-              <MapPin size={15} className="text-rose-600 shrink-0" />
+            <button
+              type="button"
+              onClick={handleCenterOnTarget}
+              className="inline-flex items-center gap-2 bg-white/95 hover:bg-white active:bg-govblue-50 backdrop-blur px-3 py-1.5 rounded-lg shadow-md border border-gray-200 hover:border-govblue-400 text-xs font-semibold text-govblue-900 transition-all cursor-pointer group active:scale-95"
+              title="คลิกเพื่อเลื่อนแผนที่ไปยังจุดที่ได้รับมอบหมาย"
+            >
+              <MapPin size={15} className="text-rose-600 shrink-0 group-hover:scale-110 transition-transform" />
               <span>ตำแหน่งจุดปฏิบัติงานที่ได้รับมอบหมาย</span>
-            </div>
+              <span className="text-[10px] font-normal text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded border border-govblue-200/80 transition flex items-center gap-1">
+                <Crosshair size={11} className="text-govblue-600" />
+                เลื่อนไปจุดนี้
+              </span>
+            </button>
           ) : (
             <form onSubmit={handleSearchOrPaste} className="flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
               <Search size={16} className="ml-3 text-gray-400 shrink-0" />
@@ -498,15 +534,22 @@ export default function MapPicker({
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
       {/* แถบสถานะด้านล่างแผนที่ */}
-      <div className="absolute bottom-2 left-2 z-[1000] bg-black/75 backdrop-blur text-white px-2.5 py-1 rounded-md text-[11px] font-mono flex items-center gap-2 shadow pointer-events-none">
+      <button
+        type="button"
+        onClick={readOnly ? handleCenterOnTarget : undefined}
+        className={`absolute bottom-2 left-2 z-[1000] bg-black/75 backdrop-blur text-white px-2.5 py-1 rounded-md text-[11px] font-mono flex items-center gap-2 shadow transition ${
+          readOnly ? "cursor-pointer hover:bg-black/90 active:scale-95" : "pointer-events-none"
+        }`}
+        title={readOnly ? "คลิกเพื่อเลื่อนกลับไปยังจุดพิกัดนี้" : undefined}
+      >
         <MapPin size={12} className="text-rose-400 shrink-0" />
         <span>
           {currentLat.toFixed(6)}, {currentLng.toFixed(6)}
         </span>
         <span className="text-[10px] text-gray-300 border-l border-gray-600 pl-2">
-          {readOnly ? "จุดปฏิบัติงาน" : "คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด"}
+          {readOnly ? "จุดปฏิบัติงาน (คลิกเลื่อนดู)" : "คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด"}
         </span>
-      </div>
+      </button>
 
       {/* ลิงก์เปิด Google Maps ด้านล่างขวา */}
       <div className="absolute bottom-2 right-12 z-[1000]">
