@@ -956,13 +956,13 @@ export default function TasksPage() {
                 )}
 
                 {selectedTask.lat != null && selectedTask.lng != null ? (
-                  <div className="rounded-xl overflow-hidden border border-gray-300">
+                  <div className="rounded-xl overflow-hidden border border-gray-300 shadow-xs">
                     <MapPicker
                       lat={selectedTask.lat}
                       lng={selectedTask.lng}
-                      onChange={() => {}}
-                      height="200px"
+                      height="220px"
                       showInputs={false}
+                      readOnly={true}
                     />
                   </div>
                 ) : (
