@@ -15,11 +15,13 @@ type Deps struct {
 	AllowedOrigins []string
 }
 
-func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks *service.TaskService, hub *ws.Hub, dash *repository.DashboardRepository) http.Handler {
+func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks *service.TaskService, hub *ws.Hub, dash *repository.DashboardRepository, lands *service.LandService, bldgs *service.BuildingService) http.Handler {
 	authH := handler.NewAuthHandler(auth)
 	userH := handler.NewUserHandler(users)
 	taskH := handler.NewTaskHandler(tasks)
 	dashH := handler.NewDashboardHandler(dash)
+	landH := handler.NewLandHandler(lands)
+	bldgH := handler.NewBuildingHandler(bldgs)
 	wsH := ws.NewHandler(hub, func(token string) (*ws.Identity, error) {
 		c, err := service.ParseAccessToken(deps.Secret, token)
 		if err != nil {
@@ -31,6 +33,9 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	manage := func(h http.HandlerFunc) http.Handler {
 		return middleware.Auth(deps.Secret)(middleware.RequireAnyRole("supervisor", "admin")(h))
 	}
+	authed := func(h http.HandlerFunc) http.Handler {
+		return middleware.Auth(deps.Secret)(h)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -40,14 +45,30 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	mux.HandleFunc("POST /api/auth/login", authH.LoginPassword)
 	mux.HandleFunc("POST /api/auth/refresh", authH.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", authH.Logout)
-	mux.Handle("GET /api/me", middleware.Auth(deps.Secret)(http.HandlerFunc(authH.Me)))
+	mux.Handle("GET /api/me", authed(authH.Me))
 	mux.Handle("GET /api/users", manage(userH.List))
 	mux.Handle("PATCH /api/users/{public_id}/role", manage(userH.ChangeRole))
-	mux.Handle("GET /api/tasks", middleware.Auth(deps.Secret)(http.HandlerFunc(taskH.List)))
+	mux.Handle("GET /api/tasks", authed(taskH.List))
 	mux.Handle("POST /api/tasks", middleware.Auth(deps.Secret)(middleware.RequireRole("supervisor", http.HandlerFunc(taskH.Create))))
-	mux.Handle("PATCH /api/tasks/{public_id}/status", middleware.Auth(deps.Secret)(http.HandlerFunc(taskH.UpdateStatus)))
-	mux.Handle("GET /api/dashboard", middleware.Auth(deps.Secret)(http.HandlerFunc(dashH.Get)))
+	mux.Handle("PATCH /api/tasks/{public_id}/status", authed(taskH.UpdateStatus))
+	mux.Handle("GET /api/dashboard", authed(dashH.Get))
+
+	// Land Parcels API
+	mux.Handle("GET /api/lands", authed(landH.List))
+	mux.Handle("GET /api/lands/{public_id}", authed(landH.Get))
+	mux.Handle("POST /api/lands", authed(landH.Create))
+	mux.Handle("PUT /api/lands/{public_id}", authed(landH.Update))
+	mux.Handle("DELETE /api/lands/{public_id}", manage(landH.Delete))
+
+	// Buildings API
+	mux.Handle("GET /api/buildings", authed(bldgH.List))
+	mux.Handle("GET /api/buildings/{public_id}", authed(bldgH.Get))
+	mux.Handle("POST /api/buildings", authed(bldgH.Create))
+	mux.Handle("PUT /api/buildings/{public_id}", authed(bldgH.Update))
+	mux.Handle("DELETE /api/buildings/{public_id}", manage(bldgH.Delete))
+
 	mux.HandleFunc("GET /ws", wsH.Serve)
 
 	return middleware.RequestLogging(middleware.CORS(deps.AllowedOrigins, mux))
 }
+

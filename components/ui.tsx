@@ -120,9 +120,11 @@ export function Btn({
 export function Tag({
   children,
   tone = "blue",
+  className = "",
 }: {
   children: ReactNode;
   tone?: "blue" | "gold" | "green" | "red" | "gray";
+  className?: string;
 }) {
   const tones: Record<string, string> = {
     blue: "bg-blue-50 text-blue-700 border-blue-200",
@@ -132,7 +134,7 @@ export function Tag({
     gray: "bg-gray-100 text-gray-600 border-gray-200",
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${tones[tone]}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${tones[tone]} ${className}`}>
       {children}
     </span>
   );

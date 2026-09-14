@@ -91,9 +91,53 @@ CREATE TABLE IF NOT EXISTS dashboard_content (
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS land_parcels (
+	id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	public_id     UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+	land_code     VARCHAR(50) NOT NULL UNIQUE,
+	srt_land_type VARCHAR(100) NOT NULL DEFAULT '',
+	land_use      VARCHAR(100) NOT NULL DEFAULT '',
+	land_type     VARCHAR(100) NOT NULL DEFAULT '',
+	deed_no       VARCHAR(50) NOT NULL DEFAULT '',
+	dimension     VARCHAR(50) NOT NULL DEFAULT '',
+	width         NUMERIC(10,2),
+	length        NUMERIC(10,2),
+	picture_f     TEXT NOT NULL DEFAULT '',
+	lat           DOUBLE PRECISION,
+	lng           DOUBLE PRECISION,
+	created_by    BIGINT REFERENCES users(id),
+	created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS buildings (
+	id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	public_id          UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+	bldg_code          VARCHAR(50) NOT NULL UNIQUE,
+	land_code          VARCHAR(50) NOT NULL DEFAULT '',
+	name               VARCHAR(254) NOT NULL DEFAULT '',
+	bldg_69            VARCHAR(254) NOT NULL DEFAULT '',
+	material_type      VARCHAR(100) NOT NULL DEFAULT '',
+	age                VARCHAR(20) NOT NULL DEFAULT '',
+	be_age             VARCHAR(20) NOT NULL DEFAULT '',
+	num_fl             NUMERIC(5,2) NOT NULL DEFAULT 1.0,
+	floors             JSONB NOT NULL DEFAULT '[]',
+	bld_condition_type VARCHAR(100) NOT NULL DEFAULT '',
+	picture_f          TEXT NOT NULL DEFAULT '',
+	picture_b          TEXT NOT NULL DEFAULT '',
+	picture_r          TEXT NOT NULL DEFAULT '',
+	picture_l          TEXT NOT NULL DEFAULT '',
+	created_by         BIGINT REFERENCES users(id),
+	created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_land_code ON land_parcels(land_code);
+CREATE INDEX IF NOT EXISTS idx_bldg_code ON buildings(bldg_code);
+CREATE INDEX IF NOT EXISTS idx_bldg_land ON buildings(land_code);
 `
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
