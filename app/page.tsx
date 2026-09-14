@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import { Languages, ChevronRight, AlertCircle, ShieldCheck, UserCheck, Users } from "lucide-react";
-import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, type AppUser } from "@/lib/api";
+import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, loginDemo, type AppUser } from "@/lib/api";
 import Logo from "@/components/Logo";
 
 export default function LoginPage() {
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
+  const [isFetchError, setIsFetchError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
@@ -35,6 +36,7 @@ export default function LoginPage() {
 
   async function handleLogin(uName: string, pWord: string) {
     setErr("");
+    setIsFetchError(false);
     if (!API_CONFIGURED) {
       router.push("/dashboard");
       return;
@@ -44,7 +46,17 @@ export default function LoginPage() {
       const u = await loginWithPassword(uName.trim(), pWord);
       routeByRole(u);
     } catch (e) {
-      setErr((e as Error).message || "เข้าสู่ระบบไม่สำเร็จ โปรดตรวจสอบชื่อผู้ใช้และรหัสผ่าน");
+      const msg = (e as Error).message || "";
+      if (msg.toLowerCase().includes("failed to fetch")) {
+        setIsFetchError(true);
+        setErr(
+          lang === "th"
+            ? "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์หลังบ้านได้ (Failed to fetch) — เซิร์ฟเวอร์ Render ฟรีอาจกำลังหลับ (Cold start 30-50 วินาที) หรือติดปัญหา CORS ของโดเมนใหม่"
+            : "Cannot connect to backend (Failed to fetch) — Render free tier might be starting up (Cold start) or blocked by CORS."
+        );
+      } else {
+        setErr(msg || "เข้าสู่ระบบไม่สำเร็จ โปรดตรวจสอบชื่อผู้ใช้และรหัสผ่าน");
+      }
       setBusy(false);
     }
   }
@@ -125,8 +137,33 @@ export default function LoginPage() {
             </div>
 
             {err && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs px-3 py-2 flex items-center gap-1.5">
-                <AlertCircle size={13} /> {err}
+              <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs p-3 space-y-2">
+                <div className="flex items-start gap-1.5">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span>{err}</span>
+                </div>
+                {isFetchError && (
+                  <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetRole = username === "admin" ? "admin" : username === "normal" ? "subordinate" : "supervisor";
+                        const u = loginDemo(targetRole);
+                        routeByRole(u);
+                      }}
+                      className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium transition text-[11px] shadow-xs"
+                    >
+                      เข้าสู่ระบบโหมดทดสอบ (Demo) ทันที
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLogin(username || "leader", password || "leader")}
+                      className="text-rose-700 hover:underline text-[11px]"
+                    >
+                      ลองเชื่อมต่อใหม่
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

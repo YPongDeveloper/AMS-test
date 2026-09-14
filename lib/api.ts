@@ -163,6 +163,20 @@ export function saveCurrentUser(u: AppUser) {
   window.localStorage.setItem(USER_KEY, JSON.stringify(u));
 }
 
+// เข้าสู่ระบบโหมดทดสอบ (Offline / Demo Fallback เมื่อเซิร์ฟเวอร์ยังไม่พร้อมหรือติด CORS)
+export function loginDemo(role: Role = "supervisor"): AppUser {
+  const mockUser: AppUser = {
+    public_id: role === "admin" ? "mock-admin" : role === "supervisor" ? "mock-leader" : "mock-officer",
+    username: role === "admin" ? "admin" : role === "supervisor" ? "leader" : "normal",
+    display_name: role === "admin" ? "ผู้ดูแลระบบ (Demo)" : role === "supervisor" ? "หัวหน้างานสำรวจ (Demo)" : "เจ้าหน้าที่สำรวจ (Demo)",
+    picture_url: null,
+    role,
+    created_at: new Date().toISOString(),
+  };
+  saveCurrentUser(mockUser);
+  return mockUser;
+}
+
 export function getCurrentUser(): AppUser | null {
   if (typeof window === "undefined") return null;
   try {
