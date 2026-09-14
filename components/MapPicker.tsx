@@ -17,9 +17,10 @@ import {
 interface MapPickerProps {
   lat: number | null;
   lng: number | null;
-  onChange: (lat: number | null, lng: number | null) => void;
+  onChange?: (lat: number | null, lng: number | null) => void;
   height?: string;
   showInputs?: boolean;
+  readOnly?: boolean;
 }
 
 type LayerType = "hybrid" | "roadmap" | "osm";
@@ -89,6 +90,7 @@ export default function MapPicker({
   onChange,
   height = "260px",
   showInputs = true,
+  readOnly = false,
 }: MapPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,9 +115,10 @@ export default function MapPicker({
   // ฟังก์ชันอัปเดตตำแหน่งแผนที่และหมุด
   const setPinPosition = useCallback(
     (newLat: number, newLng: number, zoomLevel?: number) => {
+      if (readOnly) return;
       const formattedLat = Number(newLat.toFixed(6));
       const formattedLng = Number(newLng.toFixed(6));
-      onChange(formattedLat, formattedLng);
+      onChange?.(formattedLat, formattedLng);
 
       if (markerInstanceRef.current) {
         markerInstanceRef.current.setLatLng([formattedLat, formattedLng]);
@@ -128,7 +131,7 @@ export default function MapPicker({
         }
       }
     },
-    [onChange]
+    [onChange, readOnly]
   );
 
   // เริ่มต้น Leaflet Map
@@ -146,11 +149,11 @@ export default function MapPicker({
         mapInstanceRef.current = null;
       }
 
-      // สร้าง Custom SVG Pin Marker ที่คมชัดและลากได้
+      // สร้าง Custom SVG Pin Marker ที่คมชัด
       const pinIcon = L.divIcon({
         className: "ams-custom-pin",
         html: `
-          <div style="transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: grab;">
+          <div style="transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: ${readOnly ? "default" : "grab"};">
             <div style="background-color: #ef4444; color: white; width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2.5px solid #ffffff;">
               <div style="width: 10px; height: 10px; background: white; border-radius: 50%;"></div>
             </div>
@@ -181,19 +184,21 @@ export default function MapPicker({
       // Marker ปักหมุด
       const marker = L.marker([currentLat, currentLng], {
         icon: pinIcon,
-        draggable: true,
+        draggable: !readOnly,
       }).addTo(map);
 
-      // เมื่อลากหมุดเสร็จ
-      marker.on("dragend", () => {
-        const pos = marker.getLatLng();
-        setPinPosition(pos.lat, pos.lng);
-      });
+      if (!readOnly) {
+        // เมื่อลากหมุดเสร็จ
+        marker.on("dragend", () => {
+          const pos = marker.getLatLng();
+          setPinPosition(pos.lat, pos.lng);
+        });
 
-      // เมื่อคลิกบนแผนที่
-      map.on("click", (e) => {
-        setPinPosition(e.latlng.lat, e.latlng.lng);
-      });
+        // เมื่อคลิกบนแผนที่
+        map.on("click", (e) => {
+          setPinPosition(e.latlng.lat, e.latlng.lng);
+        });
+      }
 
       mapInstanceRef.current = map;
       markerInstanceRef.current = marker;
@@ -325,37 +330,46 @@ export default function MapPicker({
   const renderMapBox = () => (
     <div className="relative w-full h-full flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-inner bg-slate-100">
       {/* Search & Tool Bar ด้านบนแผนที่ */}
-      <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-col sm:flex-row gap-1.5 items-stretch sm:items-center">
-        {/* ช่องค้นหา / วางลิงก์ Google Maps */}
-        <form onSubmit={handleSearchOrPaste} className="flex-1 flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
-          <Search size={16} className="ml-3 text-gray-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="ค้นหาสถานที่ หรือ วางลิงก์ / พิกัด Google Maps..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-transparent focus:outline-none"
-          />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={() => setSearchInput("")}
-              className="p-1 mr-1 text-gray-400 hover:text-gray-600 rounded"
-            >
-              <X size={14} />
-            </button>
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-col sm:flex-row gap-1.5 items-stretch sm:items-center justify-between pointer-events-none">
+        {/* ช่องค้นหา / วางลิงก์ Google Maps (เฉพาะโหมดเลือกพิกัด) หรือ ป้ายแสดงพิกัดงาน (โหมดดูอย่างเดียว) */}
+        <div className="pointer-events-auto flex-1 max-w-md">
+          {readOnly ? (
+            <div className="inline-flex items-center gap-2 bg-white/95 backdrop-blur px-3 py-1.5 rounded-lg shadow-md border border-gray-200 text-xs font-semibold text-govblue-900">
+              <MapPin size={15} className="text-rose-600 shrink-0" />
+              <span>ตำแหน่งจุดปฏิบัติงานที่ได้รับมอบหมาย</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSearchOrPaste} className="flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
+              <Search size={16} className="ml-3 text-gray-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="ค้นหาสถานที่ หรือ วางลิงก์ / พิกัด Google Maps..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-transparent focus:outline-none"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  className="p-1 mr-1 text-gray-400 hover:text-gray-600 rounded"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={searching}
+                className="bg-govblue-700 hover:bg-govblue-800 text-white text-xs px-3 py-1.5 font-medium shrink-0 flex items-center gap-1 transition disabled:opacity-50"
+              >
+                {searching ? <Loader2 size={12} className="animate-spin" /> : "ค้นหา"}
+              </button>
+            </form>
           )}
-          <button
-            type="submit"
-            disabled={searching}
-            className="bg-govblue-700 hover:bg-govblue-800 text-white text-xs px-3 py-1.5 font-medium shrink-0 flex items-center gap-1 transition disabled:opacity-50"
-          >
-            {searching ? <Loader2 size={12} className="animate-spin" /> : "ค้นหา"}
-          </button>
-        </form>
+        </div>
 
         {/* ปุ่มควบคุมเสริมบนแผนที่ */}
-        <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
+        <div className="pointer-events-auto flex items-center gap-1 shrink-0 self-end sm:self-auto bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
           {/* สลับ Layer */}
           <div className="flex items-center gap-0.5 text-xs">
             <button
@@ -380,25 +394,30 @@ export default function MapPicker({
             </button>
           </div>
 
-          <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
+          {!readOnly && (
+            <>
+              <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
+              {/* ปุ่มดึง GPS */}
+              <button
+                type="button"
+                onClick={handleAcquireGPS}
+                disabled={gpsLocating}
+                className="p-1.5 text-govblue-700 hover:bg-govblue-50 rounded transition"
+                title="ดึงพิกัดปัจจุบันจาก GPS"
+              >
+                {gpsLocating ? <Loader2 size={15} className="animate-spin text-govblue-600" /> : <Crosshair size={15} />}
+              </button>
+            </>
+          )}
 
-          {/* ปุ่มดึง GPS */}
-          <button
-            type="button"
-            onClick={handleAcquireGPS}
-            disabled={gpsLocating}
-            className="p-1.5 text-govblue-700 hover:bg-govblue-50 rounded transition"
-            title="ดึงพิกัดปัจจุบันจาก GPS"
-          >
-            {gpsLocating ? <Loader2 size={15} className="animate-spin text-govblue-600" /> : <Crosshair size={15} />}
-          </button>
+          <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
 
           {/* ปุ่มขยายเต็มจอ */}
           <button
             type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
             className="p-1.5 text-gray-700 hover:bg-gray-100 rounded transition"
-            title={isFullscreen ? "ย่อหน้าจอ" : "ขยายแผนที่เต็มจอเพื่อเลือกพิกัด"}
+            title={isFullscreen ? "ย่อหน้าจอ" : readOnly ? "ขยายแผนที่เพื่อดูพื้นที่อย่างละเอียด" : "ขยายแผนที่เต็มจอเพื่อเลือกพิกัด"}
           >
             {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
@@ -433,8 +452,8 @@ export default function MapPicker({
         <span>
           {currentLat.toFixed(6)}, {currentLng.toFixed(6)}
         </span>
-        <span className="text-[10px] text-gray-300 border-l border-gray-600 pl-2 pointer-events-auto">
-          คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด
+        <span className="text-[10px] text-gray-300 border-l border-gray-600 pl-2">
+          {readOnly ? "จุดปฏิบัติงาน" : "คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด"}
         </span>
       </div>
 
@@ -461,8 +480,8 @@ export default function MapPicker({
         {renderMapBox()}
       </div>
 
-      {/* ช่องกรอก Lat / Lng แบบตัวเลข (สองช่องด้านล่าง) */}
-      {showInputs && (
+      {/* ช่องกรอก Lat / Lng แบบตัวเลข (สองช่องด้านล่าง เฉพาะเมื่อไม่ใช่ readOnly) */}
+      {showInputs && !readOnly && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -472,7 +491,7 @@ export default function MapPicker({
               type="number"
               step="0.000001"
               value={lat ?? ""}
-              onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null, lng)}
+              onChange={(e) => onChange?.(e.target.value ? Number(e.target.value) : null, lng)}
               placeholder="เช่น 13.880677"
               className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-mono"
             />
@@ -485,7 +504,7 @@ export default function MapPicker({
               type="number"
               step="0.000001"
               value={lng ?? ""}
-              onChange={(e) => onChange(lat, e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => onChange?.(lat, e.target.value ? Number(e.target.value) : null)}
               placeholder="เช่น 100.454334"
               className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-mono"
             />
@@ -493,7 +512,7 @@ export default function MapPicker({
         </div>
       )}
 
-      {/* Fullscreen Modal View เมื่อผู้ใช้ต้องการขยายแผนที่ใหญ่เพื่อเลือกพิกัด */}
+      {/* Fullscreen Modal View เมื่อผู้ใช้ต้องการขยายแผนที่ใหญ่ */}
       {isFullscreen && (
         <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-6xl flex flex-col overflow-hidden border border-gray-300">
@@ -502,26 +521,34 @@ export default function MapPicker({
               <div className="flex items-center gap-2">
                 <MapPin className="text-govgold-400" size={18} />
                 <div>
-                  <h3 className="text-sm font-semibold">เลือกพิกัดจากแผนที่ Google Maps / ดาวเทียม</h3>
+                  <h3 className="text-sm font-semibold">
+                    {readOnly
+                      ? "ตำแหน่งจุดปฏิบัติงาน (Google Maps / ภาพถ่ายดาวเทียม)"
+                      : "เลือกพิกัดจากแผนที่ Google Maps / ดาวเทียม"}
+                  </h3>
                   <p className="text-[11px] text-blue-200">
-                    คลิกบนแผนที่หรือลากหมุดสีแดงไปยังแปลงที่ดิน/สิ่งปลูกสร้างที่ต้องการ
+                    {readOnly
+                      ? "แสดงพิกัดและสภาพภูมิประเทศจริงของจุดที่ต้องลงพื้นที่ปฏิบัติงาน"
+                      : "คลิกบนแผนที่หรือลากหมุดสีแดงไปยังแปลงที่ดิน/สิ่งปลูกสร้างที่ต้องการ"}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(false)}
+                    className="bg-govgold-500 hover:bg-govgold-400 text-govblue-900 text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow"
+                  >
+                    <Check size={14} /> ยืนยันพิกัดนี้
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(false)}
-                  className="bg-govgold-500 hover:bg-govgold-400 text-govblue-900 text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow"
+                  className="px-3 py-1.5 text-xs text-blue-200 hover:text-white rounded-lg hover:bg-white/10 flex items-center gap-1.5 transition"
                 >
-                  <Check size={14} /> ยืนยันพิกัดนี้
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsFullscreen(false)}
-                  className="p-1.5 text-blue-200 hover:text-white rounded hover:bg-white/10"
-                >
-                  <X size={18} />
+                  <X size={16} /> ปิดแผนที่
                 </button>
               </div>
             </div>
