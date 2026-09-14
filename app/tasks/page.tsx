@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -18,6 +18,7 @@ import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
 import MapPicker from "@/components/MapPicker";
+import TasksMasterMap from "@/components/TasksMasterMap";
 import {
   ClipboardList,
   MapPin,
@@ -37,6 +38,11 @@ import {
   ChevronDown,
   ArrowRight,
   Activity,
+  ChevronLeft,
+  ChevronRight,
+  Map,
+  List,
+  Navigation,
 } from "lucide-react";
 
 // 4 ขั้นตอนหลักของ Workflow ภารกิจสำรวจ
@@ -46,6 +52,37 @@ const PIPELINE_STEPS: { status: TaskStatus; label: string; sub: string }[] = [
   { status: "in_progress", label: "กำลังปฏิบัติงาน", sub: "ลงพื้นที่สำรวจ" },
   { status: "done", label: "เสร็จสิ้น", sub: "ส่งมอบงานสมบูรณ์" },
 ];
+
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const getTaskDateStr = (task: Task) => {
+  const dt = task.due_at || task.created_at;
+  if (!dt) return "";
+  try {
+    const d = new Date(dt);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    return "";
+  }
+};
+
+function formatThaiDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const year = parseInt(parts[0], 10) + 543;
+  const monthNames = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
+  const month = monthNames[parseInt(parts[1], 10) - 1] || parts[1];
+  const day = parseInt(parts[2], 10);
+  return `${day} ${month} ${year}`;
+}
 
 const DEFAULT_SAMPLE_TASKS: Task[] = [
   {
@@ -60,7 +97,7 @@ const DEFAULT_SAMPLE_TASKS: Task[] = [
     assignee_name: "เจ้าหน้าที่สำรวจ",
     assigner_public_id: "usr-leader",
     assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date(Date.now() + 86400000 * 2).toISOString(),
+    due_at: new Date().toISOString(),
     lat: 14.3532,
     lng: 100.5828,
     place_name: "สถานีรถไฟอยุธยา (ย่านสินค้า)",
@@ -79,11 +116,67 @@ const DEFAULT_SAMPLE_TASKS: Task[] = [
     assignee_name: "เจ้าหน้าที่สำรวจ",
     assigner_public_id: "usr-leader",
     assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date(Date.now() + 86400000 * 4).toISOString(),
+    due_at: new Date().toISOString(),
     lat: 13.8045,
     lng: 100.5398,
     place_name: "สถานีกลางกรุงเทพอภิวัฒน์ / ย่านพหลโยธิน",
     created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "sample-tk-3",
+    code: "TK-2569-003",
+    title: "ตรวจสอบอาคารพาณิชย์ให้เช่า สถานีรถไฟดอนเมือง",
+    task_type: "inspect",
+    description:
+      "ตรวจสอบสัญญาเช่าและพื้นที่ใช้สอยจริงของร้านค้าและอาคารพาณิชย์บริเวณแนวเขตสถานีรถไฟดอนเมือง",
+    status: "pending",
+    assignee_public_id: "usr-normal",
+    assignee_name: "เจ้าหน้าที่สำรวจ",
+    assigner_public_id: "usr-leader",
+    assigner_name: "หัวหน้างานสำรวจ",
+    due_at: new Date().toISOString(),
+    lat: 13.913,
+    lng: 100.598,
+    place_name: "สถานีรถไฟดอนเมือง (แนวเขต รฟท.)",
+    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "sample-tk-4",
+    code: "TK-2569-004",
+    title: "รังวัดหมุดหลักเขตแนวทางรถไฟ ย่านมักกะสัน",
+    task_type: "survey",
+    description:
+      "ตรวจสภาพหลักหมุดคอนกรีตและรังวัดพิกัดดาวเทียม GNSS แปลงที่ดินโรงงานมักกะสัน",
+    status: "done",
+    assignee_public_id: "usr-normal",
+    assignee_name: "เจ้าหน้าที่สำรวจ",
+    assigner_public_id: "usr-leader",
+    assigner_name: "หัวหน้างานสำรวจ",
+    due_at: new Date().toISOString(),
+    lat: 13.7505,
+    lng: 100.5515,
+    place_name: "โรงงานรถไฟมักกะสัน",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "sample-tk-5",
+    code: "TK-2569-005",
+    title: "สำรวจพื้นที่ทับซ้อนแนวเขต ย่านยมราช",
+    task_type: "survey",
+    description: "งานสำรวจยกเลิกเนื่องจากมีการปรับปรุงแผนงานร่วมกับหน่วยงานภายนอก",
+    status: "cancelled",
+    assignee_public_id: "usr-normal",
+    assignee_name: "เจ้าหน้าที่สำรวจ",
+    assigner_public_id: "usr-leader",
+    assigner_name: "หัวหน้างานสำรวจ",
+    due_at: new Date().toISOString(),
+    lat: 13.757,
+    lng: 100.521,
+    place_name: "จุดตัดทางรถไฟยมราช",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
@@ -102,6 +195,10 @@ export default function TasksPage() {
     isSup ? "assigned_by_me" : "my_tasks"
   );
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
+  const [filterByDate, setFilterByDate] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [orderedTaskIds, setOrderedTaskIds] = useState<string[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [notice, setNotice] = useState("");
   const [wsOn, setWsOn] = useState(false);
@@ -239,36 +336,80 @@ export default function TasksPage() {
   }
 
   // คัดกรองงานตามแท็บที่เลือก
-  const currentTabTasks = tasks.filter((task) => {
-    if (activeTab === "assigned_by_me") {
-      return (
-        task.assigner_public_id === me?.public_id ||
-        task.assigner_name === me?.display_name ||
-        isSup
-      );
-    }
-    if (activeTab === "my_tasks") {
-      return (
-        task.assignee_public_id === me?.public_id ||
-        task.assignee_name === me?.display_name ||
-        !isSup
-      );
-    }
-    return true; // all
-  });
+  const currentTabTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (activeTab === "assigned_by_me") {
+        return (
+          task.assigner_public_id === me?.public_id ||
+          task.assigner_name === me?.display_name ||
+          isSup
+        );
+      }
+      if (activeTab === "my_tasks") {
+        return (
+          task.assignee_public_id === me?.public_id ||
+          task.assignee_name === me?.display_name ||
+          !isSup
+        );
+      }
+      return true; // all
+    });
+  }, [tasks, activeTab, me?.public_id, me?.display_name, isSup]);
 
-  // คัดกรองงานตามสถานะ
-  const displayedTasks = currentTabTasks.filter((task) => {
-    if (statusFilter === "all") return true;
-    return task.status === statusFilter;
-  });
+  // คัดกรองงานตามวันที่เลือก
+  const dateFilteredTasks = useMemo(() => {
+    return currentTabTasks.filter((task) => {
+      if (!filterByDate) return true;
+      const tDate = getTaskDateStr(task);
+      return tDate === selectedDate;
+    });
+  }, [currentTabTasks, filterByDate, selectedDate]);
 
-  // สถิติยอดงาน
-  const stats = {
-    total: currentTabTasks.length,
-    pending: currentTabTasks.filter((t) => t.status === "pending").length,
-    inProgress: currentTabTasks.filter((t) => t.status === "in_progress" || t.status === "accepted").length,
-    done: currentTabTasks.filter((t) => t.status === "done").length,
+  // คัดกรองงานตามสถานะที่เลือกจากปุ่ม Filter Cards
+  const displayedTasks = useMemo(() => {
+    return dateFilteredTasks.filter((task) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "in_progress") {
+        return task.status === "in_progress" || task.status === "accepted";
+      }
+      return task.status === statusFilter;
+    });
+  }, [dateFilteredTasks, statusFilter]);
+
+  // สถิติยอดงาน (5 ช่องสำหรับปุ่ม Filter)
+  const baseForStats = filterByDate ? dateFilteredTasks : currentTabTasks;
+  const stats = useMemo(() => ({
+    total: baseForStats.length,
+    pending: baseForStats.filter((t) => t.status === "pending").length,
+    inProgress: baseForStats.filter((t) => t.status === "in_progress" || t.status === "accepted").length,
+    done: baseForStats.filter((t) => t.status === "done").length,
+    cancelled: baseForStats.filter((t) => t.status === "cancelled").length,
+  }), [baseForStats]);
+
+  // อัปเดต orderedTaskIds เริ่มต้นเมื่อ dateFilteredTasks เปลี่ยน
+  useEffect(() => {
+    const ids = dateFilteredTasks.map((t) => t.public_id);
+    setOrderedTaskIds((prev) => {
+      const kept = prev.filter((id) => ids.includes(id));
+      const newlyAdded = ids.filter((id) => !kept.includes(id));
+      return [...kept, ...newlyAdded];
+    });
+  }, [dateFilteredTasks]);
+
+  const handlePrevDay = () => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() - 1);
+    const newStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    setSelectedDate(newStr);
+    setFilterByDate(true);
+  };
+
+  const handleNextDay = () => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + 1);
+    const newStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    setSelectedDate(newStr);
+    setFilterByDate(true);
   };
 
   const getStepIndex = (status: TaskStatus) => {
@@ -420,49 +561,171 @@ export default function TasksPage() {
             </div>
           )}
 
-          {/* Metric Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-govblue-50 text-govblue-700 flex items-center justify-center shrink-0">
-                <Layers size={20} />
-              </div>
-              <div>
-                <div className="text-[11px] text-gray-500">{t("งานทั้งหมด", "Total Tasks")}</div>
-                <div className="text-lg font-bold text-gray-900">{stats.total}</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Clock size={20} />
-              </div>
-              <div>
-                <div className="text-[11px] text-amber-700 font-medium">{t("รอรับงาน", "Pending")}</div>
-                <div className="text-lg font-bold text-amber-800">{stats.pending}</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <PlayCircle size={20} />
-              </div>
-              <div>
-                <div className="text-[11px] text-indigo-700 font-medium">
-                  {t("กำลังปฏิบัติงาน", "In Progress")}
+          {/* Metric Summary Filter Cards (5 สถานะ สามารถกดเพื่อกรองงานได้) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+            {/* 1. งานทั้งหมด */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`p-3.5 rounded-xl border text-left transition-all duration-150 flex items-center justify-between gap-2 shadow-xs group ${
+                statusFilter === "all"
+                  ? "bg-govblue-50/90 border-govblue-600 ring-2 ring-govblue-500/20 shadow-sm"
+                  : "bg-white border-gray-200 hover:border-govblue-300 hover:bg-gray-50/80"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition ${
+                    statusFilter === "all"
+                      ? "bg-govblue-700 text-white shadow-xs"
+                      : "bg-govblue-50 text-govblue-700 group-hover:bg-govblue-100"
+                  }`}
+                >
+                  <Layers size={18} />
                 </div>
-                <div className="text-lg font-bold text-indigo-800">{stats.inProgress}</div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-gray-500 truncate">
+                    {t("งานทั้งหมด", "Total Tasks")}
+                  </div>
+                  <div className="text-lg font-bold text-gray-900 leading-tight">{stats.total}</div>
+                </div>
               </div>
-            </div>
+              {statusFilter === "all" && (
+                <span className="w-2 h-2 rounded-full bg-govblue-600 shrink-0" />
+              )}
+            </button>
 
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={20} />
+            {/* 2. รอรับงาน (หมุดสีขาว) */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+              className={`p-3.5 rounded-xl border text-left transition-all duration-150 flex items-center justify-between gap-2 shadow-xs group ${
+                statusFilter === "pending"
+                  ? "bg-amber-50/90 border-amber-500 ring-2 ring-amber-400/20 shadow-sm"
+                  : "bg-white border-gray-200 hover:border-amber-300 hover:bg-amber-50/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border transition ${
+                    statusFilter === "pending"
+                      ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                      : "bg-amber-50 text-amber-600 border-amber-200 group-hover:bg-amber-100"
+                  }`}
+                >
+                  <Clock size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-amber-700 truncate flex items-center gap-1">
+                    <span>{t("รอรับงาน", "Pending")}</span>
+                    <span className="inline-block w-2 h-2 rounded-full bg-white border border-gray-400 shrink-0" title="หมุดสีขาวบนแผนที่" />
+                  </div>
+                  <div className="text-lg font-bold text-amber-900 leading-tight">{stats.pending}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-[11px] text-emerald-700 font-medium">{t("เสร็จสิ้น", "Done")}</div>
-                <div className="text-lg font-bold text-emerald-800">{stats.done}</div>
+              {statusFilter === "pending" && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              )}
+            </button>
+
+            {/* 3. กำลังปฏิบัติงาน (หมุดสีฟ้าอ่อน) */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "in_progress" ? "all" : "in_progress")}
+              className={`p-3.5 rounded-xl border text-left transition-all duration-150 flex items-center justify-between gap-2 shadow-xs group ${
+                statusFilter === "in_progress"
+                  ? "bg-sky-50/90 border-sky-500 ring-2 ring-sky-400/20 shadow-sm"
+                  : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition ${
+                    statusFilter === "in_progress"
+                      ? "bg-sky-500 text-white shadow-xs"
+                      : "bg-sky-50 text-sky-600 group-hover:bg-sky-100"
+                  }`}
+                >
+                  <PlayCircle size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-sky-700 truncate flex items-center gap-1">
+                    <span>{t("กำลังปฏิบัติงาน", "In Progress")}</span>
+                    <span className="inline-block w-2 h-2 rounded-full bg-sky-400 border border-sky-500 shrink-0" title="หมุดสีฟ้าอ่อนบนแผนที่" />
+                  </div>
+                  <div className="text-lg font-bold text-sky-900 leading-tight">{stats.inProgress}</div>
+                </div>
               </div>
-            </div>
+              {statusFilter === "in_progress" && (
+                <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
+              )}
+            </button>
+
+            {/* 4. เสร็จสิ้น (หมุดสีเขียว) */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "done" ? "all" : "done")}
+              className={`p-3.5 rounded-xl border text-left transition-all duration-150 flex items-center justify-between gap-2 shadow-xs group ${
+                statusFilter === "done"
+                  ? "bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-400/20 shadow-sm"
+                  : "bg-white border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition ${
+                    statusFilter === "done"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
+                  }`}
+                >
+                  <CheckCircle2 size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-emerald-700 truncate flex items-center gap-1">
+                    <span>{t("เสร็จสิ้น", "Done")}</span>
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="หมุดสีเขียวบนแผนที่" />
+                  </div>
+                  <div className="text-lg font-bold text-emerald-900 leading-tight">{stats.done}</div>
+                </div>
+              </div>
+              {statusFilter === "done" && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              )}
+            </button>
+
+            {/* 5. ยกเลิก (หมุดสีแดง) */}
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "cancelled" ? "all" : "cancelled")}
+              className={`p-3.5 rounded-xl border text-left transition-all duration-150 flex items-center justify-between gap-2 shadow-xs group col-span-2 sm:col-span-1 ${
+                statusFilter === "cancelled"
+                  ? "bg-rose-50/90 border-rose-500 ring-2 ring-rose-400/20 shadow-sm"
+                  : "bg-white border-gray-200 hover:border-rose-300 hover:bg-rose-50/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition ${
+                    statusFilter === "cancelled"
+                      ? "bg-rose-500 text-white shadow-xs"
+                      : "bg-rose-50 text-rose-600 group-hover:bg-rose-100"
+                  }`}
+                >
+                  <X size={18} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-rose-700 truncate flex items-center gap-1">
+                    <span>{t("ยกเลิก", "Cancelled")}</span>
+                    <span className="inline-block w-2 h-2 rounded-full bg-rose-500 shrink-0" title="หมุดสีแดงบนแผนที่" />
+                  </div>
+                  <div className="text-lg font-bold text-rose-900 leading-tight">{stats.cancelled}</div>
+                </div>
+              </div>
+              {statusFilter === "cancelled" && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+              )}
+            </button>
           </div>
 
           {/* Navigation Tabs (สำหรับหัวหน้า / เจ้าหน้าที่) */}
@@ -532,26 +795,127 @@ export default function TasksPage() {
               )}
             </div>
 
-            {/* Filter by Status */}
-            {activeTab !== "members" && (
-              <div className="flex items-center gap-1.5 text-xs self-end sm:self-auto">
-                <Filter size={14} className="text-gray-400" />
-                <span className="text-gray-500 hidden sm:inline">{t("สถานะ:", "Status:")}</span>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "all" | TaskStatus)}
-                  className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-medium"
-                >
-                  <option value="all">— ทุกสถานะ —</option>
-                  <option value="pending">รอรับงาน</option>
-                  <option value="accepted">รับงานแล้ว</option>
-                  <option value="in_progress">กำลังปฏิบัติงาน</option>
-                  <option value="done">เสร็จสิ้น</option>
-                  <option value="cancelled">ยกเลิก</option>
-                </select>
-              </div>
-            )}
           </div>
+
+          {/* Date Navigation & View Mode Switcher Toolbar (คัดกรองงานในวันนั้นๆ & สลับดูแผนที่รวม) */}
+          {activeTab !== "members" && (
+            <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Date Navigator */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 shrink-0">
+                  <Calendar size={15} className="text-govblue-700" />
+                  <span>{t("ภารกิจประจำวัน:", "Daily Tasks:")}</span>
+                </span>
+
+                <div className="inline-flex items-center bg-gray-50 border border-gray-300 rounded-lg overflow-hidden shadow-xs">
+                  {/* Prev Day Button */}
+                  <button
+                    type="button"
+                    onClick={handlePrevDay}
+                    title="วันก่อนหน้า (Previous Day)"
+                    className="p-1.5 px-2 hover:bg-gray-200 active:bg-gray-300 text-gray-700 transition"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {/* Date Input */}
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setFilterByDate(true);
+                    }}
+                    className="bg-transparent text-xs font-semibold text-gray-800 px-2.5 py-1.5 focus:outline-none border-x border-gray-200 cursor-pointer"
+                  />
+
+                  {/* Next Day Button */}
+                  <button
+                    type="button"
+                    onClick={handleNextDay}
+                    title="วันถัดไป (Next Day)"
+                    className="p-1.5 px-2 hover:bg-gray-200 active:bg-gray-300 text-gray-700 transition"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Today Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDate(getTodayStr());
+                    setFilterByDate(true);
+                  }}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
+                    selectedDate === getTodayStr() && filterByDate
+                      ? "bg-govblue-50 border-govblue-300 text-govblue-800 font-semibold shadow-2xs"
+                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {t("วันนี้", "Today")}
+                </button>
+
+                {/* Toggle All Days vs Specific Day */}
+                <button
+                  type="button"
+                  onClick={() => setFilterByDate(!filterByDate)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
+                    !filterByDate
+                      ? "bg-amber-50 border-amber-300 text-amber-800 font-semibold"
+                      : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {!filterByDate ? t("แสดงทุกวัน (ไม่จำกัด)", "Showing All Days") : t("แสดงงานทุกวัน", "Show All Days")}
+                </button>
+
+                {filterByDate && (
+                  <span className="text-[11px] text-gray-500 hidden lg:inline ml-1 font-medium">
+                    ({formatThaiDate(selectedDate)})
+                  </span>
+                )}
+              </div>
+
+              {/* View Mode Switcher: Cards vs Master Map */}
+              <div className="flex items-center gap-1.5 self-end md:self-auto shrink-0 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    viewMode === "list"
+                      ? "bg-white text-govblue-900 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <List size={15} />
+                  <span>{t("รายการการ์ด", "Card List")}</span>
+                  <span className="ml-0.5 text-[10px] px-1.5 py-0.2 rounded-full bg-gray-200 text-gray-700 font-bold">
+                    {displayedTasks.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("map")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    viewMode === "map"
+                      ? "bg-govblue-800 text-white shadow-sm"
+                      : "text-gray-700 hover:text-govblue-900"
+                  }`}
+                >
+                  <Map size={15} />
+                  <span>{t("แผนที่รวมจุดในงานต่างๆ", "Master Route Map")}</span>
+                  <span
+                    className={`ml-0.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      viewMode === "map" ? "bg-white/25 text-white" : "bg-govblue-100 text-govblue-800"
+                    }`}
+                  >
+                    {displayedTasks.filter((t) => t.lat != null && t.lng != null).length}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Members View (Supervisor Only) */}
           {activeTab === "members" && isSup && (
@@ -604,151 +968,164 @@ export default function TasksPage() {
             </div>
           )}
 
-          {/* Task Cards Grid (Clean, Fixed-size, Uniform & Modern) */}
+          {/* Main Tasks View: Either Master Map or Card List */}
           {activeTab !== "members" && (
-            <div className="space-y-4">
-              {displayedTasks.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-300 bg-white text-center py-14 px-4 text-gray-500 shadow-xs">
-                  <ClipboardList size={36} className="mx-auto text-gray-300 mb-2" />
-                  <p className="font-medium text-gray-700">
-                    {activeTab === "assigned_by_me"
-                      ? t("ยังไม่มีงานที่คุณสั่ง — กดปุ่ม “+ สั่งงานใหม่” เพื่อเริ่มต้น", "No tasks assigned by you yet")
-                      : t("ยังไม่มีงานที่ได้รับมอบหมาย", "No assigned tasks yet")}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบ Real-time
-                  </p>
-                </div>
+            <>
+              {viewMode === "map" ? (
+                /* แผนที่รวมจุดในงานต่างๆ พร้อมระบบจัดเส้นทางและคำนวณระยะทาง */
+                <TasksMasterMap
+                  tasks={displayedTasks}
+                  orderedIds={orderedTaskIds}
+                  onReorder={setOrderedTaskIds}
+                  onSelectTask={setSelectedTask}
+                />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {displayedTasks.map((task) => {
-                    const statusDot =
-                      task.status === "done"
-                        ? "bg-emerald-500"
-                        : task.status === "in_progress"
-                        ? "bg-indigo-500"
-                        : task.status === "accepted"
-                        ? "bg-sky-500"
-                        : task.status === "cancelled"
-                        ? "bg-rose-500"
-                        : "bg-amber-400";
+                /* Task Cards Grid (Clean, Fixed-size, Uniform & Modern) */
+                <div className="space-y-4">
+                  {displayedTasks.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-300 bg-white text-center py-14 px-4 text-gray-500 shadow-xs">
+                      <ClipboardList size={36} className="mx-auto text-gray-300 mb-2" />
+                      <p className="font-medium text-gray-700">
+                        {activeTab === "assigned_by_me"
+                          ? t("ยังไม่มีงานที่คุณสั่ง — กดปุ่ม “+ สั่งงานใหม่” เพื่อเริ่มต้น", "No tasks assigned by you yet")
+                          : t("ยังไม่มีงานที่ได้รับมอบหมาย", "No assigned tasks yet")}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบ Real-time
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {displayedTasks.map((task) => {
+                        const statusDot =
+                          task.status === "done"
+                            ? "bg-emerald-500"
+                            : task.status === "in_progress"
+                            ? "bg-indigo-500"
+                            : task.status === "accepted"
+                            ? "bg-sky-500"
+                            : task.status === "cancelled"
+                            ? "bg-rose-500"
+                            : "bg-amber-400";
 
-                    return (
-                      <div
-                        key={task.public_id}
-                        onClick={() => setSelectedTask(task)}
-                        className="bg-white rounded-xl border border-gray-200 hover:border-govblue-400 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 p-4 sm:p-5 flex flex-col justify-between cursor-pointer group"
-                      >
-                        {/* Top: Code, Status & Due */}
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-mono font-bold text-govblue-800 bg-govblue-50 px-2 py-0.5 rounded border border-govblue-100">
-                                {task.code || "TASK"}
-                              </span>
-                              <span
-                                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                                  STATUS_COLOR[task.status]
-                                }`}
-                              >
-                                {STATUS_LABEL[task.status]}
-                              </span>
-                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                {TYPE_LABEL[task.task_type] || task.task_type}
-                              </span>
-                            </div>
-
-                            {task.due_at && (
-                              <div className="text-xs text-gray-500 font-mono flex items-center gap-1 shrink-0">
-                                <Calendar size={12} className="text-gray-400" />
-                                <span>{fmtDateTime(task.due_at).split(" ")[0]}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Title: 1 line clamp */}
-                          <h3 className="text-sm sm:text-base font-semibold text-gray-900 group-hover:text-govblue-700 transition line-clamp-1 leading-snug mt-1">
-                            {task.title}
-                          </h3>
-
-                          {/* Description: 2 lines clamp with ... */}
-                          <p className="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed min-h-[2.5rem]">
-                            {task.description || "— ไม่มีการระบุรายละเอียดงาน —"}
-                          </p>
-
-                          {/* Meta: Assigner, Assignee & Location */}
-                          <div className="mt-3 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs text-gray-600">
-                            <div className="truncate">
-                              <span className="text-gray-400">สั่งโดย: </span>
-                              <span className="font-medium text-gray-800">{task.assigner_name || "หัวหน้างาน"}</span>
-                            </div>
-                            <div className="truncate">
-                              <span className="text-gray-400">ผู้รับ: </span>
-                              <span className="font-medium text-govblue-700">{task.assignee_name || "เจ้าหน้าที่"}</span>
-                            </div>
-                            {task.place_name && (
-                              <div className="col-span-2 flex items-center gap-1 text-xs text-gray-600 truncate mt-0.5">
-                                <MapPin size={12} className="text-rose-500 shrink-0" />
-                                <span className="truncate">{task.place_name}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Footer Action Bar */}
-                        <div
-                          className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* Modern Dropdown Status Selector with Dot Indicator */}
-                          <div className="relative inline-flex items-center">
-                            <span className="text-xs text-gray-400 mr-1.5">สถานะ:</span>
-                            <div className="relative flex items-center">
-                              <span className={`w-2 h-2 rounded-full absolute left-2.5 z-10 pointer-events-none ${statusDot}`} />
-                              <select
-                                value={task.status}
-                                onChange={(e) => {
-                                  const nextSt = e.target.value as TaskStatus;
-                                  setStatus(task, nextSt);
-                                }}
-                                className={`text-xs font-semibold pl-6 pr-7 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-govblue-500/20 transition ${
-                                  task.status === "done"
-                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/70"
-                                    : task.status === "in_progress"
-                                    ? "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100/70"
-                                    : task.status === "accepted"
-                                    ? "bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100/70"
-                                    : task.status === "cancelled"
-                                    ? "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100/70"
-                                    : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/70"
-                                }`}
-                              >
-                                <option value="pending">รอรับงาน</option>
-                                <option value="accepted">รับงานแล้ว</option>
-                                <option value="in_progress">กำลังปฏิบัติงาน</option>
-                                <option value="done">เสร็จสิ้น</option>
-                                <option value="cancelled">ยกเลิก</option>
-                              </select>
-                              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-current" />
-                            </div>
-                          </div>
-
-                          {/* View Details button */}
-                          <button
-                            type="button"
+                        return (
+                          <div
+                            key={task.public_id}
                             onClick={() => setSelectedTask(task)}
-                            className="text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3 py-1.5 rounded-lg transition"
+                            className="bg-white rounded-xl border border-gray-200 hover:border-govblue-400 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 p-4 sm:p-5 flex flex-col justify-between cursor-pointer group"
                           >
-                            <span>ดูรายละเอียด</span>
-                            <ArrowRight size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* Top: Code, Status & Due */}
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-mono font-bold text-govblue-800 bg-govblue-50 px-2 py-0.5 rounded border border-govblue-100">
+                                    {task.code || "TASK"}
+                                  </span>
+                                  <span
+                                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                                      STATUS_COLOR[task.status]
+                                    }`}
+                                  >
+                                    {STATUS_LABEL[task.status]}
+                                  </span>
+                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                    {TYPE_LABEL[task.task_type] || task.task_type}
+                                  </span>
+                                </div>
+
+                                {task.due_at && (
+                                  <div className="text-xs text-gray-500 font-mono flex items-center gap-1 shrink-0">
+                                    <Calendar size={12} className="text-gray-400" />
+                                    <span>{fmtDateTime(task.due_at).split(" ")[0]}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Title: 1 line clamp */}
+                              <h3 className="text-sm sm:text-base font-semibold text-gray-900 group-hover:text-govblue-700 transition line-clamp-1 leading-snug mt-1">
+                                {task.title}
+                              </h3>
+
+                              {/* Description: 2 lines clamp with ... */}
+                              <p className="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed min-h-[2.5rem]">
+                                {task.description || "— ไม่มีการระบุรายละเอียดงาน —"}
+                              </p>
+
+                              {/* Meta: Assigner, Assignee & Location */}
+                              <div className="mt-3 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                <div className="truncate">
+                                  <span className="text-gray-400">สั่งโดย: </span>
+                                  <span className="font-medium text-gray-800">{task.assigner_name || "หัวหน้างาน"}</span>
+                                </div>
+                                <div className="truncate">
+                                  <span className="text-gray-400">ผู้รับ: </span>
+                                  <span className="font-medium text-govblue-700">{task.assignee_name || "เจ้าหน้าที่"}</span>
+                                </div>
+                                {task.place_name && (
+                                  <div className="col-span-2 flex items-center gap-1 text-xs text-gray-600 truncate mt-0.5">
+                                    <MapPin size={12} className="text-rose-500 shrink-0" />
+                                    <span className="truncate">{task.place_name}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Footer Action Bar */}
+                            <div
+                              className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {/* Modern Dropdown Status Selector with Dot Indicator */}
+                              <div className="relative inline-flex items-center">
+                                <span className="text-xs text-gray-400 mr-1.5">สถานะ:</span>
+                                <div className="relative flex items-center">
+                                  <span className={`w-2 h-2 rounded-full absolute left-2.5 z-10 pointer-events-none ${statusDot}`} />
+                                  <select
+                                    value={task.status}
+                                    onChange={(e) => {
+                                      const nextSt = e.target.value as TaskStatus;
+                                      setStatus(task, nextSt);
+                                    }}
+                                    className={`text-xs font-semibold pl-6 pr-7 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-govblue-500/20 transition ${
+                                      task.status === "done"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/70"
+                                        : task.status === "in_progress"
+                                        ? "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100/70"
+                                        : task.status === "accepted"
+                                        ? "bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100/70"
+                                        : task.status === "cancelled"
+                                        ? "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100/70"
+                                        : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100/70"
+                                    }`}
+                                  >
+                                    <option value="pending">รอรับงาน</option>
+                                    <option value="accepted">รับงานแล้ว</option>
+                                    <option value="in_progress">กำลังปฏิบัติงาน</option>
+                                    <option value="done">เสร็จสิ้น</option>
+                                    <option value="cancelled">ยกเลิก</option>
+                                  </select>
+                                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-current" />
+                                </div>
+                              </div>
+
+                              {/* View Details button */}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTask(task)}
+                                className="text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3 py-1.5 rounded-lg transition"
+                              >
+                                <span>ดูรายละเอียด</span>
+                                <ArrowRight size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       )}
