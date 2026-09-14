@@ -17,6 +17,7 @@ import {
 import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
+import MapPicker from "@/components/MapPicker";
 import {
   ClipboardList,
   MapPin,
@@ -32,13 +33,18 @@ import {
   Calendar,
   Layers,
   Filter,
+  X,
+  Eye,
+  ChevronRight,
 } from "lucide-react";
 
-const NEXT_STATUS: Partial<Record<TaskStatus, { to: TaskStatus; label: string; tone: string }>> = {
-  pending: { to: "accepted", label: "รับงาน", tone: "bg-sky-600 hover:bg-sky-700" },
-  accepted: { to: "in_progress", label: "เริ่มปฏิบัติงาน", tone: "bg-indigo-600 hover:bg-indigo-700" },
-  in_progress: { to: "done", label: "เสร็จสิ้นงาน / ส่งงาน", tone: "bg-emerald-600 hover:bg-emerald-700" },
-};
+const STATUS_OPTIONS: { value: TaskStatus; label: string; tone: string }[] = [
+  { value: "pending", label: "รอรับงาน", tone: "bg-amber-50 text-amber-800 border-amber-300" },
+  { value: "accepted", label: "รับงานแล้ว", tone: "bg-sky-50 text-sky-800 border-sky-300" },
+  { value: "in_progress", label: "กำลังปฏิบัติงาน", tone: "bg-indigo-50 text-indigo-800 border-indigo-300" },
+  { value: "done", label: "เสร็จสิ้น", tone: "bg-emerald-50 text-emerald-800 border-emerald-300" },
+  { value: "cancelled", label: "ยกเลิก", tone: "bg-rose-50 text-rose-800 border-rose-300" },
+];
 
 const DEFAULT_SAMPLE_TASKS: Task[] = [
   {
@@ -46,7 +52,8 @@ const DEFAULT_SAMPLE_TASKS: Task[] = [
     code: "TK-2569-001",
     title: "สำรวจรังวัดแนวเขตแปลงที่ดิน ย่านสถานีรถไฟอยุธยา",
     task_type: "survey",
-    description: "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน รฟท. และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา",
+    description:
+      "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน รฟท. และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา เพื่อนำข้อมูลเข้าสู่ระบบบริหารจัดการทรัพย์สิน รฟท. ตามมาตรฐานปี 2569 พร้อมทั้งตรวจสอบหลักหมุดที่ดินว่ามีสภาพสมบูรณ์หรือไม่",
     status: "in_progress",
     assignee_public_id: "usr-normal",
     assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -64,7 +71,8 @@ const DEFAULT_SAMPLE_TASKS: Task[] = [
     code: "TK-2569-002",
     title: "ตรวจสอบสภาพอาคารสิ่งปลูกสร้าง ย่านบางซื่อ",
     task_type: "inspect",
-    description: "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบ AMS รฟท.",
+    description:
+      "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบ AMS รฟท. รวมถึงประเมินสภาพความมั่นคงแข็งแรงของตัวโครงสร้าง และตรวจสอบการขอใช้พื้นที่ของผู้เช่า",
     status: "pending",
     assignee_public_id: "usr-normal",
     assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -93,6 +101,7 @@ export default function TasksPage() {
     isSup ? "assigned_by_me" : "my_tasks"
   );
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [notice, setNotice] = useState("");
   const [wsOn, setWsOn] = useState(false);
   const [err, setErr] = useState("");
@@ -214,6 +223,9 @@ export default function TasksPage() {
         return next;
       });
     }
+
+    // ซิงค์ modal ที่เปิดอยู่ด้วย
+    setSelectedTask((prev) => (prev && prev.public_id === task.public_id ? { ...prev, status } : prev));
   }
 
   async function changeRole(publicId: string, role: string) {
@@ -513,11 +525,11 @@ export default function TasksPage() {
                   className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
                 >
                   <option value="all">— ทุกสถานะ —</option>
-                  <option value="pending">รอรับงาน</option>
-                  <option value="accepted">รับงานแล้ว</option>
-                  <option value="in_progress">กำลังปฏิบัติงาน</option>
-                  <option value="done">เสร็จสิ้น</option>
-                  <option value="cancelled">ยกเลิก</option>
+                  <option value="pending">⏳ รอรับงาน</option>
+                  <option value="accepted">📥 รับงานแล้ว</option>
+                  <option value="in_progress">🚀 กำลังปฏิบัติงาน</option>
+                  <option value="done">✅ เสร็จสิ้น</option>
+                  <option value="cancelled">❌ ยกเลิก</option>
                 </select>
               </div>
             )}
@@ -574,9 +586,9 @@ export default function TasksPage() {
             </div>
           )}
 
-          {/* Task Cards List */}
+          {/* Task Cards Grid (Fixed-size, 2-line truncated description) */}
           {activeTab !== "members" && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {displayedTasks.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-white text-center py-14 px-4 text-gray-500 shadow-xs">
                   <ClipboardList size={36} className="mx-auto text-gray-300 mb-2" />
@@ -590,139 +602,300 @@ export default function TasksPage() {
                   </p>
                 </div>
               ) : (
-                displayedTasks.map((task) => {
-                  const next = NEXT_STATUS[task.status];
-                  const isAssignedToMe =
-                    task.assignee_public_id === me?.public_id ||
-                    task.assignee_name === me?.display_name ||
-                    !isSup;
-                  const isAssignedByMe =
-                    task.assigner_public_id === me?.public_id ||
-                    task.assigner_name === me?.display_name ||
-                    isSup;
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {displayedTasks.map((task) => {
+                    return (
+                      <div
+                        key={task.public_id}
+                        onClick={() => setSelectedTask(task)}
+                        className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-govblue-400 transition-all flex flex-col justify-between p-4 cursor-pointer group relative overflow-hidden"
+                      >
+                        {/* Status accent bar on left */}
+                        <div
+                          className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                            task.status === "done"
+                              ? "bg-emerald-500"
+                              : task.status === "in_progress"
+                              ? "bg-indigo-500"
+                              : task.status === "accepted"
+                              ? "bg-sky-500"
+                              : task.status === "cancelled"
+                              ? "bg-rose-500"
+                              : "bg-amber-400"
+                          }`}
+                        />
 
-                  return (
-                    <div
-                      key={task.public_id}
-                      className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-govblue-300 transition p-4 sm:p-5"
-                    >
-                      {/* Card Header */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-mono font-semibold text-govblue-800 bg-govblue-50 px-2 py-0.5 rounded">
-                            {task.code || "TASK"}
-                          </span>
-                          <span
-                            className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
-                              STATUS_COLOR[task.status]
-                            }`}
-                          >
-                            {STATUS_LABEL[task.status]}
-                          </span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">
-                            {TYPE_LABEL[task.task_type] || task.task_type}
-                          </span>
-                        </div>
+                        <div className="pl-1">
+                          {/* Card Header: Code, Type & Due Date */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[11px] font-mono font-semibold text-govblue-800 bg-govblue-50 px-2 py-0.5 rounded border border-govblue-100">
+                                {task.code || "TASK"}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                                {TYPE_LABEL[task.task_type] || task.task_type}
+                              </span>
+                            </div>
 
-                        {/* Due Date Badge */}
-                        {task.due_at && (
-                          <div className="text-xs text-gray-500 flex items-center gap-1 font-mono">
-                            <Calendar size={13} className="text-gray-400" />
-                            <span>กำหนดเสร็จ: {fmtDateTime(task.due_at)}</span>
+                            {task.due_at && (
+                              <div className="text-[11px] text-gray-500 flex items-center gap-1 shrink-0 font-mono">
+                                <Calendar size={12} className="text-gray-400" />
+                                <span>{fmtDateTime(task.due_at).split(" ")[0]}</span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
 
-                      {/* Title & Description */}
-                      <h3 className="text-base font-semibold text-gray-900">{task.title}</h3>
-                      {task.description && (
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1.5 whitespace-pre-wrap leading-relaxed">
-                          {task.description}
-                        </p>
-                      )}
+                          {/* Title: 1 line clamp */}
+                          <h3 className="text-sm font-semibold text-gray-900 group-hover:text-govblue-800 transition line-clamp-1 leading-snug">
+                            {task.title}
+                          </h3>
 
-                      {/* Meta information row */}
-                      <div className="mt-3 pt-3 border-t border-gray-100 grid sm:grid-cols-3 gap-2 text-xs text-gray-600">
-                        <div>
-                          <span className="text-gray-400">ผู้สั่งงาน: </span>
-                          <span className="font-medium text-gray-800">
-                            {task.assigner_name || "หัวหน้างาน"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">ผู้รับมอบหมาย: </span>
-                          <span className="font-medium text-govblue-800">
-                            {task.assignee_name || "เจ้าหน้าที่สำรวจ"}
-                          </span>
-                        </div>
-                        {task.place_name && (
-                          <div className="flex items-center gap-1">
-                            <MapPin size={13} className="text-rose-500 shrink-0" />
-                            <span className="truncate">{task.place_name}</span>
+                          {/* Description: 2 lines clamp with ... */}
+                          <p className="text-xs text-gray-500 line-clamp-2 mt-1 min-h-[2.5rem] leading-relaxed">
+                            {task.description || "— ไม่ได้ระบุรายละเอียดงาน —"}
+                          </p>
+
+                          {/* Meta: Assigner, Assignee & Place */}
+                          <div className="mt-2.5 pt-2.5 border-t border-gray-100 grid grid-cols-2 gap-2 text-[11px] text-gray-600">
+                            <div className="truncate">
+                              <span className="text-gray-400">สั่งโดย: </span>
+                              <span className="font-medium text-gray-800">{task.assigner_name || "หัวหน้างาน"}</span>
+                            </div>
+                            <div className="truncate">
+                              <span className="text-gray-400">ผู้รับ: </span>
+                              <span className="font-medium text-govblue-800">{task.assignee_name || "เจ้าหน้าที่"}</span>
+                            </div>
+                            {task.place_name && (
+                              <div className="col-span-2 flex items-center gap-1 text-[11px] text-gray-600 truncate">
+                                <MapPin size={11} className="text-rose-500 shrink-0" />
+                                <span className="truncate">{task.place_name}</span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-
-                      {/* Map Location Link */}
-                      {task.lat != null && task.lng != null && (
-                        <div className="mt-2.5">
-                          <a
-                            href={`https://www.google.com/maps?q=${task.lat},${task.lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-govblue-700 hover:text-govblue-900 bg-govblue-50/70 hover:bg-govblue-100 px-2.5 py-1 rounded transition font-medium"
-                          >
-                            <MapPin size={13} className="text-rose-500" />
-                            <span>
-                              พิกัด: {task.lat.toFixed(6)}, {task.lng.toFixed(6)} — เปิดใน Google Maps
-                            </span>
-                            <ExternalLink size={12} />
-                          </a>
                         </div>
-                      )}
 
-                      {/* Action Buttons */}
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-2">
-                        <div className="flex items-center gap-2">
-                          {/* ปุ่มอัปเดตสถานะสำหรับผู้รับงาน */}
-                          {isAssignedToMe && next && task.status !== "cancelled" && (
-                            <button
-                              type="button"
-                              onClick={() => setStatus(task, next.to)}
-                              className={`text-xs font-semibold text-white px-3.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 ${next.tone}`}
+                        {/* Card Footer: Status Selector & Details Button */}
+                        <div
+                          className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2 pl-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* สามารถเลือกสเตตัสการดำเนินการได้จาก Dropdown */}
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={task.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value as TaskStatus;
+                                setStatus(task, newStatus);
+                              }}
+                              className={`text-[11px] font-semibold px-2 py-1 rounded-lg border focus:outline-none transition cursor-pointer ${
+                                task.status === "done"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                  : task.status === "in_progress"
+                                  ? "bg-indigo-50 text-indigo-800 border-indigo-300"
+                                  : task.status === "accepted"
+                                  ? "bg-sky-50 text-sky-800 border-sky-300"
+                                  : task.status === "cancelled"
+                                  ? "bg-rose-50 text-rose-800 border-rose-300"
+                                  : "bg-amber-50 text-amber-800 border-amber-300"
+                              }`}
                             >
-                              <Check size={14} /> {next.label}
-                            </button>
-                          )}
+                              <option value="pending">⏳ รอรับงาน</option>
+                              <option value="accepted">📥 รับงานแล้ว</option>
+                              <option value="in_progress">🚀 กำลังทำ</option>
+                              <option value="done">✅ เสร็จสิ้น</option>
+                              <option value="cancelled">❌ ยกเลิก</option>
+                            </select>
+                          </div>
 
-                          {task.status === "done" && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                              <CheckCircle2 size={14} /> ภารกิจเสร็จสิ้นแล้ว
-                            </span>
-                          )}
-                        </div>
-
-                        {/* ปุ่มยกเลิกสำหรับหัวหน้างาน */}
-                        {isSup && task.status !== "done" && task.status !== "cancelled" && (
+                          {/* ปุ่มเปิดดูรายละเอียด */}
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm(`ยืนยันการยกเลิกงาน "${task.title}" ใช่หรือไม่?`)) {
-                                setStatus(task, "cancelled");
-                              }
-                            }}
-                            className="text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg transition"
+                            onClick={() => setSelectedTask(task)}
+                            className="text-[11px] font-medium text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50/80 hover:bg-govblue-100 px-2.5 py-1 rounded-lg transition"
                           >
-                            ยกเลิกงานนี้
+                            <span>ดูรายละเอียด</span>
+                            <ChevronRight size={13} />
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Detail Modal (หน้าต่างดูรายละเอียดงานฉบับเต็ม + แผนที่ + เลือกสเตตัส) */}
+      {selectedTask && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-govblue-900 text-white flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span className="text-xs font-mono font-semibold bg-white/20 px-2.5 py-0.5 rounded text-govgold-300">
+                    {selectedTask.code || "TASK"}
+                  </span>
+                  <span
+                    className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
+                      STATUS_COLOR[selectedTask.status]
+                    }`}
+                  >
+                    {STATUS_LABEL[selectedTask.status]}
+                  </span>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/10 text-white font-medium">
+                    {TYPE_LABEL[selectedTask.task_type] || selectedTask.task_type}
+                  </span>
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-white leading-snug break-words">
+                  {selectedTask.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTask(null)}
+                className="p-1.5 text-blue-200 hover:text-white rounded-lg hover:bg-white/10 transition shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-gray-800">
+              {/* Status Changer Bar in Modal */}
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200">
+                <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                  <span>เลือกสถานะการดำเนินงาน (Status)</span>
+                  <span className="text-[11px] font-normal text-gray-500">คลิกเพื่อเปลี่ยนสถานะ</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                  {STATUS_OPTIONS.map((opt) => {
+                    const active = selectedTask.status === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setStatus(selectedTask, opt.value);
+                          setSelectedTask({ ...selectedTask, status: opt.value });
+                        }}
+                        className={`px-2 py-2 text-xs rounded-lg border text-center transition flex flex-col items-center justify-center gap-0.5 ${
+                          active
+                            ? "bg-govblue-800 text-white border-govblue-900 shadow-sm font-semibold"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="text-sm">
+                          {opt.value === "pending"
+                            ? "⏳"
+                            : opt.value === "accepted"
+                            ? "📥"
+                            : opt.value === "in_progress"
+                            ? "🚀"
+                            : opt.value === "done"
+                            ? "✅"
+                            : "❌"}
+                        </span>
+                        <span className="truncate text-[11px]">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Full Description */}
+              <div>
+                <h4 className="text-xs font-semibold text-govblue-900 mb-1.5">
+                  รายละเอียดงาน (Description)
+                </h4>
+                <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 text-xs sm:text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {selectedTask.description || "— ไม่มีการระบุรายละเอียดงาน —"}
+                </div>
+              </div>
+
+              {/* Meta Info Grid */}
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3.5 rounded-xl border border-gray-200 text-xs">
+                <div>
+                  <span className="text-gray-400 block mb-0.5">ผู้สั่งมอบหมายงาน:</span>
+                  <span className="font-semibold text-gray-800">
+                    {selectedTask.assigner_name || "หัวหน้างาน"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block mb-0.5">ผู้รับมอบหมายงาน:</span>
+                  <span className="font-semibold text-govblue-800">
+                    {selectedTask.assignee_name || "เจ้าหน้าที่สำรวจ"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block mb-0.5">กำหนดส่งมอบงาน:</span>
+                  <span className="font-medium text-gray-700">{fmtDateTime(selectedTask.due_at)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block mb-0.5">วันที่สั่งงาน:</span>
+                  <span className="font-medium text-gray-700">{fmtDateTime(selectedTask.created_at)}</span>
+                </div>
+              </div>
+
+              {/* Location & Map Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-govblue-900 flex items-center gap-1.5">
+                    <MapPin size={14} className="text-rose-500" /> สถานที่และพิกัดภูมิศาสตร์
+                  </h4>
+                  {selectedTask.lat != null && selectedTask.lng != null && (
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedTask.lat},${selectedTask.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-govblue-700 hover:text-govblue-900 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      เปิดดูใน Google Maps <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+
+                {selectedTask.place_name && (
+                  <div className="text-xs text-gray-700 mb-2 font-medium bg-rose-50/60 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <MapPin size={13} className="text-rose-500 shrink-0" />
+                    <span>{selectedTask.place_name}</span>
+                  </div>
+                )}
+
+                {selectedTask.lat != null && selectedTask.lng != null ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-300">
+                    <MapPicker
+                      lat={selectedTask.lat}
+                      lng={selectedTask.lng}
+                      onChange={() => {}}
+                      height="200px"
+                      showInputs={false}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs text-center text-gray-400">
+                    ไม่ได้ระบุพิกัดแผนที่สำหรับงานนี้
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
+              <span className="text-xs text-gray-500">
+                สถานะปัจจุบัน: <strong className="text-govblue-800">{STATUS_LABEL[selectedTask.status]}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedTask(null)}
+                className="px-4 py-2 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Page>
