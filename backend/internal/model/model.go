@@ -89,6 +89,9 @@ type LandParcel struct {
 	LandType    string    `json:"land_type"`     // Land_Type (Text 50)
 	DeedNo      string    `json:"deed_no"`       // Deed_No (Text 20)
 	Dimension   string    `json:"dimension"`     // Dimension (Text 10) ไร่-งาน-วา
+	Rai         *int      `json:"rai,omitempty"` // ไร่
+	Ngan        *int      `json:"ngan,omitempty"`// งาน
+	Wa          *float64  `json:"wa,omitempty"`  // ตารางวา
 	Width       *float64  `json:"width"`         // Width (Float 10,2)
 	Length      *float64  `json:"length"`        // Length (Float 10,2)
 	PictureF    string    `json:"picture_f"`     // Picture_F (Text 254)

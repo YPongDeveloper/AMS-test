@@ -240,6 +240,9 @@ export interface LandParcel {
   land_type: string;
   deed_no: string;
   dimension: string;
+  rai?: number | null;
+  ngan?: number | null;
+  wa?: number | null;
   width: number | null;
   length: number | null;
   picture_f: string;
@@ -289,6 +292,9 @@ const MOCK_LANDS: LandParcel[] = [
     land_type: "โฉนด",
     deed_no: "12345/2540",
     dimension: "2-1-50",
+    rai: 2,
+    ngan: 1,
+    wa: 50,
     width: 45.5,
     length: 120.0,
     picture_f: "",
@@ -306,6 +312,9 @@ const MOCK_LANDS: LandParcel[] = [
     land_type: "โฉนด",
     deed_no: "54321/2545",
     dimension: "1-0-20",
+    rai: 1,
+    ngan: 0,
+    wa: 20,
     width: 30.0,
     length: 60.0,
     picture_f: "",
@@ -374,6 +383,9 @@ export async function createLand(data: Partial<LandParcel>): Promise<LandParcel>
       land_type: data.land_type || "",
       deed_no: data.deed_no || "",
       dimension: data.dimension || "",
+      rai: data.rai ?? 0,
+      ngan: data.ngan ?? 0,
+      wa: data.wa ?? 0,
       width: data.width || 0,
       length: data.length || 0,
       picture_f: data.picture_f || "",
