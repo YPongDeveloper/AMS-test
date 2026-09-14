@@ -44,7 +44,9 @@ export default function LandPage() {
   const [landUse, setLandUse] = useState("");
   const [landType, setLandType] = useState("");
   const [deedNo, setDeedNo] = useState("");
-  const [dimension, setDimension] = useState("");
+  const [rai, setRai] = useState<number | "">(2);
+  const [ngan, setNgan] = useState<number | "">(1);
+  const [wa, setWa] = useState<number | "">(50);
   const [width, setWidth] = useState<number | "">("");
   const [length, setLength] = useState<number | "">("");
   const [pictureF, setPictureF] = useState("");
@@ -79,7 +81,9 @@ export default function LandPage() {
     setLandUse("ใช้เพื่อการขนส่ง");
     setLandType("โฉนด");
     setDeedNo("");
-    setDimension("1-0-00");
+    setRai(1);
+    setNgan(0);
+    setWa(0);
     setWidth(40.0);
     setLength(100.0);
     setPictureF("");
@@ -101,7 +105,26 @@ export default function LandPage() {
     setLandUse(l.land_use || "");
     setLandType(l.land_type || "");
     setDeedNo(l.deed_no || "");
-    setDimension(l.dimension || "");
+    if (l.rai !== undefined && l.rai !== null) {
+      setRai(l.rai);
+      setNgan(l.ngan ?? 0);
+      setWa(l.wa ?? 0);
+    } else if (l.dimension) {
+      const parts = l.dimension.split("-").map(Number);
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        setRai(parts[0]);
+        setNgan(parts[1]);
+        setWa(parts[2]);
+      } else {
+        setRai(0);
+        setNgan(0);
+        setWa(0);
+      }
+    } else {
+      setRai(0);
+      setNgan(0);
+      setWa(0);
+    }
     setWidth(l.width ?? "");
     setLength(l.length ?? "");
     setPictureF(l.picture_f || "");
@@ -162,13 +185,21 @@ export default function LandPage() {
     setSaving(true);
     setMsg(null);
 
+    const r = rai === "" ? 0 : Number(rai);
+    const n = ngan === "" ? 0 : Number(ngan);
+    const w = wa === "" ? 0 : Number(wa);
+    const formattedDimension = `${r}-${n}-${w}`;
+
     const payload: Partial<LandParcel> = {
       land_code: landCode.trim(),
       srt_land_type: srtLandType,
       land_use: landUse,
       land_type: landType,
       deed_no: deedNo.trim(),
-      dimension: dimension.trim(),
+      rai: r,
+      ngan: n,
+      wa: w,
+      dimension: formattedDimension,
       width: width === "" ? null : Number(width),
       length: length === "" ? null : Number(length),
       picture_f: pictureF,
@@ -288,7 +319,16 @@ export default function LandPage() {
                           <Tag tone="blue">{l.srt_land_type || "-"}</Tag>
                         </td>
                         <td className="p-3 text-gray-600">{l.land_use || "-"}</td>
-                        <td className="p-3 font-mono">{l.dimension || "-"}</td>
+                        <td className="p-3">
+                          <div className="font-medium text-govblue-900">
+                            {l.rai ?? (l.dimension ? l.dimension.split("-")[0] : 0)} ไร่{" "}
+                            {l.ngan ?? (l.dimension ? l.dimension.split("-")[1] : 0)} งาน{" "}
+                            {l.wa ?? (l.dimension ? l.dimension.split("-")[2] : 0)} วา
+                          </div>
+                          {l.dimension && (
+                            <div className="text-[10px] text-gray-400 font-mono">({l.dimension})</div>
+                          )}
+                        </td>
                         <td className="p-3 text-gray-600">
                           {l.width && l.length ? `${l.width} × ${l.length} ม.` : "-"}
                         </td>
@@ -415,13 +455,47 @@ export default function LandPage() {
                     <option value="ที่ดินกรรมสิทธิ์ รฟท.">ที่ดินกรรมสิทธิ์ รฟท.</option>
                   </Select>
                 </Field>
-                <Field label="ขนาดพื้นที่ (Dimension)" hint="ไร่-งาน-ตารางวา (Text 10)">
-                  <Input
-                    value={dimension}
-                    onChange={(e) => setDimension(e.target.value)}
-                    placeholder="เช่น 2-1-50"
-                  />
-                </Field>
+                <div className="sm:col-span-2 bg-govblue-50/50 p-3 rounded-lg border border-govblue-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-govblue-900">
+                      ขนาดพื้นที่ดิน (ไร่ - งาน - ตารางวา)
+                    </span>
+                    <span className="text-xs font-mono font-medium text-govblue-700 bg-white px-2.5 py-0.5 rounded border border-govblue-200">
+                      รวมคำนวณ: {((rai === "" ? 0 : Number(rai)) * 400 + (ngan === "" ? 0 : Number(ngan)) * 100 + (wa === "" ? 0 : Number(wa))).toLocaleString()} ตร.ว.
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="ไร่ (Rai)" hint="1 ไร่ = 4 งาน">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={rai}
+                        onChange={(e) => setRai(e.target.value === "" ? "" : Number(e.target.value))}
+                        placeholder="0"
+                      />
+                    </Field>
+                    <Field label="งาน (Ngan)" hint="1 งาน = 100 ตร.ว.">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="3"
+                        value={ngan}
+                        onChange={(e) => setNgan(e.target.value === "" ? "" : Number(e.target.value))}
+                        placeholder="0"
+                      />
+                    </Field>
+                    <Field label="ตารางวา (Tarang Wa)" hint="ทศนิยม 2 ตำแหน่ง">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={wa}
+                        onChange={(e) => setWa(e.target.value === "" ? "" : Number(e.target.value))}
+                        placeholder="0.00"
+                      />
+                    </Field>
+                  </div>
+                </div>
                 <Field label="ความกว้าง (Width)" hint="เมตร (Float 10,2)">
                   <Input
                     type="number"

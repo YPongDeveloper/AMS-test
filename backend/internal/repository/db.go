@@ -100,6 +100,9 @@ CREATE TABLE IF NOT EXISTS land_parcels (
 	land_type     VARCHAR(100) NOT NULL DEFAULT '',
 	deed_no       VARCHAR(50) NOT NULL DEFAULT '',
 	dimension     VARCHAR(50) NOT NULL DEFAULT '',
+	rai           INTEGER NOT NULL DEFAULT 0,
+	ngan          INTEGER NOT NULL DEFAULT 0,
+	wa            NUMERIC(10,2) NOT NULL DEFAULT 0,
 	width         NUMERIC(10,2),
 	length        NUMERIC(10,2),
 	picture_f     TEXT NOT NULL DEFAULT '',
@@ -109,6 +112,12 @@ CREATE TABLE IF NOT EXISTS land_parcels (
 	created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- อัปเกรดตารางสำหรับระบบที่มีตาราง land_parcels อยู่แล้ว
+ALTER TABLE land_parcels ADD COLUMN IF NOT EXISTS rai INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE land_parcels ADD COLUMN IF NOT EXISTS ngan INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE land_parcels ADD COLUMN IF NOT EXISTS wa NUMERIC(10,2) NOT NULL DEFAULT 0;
+
 
 CREATE TABLE IF NOT EXISTS buildings (
 	id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -51,9 +51,11 @@ export default function TaxPage() {
   }, []);
 
   const applyLand = (l: LandParcel) => {
-    // Parse dimension like "2-1-50" (rai-ngan-wah)
+    // Calculate total Wah directly from rai, ngan, wa or fallback to dimension string
     let totalWah = 850;
-    if (l.dimension) {
+    if (l.rai !== undefined && l.rai !== null) {
+      totalWah = (l.rai || 0) * 400 + (l.ngan || 0) * 100 + (l.wa || 0);
+    } else if (l.dimension) {
       const parts = l.dimension.split("-").map(Number);
       if (parts.length === 3 && !parts.some(isNaN)) {
         totalWah = parts[0] * 400 + parts[1] * 100 + parts[2];
