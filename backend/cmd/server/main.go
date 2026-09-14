@@ -36,11 +36,15 @@ func main() {
 	lineNotifier := service.NewLineNotifier(cfg.LineChannelAccessToken, cfg.LiffID)
 	taskSvc := service.NewTaskService(repository.NewTaskRepository(pool), userRepo, hub, lineNotifier)
 	dashRepo := repository.NewDashboardRepository(pool)
+	landRepo := repository.NewLandRepository(pool)
+	landSvc := service.NewLandService(landRepo)
+	bldgRepo := repository.NewBuildingRepository(pool)
+	bldgSvc := service.NewBuildingService(bldgRepo)
 
 	handler := router.New(router.Deps{
 		Secret:         cfg.JWTSecret,
 		AllowedOrigins: cfg.AllowedOrigins,
-	}, authSvc, userSvc, taskSvc, hub, dashRepo)
+	}, authSvc, userSvc, taskSvc, hub, dashRepo, landSvc, bldgSvc)
 
 	log.Println("AMS backend listening on :" + cfg.Port)
 	srv := &http.Server{

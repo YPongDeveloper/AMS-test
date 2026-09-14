@@ -15,6 +15,7 @@ import (
 func Seed(ctx context.Context, pool *pgxpool.Pool) {
 	seedAccounts(ctx, pool)
 	seedDashboard(ctx, pool)
+	seedLandsAndBuildings(ctx, pool)
 }
 
 func seedAccounts(ctx context.Context, pool *pgxpool.Pool) {
@@ -92,3 +93,45 @@ func seedDashboard(ctx context.Context, pool *pgxpool.Pool) {
 	}
 	log.Println("seeded dashboard mock data")
 }
+
+func seedLandsAndBuildings(ctx context.Context, pool *pgxpool.Pool) {
+	// Seed Land
+	var landExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM land_parcels WHERE land_code='LP-2569-0043')`).Scan(&landExists); err == nil && !landExists {
+		_, err = pool.Exec(ctx, `
+			INSERT INTO land_parcels (land_code, srt_land_type, land_use, land_type, deed_no, dimension, width, length, picture_f, lat, lng)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`, "LP-2569-0043", "ที่ดินสถานี", "ใช้เพื่อการขนส่ง", "โฉนด", "12345/2540", "2-1-50", 45.50, 120.00, "", 13.7563, 100.5018)
+		if err != nil {
+			log.Println("seed land error:", err)
+		} else {
+			log.Println("seeded land: LP-2569-0043")
+		}
+	}
+
+	// Seed Building
+	var bldgExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM buildings WHERE bldg_code='BL-2569-0118')`).Scan(&bldgExists); err == nil && !bldgExists {
+		floors := []model.FloorDetail{
+			{FloorNumber: 1, BldgUse: "โถงต้อนรับและสำนักงานบริการ", Dim: floatPtr(300.0), Width: floatPtr(15.0), Length: floatPtr(20.0)},
+			{FloorNumber: 2, BldgUse: "สำนักงานปฏิบัติการฝ่ายเดินรถ", Dim: floatPtr(300.0), Width: floatPtr(15.0), Length: floatPtr(20.0)},
+			{FloorNumber: 3, BldgUse: "ห้องประชุมและฝ่ายบริหาร", Dim: floatPtr(300.0), Width: floatPtr(15.0), Length: floatPtr(20.0)},
+		}
+		floorsBytes, _ := json.Marshal(floors)
+
+		_, err = pool.Exec(ctx, `
+			INSERT INTO buildings (bldg_code, land_code, name, bldg_69, material_type, age, be_age, num_fl, floors, bld_condition_type, picture_f, picture_b, picture_r, picture_l)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		`, "BL-2569-0118", "LP-2569-0043", "อาคารสำนักงานใหญ่ ชั้น 1-3", "301 - อาคารสำนักงาน", "คอนกรีตเสริมเหล็ก", "28", "2541", 3.0, string(floorsBytes), "ดี", "", "", "", "")
+		if err != nil {
+			log.Println("seed building error:", err)
+		} else {
+			log.Println("seeded building: BL-2569-0118")
+		}
+	}
+}
+
+func floatPtr(f float64) *float64 {
+	return &f
+}
+

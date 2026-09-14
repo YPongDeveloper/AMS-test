@@ -240,3 +240,256 @@ export function fmtDateTime(iso: string | null): string {
   const d = new Date(iso);
   return d.toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " น.";
 }
+
+// ---- Land & Building Types and APIs ----
+
+export interface LandParcel {
+  public_id: string;
+  land_code: string;
+  srt_land_type: string;
+  land_use: string;
+  land_type: string;
+  deed_no: string;
+  dimension: string;
+  width: number | null;
+  length: number | null;
+  picture_f: string;
+  lat?: number | null;
+  lng?: number | null;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FloorDetail {
+  floor_number: number;
+  bldg_use: string;
+  dim: number | null;
+  width: number | null;
+  length: number | null;
+}
+
+export interface Building {
+  public_id: string;
+  bldg_code: string;
+  land_code: string;
+  name: string;
+  bldg_69: string;
+  material_type: string;
+  age: string;
+  be_age: string;
+  num_fl: number;
+  floors: FloorDetail[];
+  bld_condition_type: string;
+  picture_f: string;
+  picture_b: string;
+  picture_r: string;
+  picture_l: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Mock fallback data for demo/offline
+const MOCK_LANDS: LandParcel[] = [
+  {
+    public_id: "mock-lp-1",
+    land_code: "LP-2569-0043",
+    srt_land_type: "ที่ดินสถานี",
+    land_use: "ใช้เพื่อการขนส่ง",
+    land_type: "โฉนด",
+    deed_no: "12345/2540",
+    dimension: "2-1-50",
+    width: 45.5,
+    length: 120.0,
+    picture_f: "",
+    lat: 13.7563,
+    lng: 100.5018,
+    created_by: "เจ้าหน้าที่สำรวจ",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "mock-lp-2",
+    land_code: "LP-2569-0044",
+    srt_land_type: "ที่ดินเชิงพาณิชย์",
+    land_use: "ใช้เพื่อการพาณิชย์",
+    land_type: "โฉนด",
+    deed_no: "54321/2545",
+    dimension: "1-0-20",
+    width: 30.0,
+    length: 60.0,
+    picture_f: "",
+    lat: 13.765,
+    lng: 100.52,
+    created_by: "เจ้าหน้าที่สำรวจ",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+const MOCK_BUILDINGS: Building[] = [
+  {
+    public_id: "mock-bl-1",
+    bldg_code: "BL-2569-0118",
+    land_code: "LP-2569-0043",
+    name: "อาคารสำนักงานใหญ่ ชั้น 1-3",
+    bldg_69: "301 - อาคารสำนักงาน",
+    material_type: "คอนกรีตเสริมเหล็ก",
+    age: "28",
+    be_age: "2541",
+    num_fl: 3,
+    floors: [
+      { floor_number: 1, bldg_use: "โถงต้อนรับและสำนักงานบริการ", dim: 300, width: 15, length: 20 },
+      { floor_number: 2, bldg_use: "สำนักงานปฏิบัติการฝ่ายเดินรถ", dim: 300, width: 15, length: 20 },
+      { floor_number: 3, bldg_use: "ห้องประชุมและฝ่ายบริหาร", dim: 300, width: 15, length: 20 },
+    ],
+    bld_condition_type: "ดี",
+    picture_f: "",
+    picture_b: "",
+    picture_r: "",
+    picture_l: "",
+    created_by: "เจ้าหน้าที่สำรวจ",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export async function fetchLands(q?: string): Promise<LandParcel[]> {
+  if (!API_CONFIGURED) {
+    if (!q) return MOCK_LANDS;
+    return MOCK_LANDS.filter(
+      (l) => l.land_code.includes(q) || l.deed_no.includes(q) || l.srt_land_type.includes(q),
+    );
+  }
+  const query = q ? `?q=${encodeURIComponent(q)}` : "";
+  return api<LandParcel[]>(`/api/lands${query}`);
+}
+
+export async function getLand(publicId: string): Promise<LandParcel> {
+  if (!API_CONFIGURED) {
+    const found = MOCK_LANDS.find((l) => l.public_id === publicId);
+    if (!found) throw new Error("ไม่พบข้อมูลแปลงที่ดิน");
+    return found;
+  }
+  return api<LandParcel>(`/api/lands/${publicId}`);
+}
+
+export async function createLand(data: Partial<LandParcel>): Promise<LandParcel> {
+  if (!API_CONFIGURED) {
+    const newL: LandParcel = {
+      public_id: "mock-" + Date.now(),
+      land_code: data.land_code || "LP-NEW",
+      srt_land_type: data.srt_land_type || "",
+      land_use: data.land_use || "",
+      land_type: data.land_type || "",
+      deed_no: data.deed_no || "",
+      dimension: data.dimension || "",
+      width: data.width || 0,
+      length: data.length || 0,
+      picture_f: data.picture_f || "",
+      lat: data.lat || 13.7563,
+      lng: data.lng || 100.5018,
+      created_by: "ฉัน (Demo)",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    MOCK_LANDS.unshift(newL);
+    return newL;
+  }
+  return api<LandParcel>("/api/lands", { method: "POST", json: data });
+}
+
+export async function updateLand(publicId: string, data: Partial<LandParcel>): Promise<LandParcel> {
+  if (!API_CONFIGURED) {
+    const idx = MOCK_LANDS.findIndex((l) => l.public_id === publicId);
+    if (idx >= 0) {
+      MOCK_LANDS[idx] = { ...MOCK_LANDS[idx], ...data, updated_at: new Date().toISOString() };
+      return MOCK_LANDS[idx];
+    }
+    throw new Error("ไม่พบข้อมูลแปลงที่ดิน");
+  }
+  return api<LandParcel>(`/api/lands/${publicId}`, { method: "PUT", json: data });
+}
+
+export async function deleteLand(publicId: string): Promise<void> {
+  if (!API_CONFIGURED) {
+    const idx = MOCK_LANDS.findIndex((l) => l.public_id === publicId);
+    if (idx >= 0) MOCK_LANDS.splice(idx, 1);
+    return;
+  }
+  await api(`/api/lands/${publicId}`, { method: "DELETE" });
+}
+
+export async function fetchBuildings(q?: string, landCode?: string): Promise<Building[]> {
+  if (!API_CONFIGURED) {
+    let res = MOCK_BUILDINGS;
+    if (landCode) res = res.filter((b) => b.land_code === landCode);
+    if (q) res = res.filter((b) => b.bldg_code.includes(q) || b.name.includes(q));
+    return res;
+  }
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (landCode) params.set("land_code", landCode);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return api<Building[]>(`/api/buildings${qs}`);
+}
+
+export async function getBuilding(publicId: string): Promise<Building> {
+  if (!API_CONFIGURED) {
+    const found = MOCK_BUILDINGS.find((b) => b.public_id === publicId);
+    if (!found) throw new Error("ไม่พบข้อมูลสิ่งปลูกสร้าง");
+    return found;
+  }
+  return api<Building>(`/api/buildings/${publicId}`);
+}
+
+export async function createBuilding(data: Partial<Building>): Promise<Building> {
+  if (!API_CONFIGURED) {
+    const newB: Building = {
+      public_id: "mock-bl-" + Date.now(),
+      bldg_code: data.bldg_code || "BL-NEW",
+      land_code: data.land_code || "",
+      name: data.name || "",
+      bldg_69: data.bldg_69 || "",
+      material_type: data.material_type || "",
+      age: data.age || "",
+      be_age: data.be_age || "",
+      num_fl: data.num_fl || 1,
+      floors: data.floors || [],
+      bld_condition_type: data.bld_condition_type || "",
+      picture_f: data.picture_f || "",
+      picture_b: data.picture_b || "",
+      picture_r: data.picture_r || "",
+      picture_l: data.picture_l || "",
+      created_by: "ฉัน (Demo)",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    MOCK_BUILDINGS.unshift(newB);
+    return newB;
+  }
+  return api<Building>("/api/buildings", { method: "POST", json: data });
+}
+
+export async function updateBuilding(publicId: string, data: Partial<Building>): Promise<Building> {
+  if (!API_CONFIGURED) {
+    const idx = MOCK_BUILDINGS.findIndex((b) => b.public_id === publicId);
+    if (idx >= 0) {
+      MOCK_BUILDINGS[idx] = { ...MOCK_BUILDINGS[idx], ...data, updated_at: new Date().toISOString() };
+      return MOCK_BUILDINGS[idx];
+    }
+    throw new Error("ไม่พบข้อมูลสิ่งปลูกสร้าง");
+  }
+  return api<Building>(`/api/buildings/${publicId}`, { method: "PUT", json: data });
+}
+
+export async function deleteBuilding(publicId: string): Promise<void> {
+  if (!API_CONFIGURED) {
+    const idx = MOCK_BUILDINGS.findIndex((b) => b.public_id === publicId);
+    if (idx >= 0) MOCK_BUILDINGS.splice(idx, 1);
+    return;
+  }
+  await api(`/api/buildings/${publicId}`, { method: "DELETE" });
+}
+
