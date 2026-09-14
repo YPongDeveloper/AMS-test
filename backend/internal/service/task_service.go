@@ -16,11 +16,10 @@ type TaskService struct {
 	tasks *repository.TaskRepository
 	users *repository.UserRepository
 	hub   *ws.Hub
-	line  *LineNotifier
 }
 
-func NewTaskService(tasks *repository.TaskRepository, users *repository.UserRepository, hub *ws.Hub, line *LineNotifier) *TaskService {
-	return &TaskService{tasks: tasks, users: users, hub: hub, line: line}
+func NewTaskService(tasks *repository.TaskRepository, users *repository.UserRepository, hub *ws.Hub) *TaskService {
+	return &TaskService{tasks: tasks, users: users, hub: hub}
 }
 
 type CreateTaskInput struct {
@@ -62,10 +61,6 @@ func (s *TaskService) Create(ctx context.Context, actor *Claims, in CreateTaskIn
 
 	// realtime หาผู้รับงาน
 	s.hub.SendToUser(assignee.ID, ws.WSMessage{Type: "task.new", Task: task})
-	// LINE push หาผู้รับงาน (async)
-	if s.line != nil {
-		go s.line.NotifyTaskNew(task, assignee.LineUserID)
-	}
 	return task, nil
 }
 
@@ -96,14 +91,5 @@ func (s *TaskService) UpdateStatus(ctx context.Context, actor *Claims, publicID,
 
 	s.hub.SendToUser(assigneeID, ws.WSMessage{Type: "task.update", Task: updated})
 	s.hub.SendToUser(assignerID, ws.WSMessage{Type: "task.update", Task: updated})
-	if (status == model.TaskStatusDone || status == model.TaskStatusCancelled) && s.line != nil {
-		bg := context.WithoutCancel(ctx)
-		go func() {
-			lineID, err := s.users.GetLineUserID(bg, assignerID)
-			if err == nil {
-				s.line.NotifyStatus(updated, lineID)
-			}
-		}()
-	}
 	return updated, nil
 }

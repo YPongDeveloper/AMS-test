@@ -10,7 +10,7 @@
 
 ## ภาพรวมโปรเจค
 
-ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง การรถไฟแห่งประเทศไทย (SRT) — เริ่มจาก mockup แล้วพัฒนาเป็นระบบจริง: PWA หน้าบ้าน (สำรวจที่ดิน/อาคาร, คำนวณภาษี, งานสั่งงาน) + Go backend + Postgres + ผสาน LINE (LIFF Login, Rich Menu, Flex Message push)
+ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง การรถไฟแห่งประเทศไทย (SRT) — ระบบเว็บแอปพลิเคชัน & PWA เต็มรูปแบบ (สำรวจที่ดิน 9 Attribute, สิ่งปลูกสร้าง 51 Attribute, คำนวณภาษีตาม พ.ร.บ. 2562, งานสั่งงาน Realtime) + Go backend + Postgres (Supabase) + สถาปัตยกรรมแบบ Standalone Web App (Username/Password JWT Auth พร้อม Quick Sign-in + WebSocket Hub)
 
 - **Repo**: https://github.com/YPongDeveloper/AMS-test (public, branch `main`, push = auto-deploy ทั้ง Vercel และ Render)
 - **ภาษาผู้ใช้**: ไทยเป็นหลัก (i18n TH/EN ผ่าน `lib/i18n.tsx`)
@@ -19,8 +19,6 @@
 ## สถาปัตยกรรม & URL จริง
 
 ```
-[LINE OA @178owwdo + Rich Menu 3 ช่อง]
-   └─ LIFF (2011580808-H9tp0UHL) → เปิดเว็บใน LINE, login อัตโนมัติ
 [Frontend] Vercel → https://ams-test-sukanan.vercel.app  (Next.js 14 static export + PWA)
    └─ HTTPS/WSS → [Go backend] Render → https://srt-ams-api.onrender.com
                       └─ Postgres → [Supabase] project "srt-ams" (Singapore, pooler :6543)
@@ -31,7 +29,7 @@
 - `admin/admin` → role **admin** (ผู้ดูแลระบบ — หน้า /admin จัดการผู้ใช้)
 - `leader/leader` → role **supervisor** (หัวหน้างาน — สั่งงานได้, เมนู "งานสั่งงาน")
 - `normal/normal` → role **subordinate** (เจ้าหน้าที่ — รับงาน)
-- บัญชี LINE: ผู้ใช้ที่ login ผ่าน LIFF ครั้งแรกจะถูก **insert อัตโนมัติ** (คนแรกของระบบ = supervisor, คนถัดไป = subordinate) — admin เปลี่ยน role ย้อนหลังได้ในหน้า /admin
+*(หน้า Login มีปุ่ม Quick Sign-in สำหรับบทบาททั้ง 3 คลิกเดียวเข้าได้เลย ไม่ต้องพึ่งพา LINE)*
 
 ## โครงสร้างโค้ด
 

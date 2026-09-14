@@ -3,10 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
-import { Languages, ChevronRight, AlertCircle } from "lucide-react";
+import { Languages, ChevronRight, AlertCircle, ShieldCheck, UserCheck, Users } from "lucide-react";
 import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, type AppUser } from "@/lib/api";
-import { liffConfigured, loginWithLiff, getLineIdToken } from "@/lib/liff";
-import { authenticateWithLine } from "@/lib/useMe";
 import Logo from "@/components/Logo";
 
 export default function LoginPage() {
@@ -16,17 +14,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [lineChecking, setLineChecking] = useState(API_CONFIGURED && liffConfigured());
-  const [lineProgress, setLineProgress] = useState("");
-
-  const onLineProgress = (attempt: number, total: number) =>
-    setLineProgress(
-      t2(`กำลังเชื่อมต่อเซิร์ฟเวอร์ (${attempt}/${total}) — แพลนฟรีตื่นช้า ใช้เวลาไม่เกิน ~1 นาที`, `Connecting to server (${attempt}/${total}) — free tier cold start takes up to ~1 min`),
-    );
 
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
 
-  // หลังรู้ role → พาไปหน้าตามสิทธิ์ (หัวหน้า = หน้าสั่งงาน, admin = จัดการผู้ใช้)
   function routeByRole(u: AppUser) {
     if (u.role === "supervisor") router.replace("/tasks");
     else if (u.role === "admin") router.replace("/admin");
@@ -34,51 +24,45 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    // 1) เข้าอยู่แล้ว (เว็บ) — เด้งตาม role ทันที
     if (getAccessToken()) {
       const u = getCurrentUser();
       if (u) {
         routeByRole(u);
-        return;
       }
-    }
-    // 2) เปิดผ่าน LINE (LIFF) — session มีอยู่แล้ว ไม่ต้อง login ซ้ำ
-    if (API_CONFIGURED && liffConfigured()) {
-      let cancelled = false;
-      authenticateWithLine(onLineProgress)
-        .then((u) => {
-          if (!cancelled) routeByRole(u);
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setLineChecking(false);
-            setLineProgress("");
-          }
-        });
-      return () => {
-        cancelled = true;
-      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(uName: string, pWord: string) {
     setErr("");
-    // โหมดสาธิต (ยังไม่เชื่อมหลังบ้าน) — กดแล้วเข้าได้เลยตามเดิม
     if (!API_CONFIGURED) {
       router.push("/dashboard");
       return;
     }
     setBusy(true);
     try {
-      const u = await loginWithPassword(username.trim(), password);
+      const u = await loginWithPassword(uName.trim(), pWord);
       routeByRole(u);
     } catch (e) {
-      setErr((e as Error).message);
+      setErr((e as Error).message || "เข้าสู่ระบบไม่สำเร็จ โปรดตรวจสอบชื่อผู้ใช้และรหัสผ่าน");
       setBusy(false);
     }
   }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim() || !password) {
+      setErr("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+      return;
+    }
+    await handleLogin(username, password);
+  }
+
+  const quickLogin = async (u: string, p: string) => {
+    setUsername(u);
+    setPassword(p);
+    await handleLogin(u, p);
+  };
 
   const inputCls =
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";
@@ -102,45 +86,41 @@ export default function LoginPage() {
             <Logo className="w-10 h-10 text-white" />
           </div>
           <div className="text-xl font-bold text-govblue-800 mt-4">{t("orgName")}</div>
+          <div className="text-xs text-gray-500 mt-1">
+            ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง
+          </div>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
           <h1 className="text-lg font-semibold text-govblue-800 mb-5">{t("loginTitle")}</h1>
 
-          {lineChecking && (
-            <div className="text-center text-sm text-govblue-600 bg-govblue-50 border border-govblue-100 rounded-lg px-3 py-2.5 animate-pulse mb-4">
-              {lineProgress || t2("กำลังตรวจสอบตัวตน LINE...", "Checking LINE identity...")}
-            </div>
-          )}
-
-          <form
-            onSubmit={submit}
-            className="space-y-4"
-          >
+          <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-gray-700 mb-1.5 block">{t("loginUsername")}</label>
+              <label className="text-xs font-medium text-gray-700 mb-1.5 block">
+                {t("loginUsername")}
+              </label>
               <input
                 className={inputCls}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={API_CONFIGURED ? "admin / leader / normal" : "srt.field.001"}
+                placeholder="ชื่อผู้ใช้งาน (admin / leader / normal)"
                 autoComplete="username"
+                required
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-medium text-gray-700">{t("loginPassword")}</label>
-                <a href="#" className="text-[11px] text-govblue-600 hover:underline">
-                  {lang === "th" ? "ลืมรหัสผ่าน?" : "Forgot?"}
-                </a>
               </div>
               <input
                 type="password"
                 className={inputCls}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="รหัสผ่าน"
                 autoComplete="current-password"
+                required
               />
             </div>
 
@@ -155,63 +135,51 @@ export default function LoginPage() {
               disabled={busy}
               className="w-full bg-gradient-to-r from-govblue-700 to-govblue-600 hover:from-govblue-800 hover:to-govblue-700 text-white font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-2 shadow-sm hover:shadow transition disabled:opacity-60"
             >
-              {busy ? t2("กำลังเข้าสู่ระบบ...", "Signing in...") : t("loginSignIn")} <ChevronRight size={16} />
+              {busy ? t2("กำลังเข้าสู่ระบบ...", "Signing in...") : t("loginSignIn")}{" "}
+              <ChevronRight size={16} />
             </button>
           </form>
 
-          {API_CONFIGURED ? (
-            <>
-              <div className="flex items-center gap-3 my-4">
-                <div className="h-px bg-gray-200 flex-1" />
-                <span className="text-[11px] text-gray-400">{t2("หรือ", "or")}</span>
-                <div className="h-px bg-gray-200 flex-1" />
-              </div>
+          {/* Quick Login Options */}
+          <div className="mt-6 pt-5 border-t border-gray-100">
+            <div className="text-[11px] font-medium text-gray-500 mb-2.5 text-center">
+              เข้าสู่ระบบด่วนสำหรับการทดสอบ (Quick Sign-in)
+            </div>
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={async () => {
-                  setLineChecking(true);
-                  setErr("");
-                  try {
-                    // ไม่มี session LIFF → ให้ LIFF ทำ login ให้ก่อน (redirect กลับมาแล้ว auto-auth ทำงาน)
-                    const existing = await getLineIdToken();
-                    if (!existing) {
-                      await loginWithLiff();
-                      return;
-                    }
-                    const u = await authenticateWithLine(onLineProgress);
-                    if (u.role === "supervisor") router.replace("/tasks");
-                    else if (u.role === "admin") router.replace("/admin");
-                    else router.replace("/dashboard");
-                  } catch (e) {
-                    // token ถูกปฏิเสธ → เรียก session ใหม่ผ่าน LIFF (redirect)
-                    if ((e as Error).message === "no line session") {
-                      await loginWithLiff();
-                      return;
-                    }
-                    setLineChecking(false);
-                    setLineProgress("");
-                    setErr(t2("เข้าสู่ระบบด้วย LINE ไม่สำเร็จ ลองอีกครั้ง", "LINE sign-in failed, try again"));
-                  }
-                }}
-                className="w-full bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-2 shadow-sm hover:shadow transition disabled:opacity-60"
+                onClick={() => quickLogin("admin", "admin")}
+                disabled={busy}
+                className="flex flex-col items-center p-2 rounded-lg border border-purple-200 bg-purple-50/50 hover:bg-purple-100/70 text-purple-800 transition text-center"
               >
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2C6.2 2 1.5 5.9 1.5 10.7c0 4.3 3.9 7.9 9.2 8.6.4.1.9.2 1 .5.1.3.1.7 0 1l-.1.9c-.1.3-.2 1.1.9.6 1.2-.5 6.3-3.7 8.6-6.4 1.6-1.7 2.4-3.5 2.4-5.3C23.5 5.9 17.8 2 12 2z" />
-                </svg>
-                {t2("เข้าสู่ระบบด้วย LINE", "Sign in with LINE")}
+                <ShieldCheck size={16} className="text-purple-600 mb-1" />
+                <span className="text-[11px] font-semibold">แอดมิน</span>
+                <span className="text-[9px] text-purple-600/80">Admin</span>
               </button>
-              <p className="text-center text-[11px] text-gray-400 mt-3">
-                {t2("บัญชีทดลอง: admin/admin · leader/leader · normal/normal", "Demo accounts: admin/admin · leader/leader · normal/normal")}
-              </p>
-            </>
-          ) : (
-            <p className="text-center text-[11px] text-gray-400 mt-4">
-              {t2(
-                "โหมดสาธิต — ตั้งค่า NEXT_PUBLIC_API_URL เพื่อเปิดใช้ระบบบัญชีและ LINE Login (ดู DEPLOY-BACKEND.md)",
-                "Demo mode — set NEXT_PUBLIC_API_URL to enable accounts & LINE Login (see DEPLOY-BACKEND.md)",
-              )}
-            </p>
-          )}
+
+              <button
+                type="button"
+                onClick={() => quickLogin("leader", "leader")}
+                disabled={busy}
+                className="flex flex-col items-center p-2 rounded-lg border border-blue-200 bg-blue-50/50 hover:bg-blue-100/70 text-govblue-800 transition text-center"
+              >
+                <UserCheck size={16} className="text-govblue-600 mb-1" />
+                <span className="text-[11px] font-semibold">หัวหน้างาน</span>
+                <span className="text-[9px] text-govblue-600/80">Supervisor</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => quickLogin("normal", "normal")}
+                disabled={busy}
+                className="flex flex-col items-center p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/70 text-emerald-800 transition text-center"
+              >
+                <Users size={16} className="text-emerald-600 mb-1" />
+                <span className="text-[11px] font-semibold">เจ้าหน้าที่</span>
+                <span className="text-[9px] text-emerald-600/80">Field Officer</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
