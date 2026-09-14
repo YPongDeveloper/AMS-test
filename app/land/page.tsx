@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Page } from "@/components/Page";
 import { Card, SectionHeader, Field, Input, Select, Btn, Tag } from "@/components/ui";
+import MapPicker from "@/components/MapPicker";
 import { useI18n } from "@/lib/i18n";
 import {
   fetchLands,
@@ -363,45 +364,28 @@ export default function LandPage() {
         /* Form View */
         <form onSubmit={handleSave} className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
-            {/* GPS Section */}
+            {/* GPS & Map Section */}
             <Card className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-govblue-700 flex items-center gap-1.5">
-                  <MapPin size={16} /> 1. พิกัดภูมิศาสตร์ (GPS Coordinates)
+                  <MapPin size={16} /> 1. พิกัดภูมิศาสตร์และแผนที่ (GPS & Google Maps)
                 </h3>
-                <Btn type="button" variant="secondary" onClick={acquireGPS} className="!text-xs py-1">
-                  <MapPin size={12} /> ดึงพิกัดปัจจุบัน
-                </Btn>
+                <Tag tone={gpsLocked ? "green" : "gold"}>
+                  {gpsLocked ? "ระบุพิกัดแล้ว ✓" : "พิกัดตั้งต้น"}
+                </Tag>
               </div>
-              <div className="bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-200 rounded p-4 h-32 flex items-center justify-center relative overflow-hidden">
-                <div className="relative text-center">
-                  <MapPin className="mx-auto text-rose-500" size={28} />
-                  <div className="text-xs text-gray-700 mt-1 font-mono font-medium">
-                    {lat ? `${lat}° N` : "-"}, {lng ? `${lng}° E` : "-"}
-                  </div>
-                  <Tag tone={gpsLocked ? "green" : "gold"} className="mt-1">
-                    {gpsLocked ? "GPS Locked ✓" : "พิกัดตั้งต้น"}
-                  </Tag>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <Field label="ละติจูด (Lat)">
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    value={lat ?? ""}
-                    onChange={(e) => setLat(e.target.value ? Number(e.target.value) : null)}
-                  />
-                </Field>
-                <Field label="ลองจิจูด (Lng)">
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    value={lng ?? ""}
-                    onChange={(e) => setLng(e.target.value ? Number(e.target.value) : null)}
-                  />
-                </Field>
-              </div>
+
+              <MapPicker
+                lat={lat}
+                lng={lng}
+                onChange={(newLat, newLng) => {
+                  setLat(newLat);
+                  setLng(newLng);
+                  setGpsLocked(true);
+                }}
+                height="280px"
+                showInputs={true}
+              />
             </Card>
 
             {/* Land Attributes */}
