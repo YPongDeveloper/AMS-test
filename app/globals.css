@@ -16,3 +16,22 @@ html, body {
     repeating-linear-gradient(45deg, rgba(200, 150, 31, 0.08) 0, rgba(200, 150, 31, 0.08) 2px, transparent 2px, transparent 12px);
   background-blend-mode: normal;
 }
+
+/* Custom Leaflet Map Pin & GPS Marker (Fix floating during zoom) */
+.leaflet-div-icon.ams-route-pin,
+.leaflet-div-icon.ams-user-gps-pulse {
+  background: transparent !important;
+  border: none !important;
+}
+
+@keyframes ams-gps-ping {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  70%, 100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+

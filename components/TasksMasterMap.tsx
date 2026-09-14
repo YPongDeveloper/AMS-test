@@ -75,6 +75,8 @@ export default function TasksMasterMap({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const routePolylineRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const routeOutlineRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userGpsMarkerRef = useRef<any>(null);
 
   const [activeLayer, setActiveLayer] = useState<LayerType>("hybrid");
@@ -82,6 +84,8 @@ export default function TasksMasterMap({
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsTracking, setGpsTracking] = useState(false);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const [roadDistanceKm, setRoadDistanceKm] = useState<number | null>(null);
+  const [isRoadLoading, setIsRoadLoading] = useState<boolean>(false);
 
   // กรองเฉพาะงานที่มีพิกัด
   const mappableTasks = useMemo(() => {
@@ -102,11 +106,14 @@ export default function TasksMasterMap({
     return copy;
   }, [mappableTasks, orderedIds]);
 
-  // คำนวณระยะทางรวมตามลำดับ (Total Distance)
+  // คำนวณระยะทางรวมตามลำดับ (Total Distance) — ถ้ามีระยะถนนจริงจาก OSRM จะใช้ค่านั้น
   const routeStats = useMemo(() => {
-    if (orderedTasks.length === 0) return { totalKm: 0, count: 0 };
-    let total = 0;
+    if (orderedTasks.length === 0) return { totalKm: 0, count: 0, isRoad: false };
+    if (roadDistanceKm != null && roadDistanceKm > 0) {
+      return { totalKm: roadDistanceKm, count: orderedTasks.length, isRoad: true };
+    }
 
+    let total = 0;
     // ถ้ามี GPS ของเรา ให้บวกระยะจากตำแหน่งเราไปยังจุดแรก
     if (userLocation && orderedTasks[0]?.lat != null && orderedTasks[0]?.lng != null) {
       total += calculateDistanceKm(
@@ -125,8 +132,8 @@ export default function TasksMasterMap({
       }
     }
 
-    return { totalKm: Number(total.toFixed(1)), count: orderedTasks.length };
-  }, [orderedTasks, userLocation]);
+    return { totalKm: Number(total.toFixed(1)), count: orderedTasks.length, isRoad: false };
+  }, [orderedTasks, userLocation, roadDistanceKm]);
 
   // ดึงตำแหน่ง GPS ของผู้ใช้
   const acquireUserGPS = useCallback(() => {
@@ -155,7 +162,7 @@ export default function TasksMasterMap({
     acquireUserGPS();
   }, [acquireUserGPS]);
 
-  // สร้าง Pin Icon สีตามสถานะ
+  // สร้าง Pin Icon สีตามสถานะ (ล็อกจุดพิกัดไม่ให้ลอยเวลาซูมด้วย SVG Pin แม่นยำระดับพิกเซล)
   // - รอรับงาน: ขาว (#ffffff) ขอบเข้ม
   // - กำลังปฏิบัติงาน / รับงานแล้ว: ฟ้าอ่อน (#38bdf8)
   // - เสร็จสิ้น: เขียว (#22c55e)
@@ -165,49 +172,50 @@ export default function TasksMasterMap({
     let bgColor = "#ffffff";
     let textColor = "#0f172a";
     let borderColor = "#334155";
-    let shadowColor = "rgba(0,0,0,0.3)";
+    let badgeBg = "#f8fafc";
 
     switch (status) {
       case "pending":
         bgColor = "#ffffff";
         textColor = "#0f172a";
         borderColor = "#475569";
-        shadowColor = "rgba(0,0,0,0.35)";
+        badgeBg = "#f8fafc";
         break;
       case "accepted":
       case "in_progress":
         bgColor = "#38bdf8"; // สีฟ้าอ่อน
-        textColor = "#ffffff";
+        textColor = "#0369a1";
         borderColor = "#0284c7";
-        shadowColor = "rgba(56, 189, 248, 0.45)";
+        badgeBg = "#ffffff";
         break;
       case "done":
         bgColor = "#22c55e"; // สีเขียว
-        textColor = "#ffffff";
-        borderColor = "#15803d";
-        shadowColor = "rgba(34, 197, 94, 0.45)";
+        textColor = "#15803d";
+        borderColor = "#16a34a";
+        badgeBg = "#ffffff";
         break;
       case "cancelled":
         bgColor = "#ef4444"; // สีแดง
-        textColor = "#ffffff";
-        borderColor = "#991b1b";
-        shadowColor = "rgba(239, 68, 68, 0.45)";
+        textColor = "#991b1b";
+        borderColor = "#dc2626";
+        badgeBg = "#ffffff";
         break;
     }
 
     return L.divIcon({
       className: "ams-route-pin",
       html: `
-        <div style="transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-          <div style="background-color: ${bgColor}; color: ${textColor}; width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px ${shadowColor}; border: 2.5px solid ${borderColor};">
-            <span style="transform: rotate(45deg); font-size: 13px; font-weight: 800; font-family: ui-sans-serif, system-ui, sans-serif;">${seq}</span>
-          </div>
-          <div style="width: 8px; height: 4px; background: rgba(0,0,0,0.35); border-radius: 50%; margin-top: 2px; filter: blur(1px);"></div>
+        <div style="width:32px;height:42px;position:relative;margin:0;padding:0;pointer-events:auto;">
+          <svg width="32" height="42" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.35));cursor:pointer;">
+            <path d="M16 42C16 42 30 25.5 30 15C30 6.71573 23.732 0 16 0C8.26801 0 2 6.71573 2 15C2 25.5 16 42 16 42Z" fill="${bgColor}" stroke="${borderColor}" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="16" cy="15" r="9" fill="${badgeBg}" stroke="${borderColor}" stroke-width="1.2"/>
+            <text x="16" y="19" text-anchor="middle" font-size="11.5" font-weight="900" fill="${textColor}" font-family="system-ui, -apple-system, sans-serif">${seq}</text>
+          </svg>
         </div>
       `,
-      iconSize: [34, 42],
-      iconAnchor: [17, 42],
-      popupAnchor: [0, -38],
+      iconSize: [32, 42],
+      iconAnchor: [16, 42],
+      popupAnchor: [0, -42],
     });
   }, []);
 
@@ -292,38 +300,45 @@ export default function TasksMasterMap({
     });
   }, [activeLayer]);
 
-  // วาดหมุดงาน เส้นทาง และตำแหน่ง GPS ลงบนแผนที่
+  // วาดหมุดงาน เส้นทางบนถนนจริง (OSRM) และตำแหน่ง GPS ลงบนแผนที่
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
-    import("leaflet").then((L) => {
-      if (!mapInstanceRef.current || !markersGroupRef.current) return;
+    let isEffectActive = true;
 
-      // ล้างของเก่าใน LayerGroup
+    import("leaflet").then((L) => {
+      if (!mapInstanceRef.current || !markersGroupRef.current || !isEffectActive) return;
+
+      // ล้างของเก่าใน LayerGroup และเส้นทางเดิม
       markersGroupRef.current.clearLayers();
-      if (routePolylineRef.current) {
+      if (routeOutlineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(routeOutlineRef.current);
+        routeOutlineRef.current = null;
+      }
+      if (routePolylineRef.current && mapInstanceRef.current) {
         mapInstanceRef.current.removeLayer(routePolylineRef.current);
         routePolylineRef.current = null;
       }
-      if (userGpsMarkerRef.current) {
+      if (userGpsMarkerRef.current && mapInstanceRef.current) {
         mapInstanceRef.current.removeLayer(userGpsMarkerRef.current);
         userGpsMarkerRef.current = null;
       }
 
       const allLatLngs: [number, number][] = [];
 
-      // 1. วาดตำแหน่ง GPS ปัจจุบัน (ถ้ามี)
+      // 1. วาดตำแหน่ง GPS ปัจจุบันของผู้ใช้ (ล็อกตำแหน่งกึ่งกลางแท้จริง ไม่ลอยเวลาซูม)
       if (userLocation) {
         const gpsIcon = L.divIcon({
           className: "ams-user-gps-pulse",
           html: `
-            <div style="transform: translate(-50%, -50%); position: relative; width: 30px; height: 30px; display: flex; items-center; justify-content: center;">
-              <div style="position: absolute; width: 30px; height: 30px; background: rgba(37, 99, 235, 0.35); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-              <div style="position: relative; width: 14px; height: 14px; background: #2563eb; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); margin: auto;"></div>
+            <div style="width:28px;height:28px;position:relative;display:flex;align-items:center;justify-content:center;margin:0;padding:0;">
+              <div style="position:absolute;inset:0;background:rgba(37,99,235,0.3);border-radius:50%;animation:ams-gps-ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
+              <div style="width:14px;height:14px;background:#2563eb;border:2.5px solid #ffffff;border-radius:50%;box-shadow:0 0 8px rgba(37,99,235,0.7);z-index:2;"></div>
             </div>
           `,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -14],
         });
 
         const gpsMarker = L.marker([userLocation.lat, userLocation.lng], {
@@ -404,16 +419,81 @@ export default function TasksMasterMap({
         });
       });
 
-      // 3. วาดเส้น Polyline เชื่อมโยงตามลำดับเส้นทาง
+      // 3. วาดเส้นทางบนถนนจริง (Road Routing via OSRM)
       if (routePoints.length >= 2) {
-        const polyline = L.polyline(routePoints, {
-          color: "#3b82f6",
-          weight: 4,
-          opacity: 0.85,
-          dashArray: "8, 8",
+        // วาดเส้นร่างตรงแบบประเป็นตัวอย่างชั่วคราว (Fallback)
+        const straightLine = L.polyline(routePoints, {
+          color: "#93c5fd",
+          weight: 3.5,
+          opacity: 0.75,
+          dashArray: "6, 6",
           lineJoin: "round",
         }).addTo(mapInstanceRef.current);
-        routePolylineRef.current = polyline;
+        routePolylineRef.current = straightLine;
+
+        // รวบรวม Waypoints ส่งให้ OSRM ในฟอร์แมต lon,lat
+        const osrmWaypoints: [number, number][] = [];
+        if (userLocation) {
+          osrmWaypoints.push([userLocation.lng, userLocation.lat]);
+        }
+        orderedTasks.forEach((t) => {
+          if (t.lat != null && t.lng != null) {
+            osrmWaypoints.push([t.lng, t.lat]);
+          }
+        });
+
+        if (osrmWaypoints.length >= 2) {
+          setIsRoadLoading(true);
+          const coordsStr = osrmWaypoints.map((pt) => `${pt[0]},${pt[1]}`).join(";");
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+
+          fetch(osrmUrl)
+            .then((res) => res.json())
+            .then((data) => {
+              if (!mapInstanceRef.current || !isEffectActive) return;
+              setIsRoadLoading(false);
+
+              if (data.code === "Ok" && data.routes?.[0]?.geometry?.coordinates?.length) {
+                const roadLatLngs: [number, number][] = data.routes[0].geometry.coordinates.map(
+                  (c: [number, number]) => [c[1], c[0]]
+                );
+                const km = Number((data.routes[0].distance / 1000).toFixed(1));
+                setRoadDistanceKm(km);
+
+                // ลบเส้นตรงชั่วคราวออก
+                if (routePolylineRef.current && mapInstanceRef.current) {
+                  mapInstanceRef.current.removeLayer(routePolylineRef.current);
+                  routePolylineRef.current = null;
+                }
+                if (routeOutlineRef.current && mapInstanceRef.current) {
+                  mapInstanceRef.current.removeLayer(routeOutlineRef.current);
+                  routeOutlineRef.current = null;
+                }
+
+                // วาดเส้นทางบนถนนจริง 2 ชั้น (ขอบขาวเรืองแสง + เส้นทางสีน้ำเงินสดสไตล์ Google Maps)
+                const outline = L.polyline(roadLatLngs, {
+                  color: "#ffffff",
+                  weight: 7,
+                  opacity: 0.9,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }).addTo(mapInstanceRef.current);
+                routeOutlineRef.current = outline;
+
+                const roadLine = L.polyline(roadLatLngs, {
+                  color: "#1d4ed8",
+                  weight: 4.5,
+                  opacity: 0.95,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }).addTo(mapInstanceRef.current);
+                routePolylineRef.current = roadLine;
+              }
+            })
+            .catch(() => {
+              if (isEffectActive) setIsRoadLoading(false);
+            });
+        }
       }
 
       // 4. ขยายมุมมองแผนที่ให้ครอบคลุมทุกจุดอัตโนมัติ (Fit Bounds)
@@ -428,6 +508,10 @@ export default function TasksMasterMap({
         }
       }
     });
+
+    return () => {
+      isEffectActive = false;
+    };
   }, [orderedTasks, userLocation, getPinIcon, onSelectTask]);
 
   // จัดการ ResizeObserver
@@ -513,8 +597,14 @@ export default function TasksMasterMap({
             {orderedTasks.length} จุดภารกิจ
           </span>
           {routeStats.totalKm > 0 && (
-            <span className="text-[11px] font-medium text-gray-600 border-l border-gray-200 pl-2">
-              ~{routeStats.totalKm} กม. รวม
+            <span className="text-[11px] font-medium text-govblue-800 border-l border-gray-200 pl-2 flex items-center gap-1">
+              <span>{routeStats.isRoad ? "🚗 ถนนจริง: " : "~"}</span>
+              <span className="font-bold">{routeStats.totalKm} กม.</span>
+            </span>
+          )}
+          {isRoadLoading && (
+            <span className="text-[10px] text-amber-600 animate-pulse border-l border-gray-200 pl-2">
+              (กำลังคำนวณเส้นทาง...)
             </span>
           )}
         </div>
@@ -654,12 +744,23 @@ export default function TasksMasterMap({
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
           <div>
-            <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-2">
-              <Navigation size={16} className="text-govblue-700" />
-              ลำดับการลงพื้นที่ปฏิบัติงาน (Itinerary Route)
-            </h3>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-2">
+                <Navigation size={16} className="text-govblue-700" />
+                ลำดับการลงพื้นที่ปฏิบัติงาน (Itinerary Route)
+              </h3>
+              {routeStats.totalKm > 0 && (
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                  routeStats.isRoad
+                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                    : "bg-gray-100 text-gray-700 border-gray-200"
+                }`}>
+                  {routeStats.isRoad ? "🚗 ระยะทางถนนจริง " : "~"}{routeStats.totalKm} กม.
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              จัดลำดับงานว่าจะไปจุดไหนก่อน-หลัง เพื่อให้ระบบคำนวณและวาดเส้นทางแนะนำบนแผนที่
+              จัดลำดับงานว่าจะไปจุดไหนก่อน-หลัง เพื่อให้ระบบคำนวณและวาดเส้นทางตามแนวถนนจริงบนแผนที่
             </p>
           </div>
 
