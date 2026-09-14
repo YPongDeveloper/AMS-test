@@ -1,146 +1,536 @@
 "use client";
 
-// MapPicker — ปักหมุดพิกัดสถานที่งาน
-// มี NEXT_PUBLIC_GOOGLE_MAPS_API_KEY → Google Maps คลิกปักหมุดได้
-// ไม่มี key → กรอกพิกัดเอง + ลิงก์เปิด Google Maps ช่วยหาพิกัด
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  MapPin,
+  Search,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
+  Crosshair,
+  Check,
+  AlertCircle,
+  Loader2,
+  X,
+} from "lucide-react";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface MapPickerProps {
+  lat: number | null;
+  lng: number | null;
+  onChange: (lat: number | null, lng: number | null) => void;
+  height?: string;
+  showInputs?: boolean;
+}
 
-import { useEffect, useRef, useState } from "react";
+type LayerType = "hybrid" | "roadmap" | "osm";
 
-const GM_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const TILE_LAYERS: Record<
+  LayerType,
+  { name: string; url: string; subdomains: string[]; maxZoom: number; attribution: string }
+> = {
+  hybrid: {
+    name: "🛰️ ดาวเทียม Google",
+    url: "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
+    maxZoom: 20,
+    attribution: "&copy; Google Maps",
+  },
+  roadmap: {
+    name: "🗺️ แผนที่ Google",
+    url: "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    subdomains: ["mt0", "mt1", "mt2", "mt3"],
+    maxZoom: 20,
+    attribution: "&copy; Google Maps",
+  },
+  osm: {
+    name: "🌐 OpenStreetMap",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    subdomains: ["a", "b", "c"],
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  },
+};
 
-let gmapsPromise: Promise<any> | null = null;
-function loadGoogleMaps(): Promise<any> {
-  const w = window as any;
-  if (w.google?.maps) return Promise.resolve(w.google);
-  if (!gmapsPromise) {
-    gmapsPromise = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${GM_KEY}&language=th&region=TH`;
-      s.async = true;
-      s.onload = () => resolve((window as any).google);
-      s.onerror = () => reject(new Error("โหลด Google Maps ไม่สำเร็จ"));
-      document.head.appendChild(s);
-    });
+// แยกพิกัดจากข้อความ หรือ ลิงก์ Google Maps
+function parseCoordinateInput(input: string): { lat: number; lng: number } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // 1. Google Maps URL รูปแบบ @lat,lng
+  // เช่น: https://www.google.com/maps/@13.880677,100.454334,17z
+  // หรือ: https://www.google.com/maps/place/.../@13.880677,100.454334,17z
+  const urlAtMatch = trimmed.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (urlAtMatch) {
+    return { lat: parseFloat(urlAtMatch[1]), lng: parseFloat(urlAtMatch[2]) };
   }
-  return gmapsPromise;
+
+  // 2. Google Maps URL รูปแบบ ?q=lat,lng หรือ ?ll=lat,lng
+  const queryMatch = trimmed.match(/[?&](?:q|ll|query)=(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (queryMatch) {
+    return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
+  }
+
+  // 3. พิกัดตัวเลข "13.880677, 100.454334" หรือ "13.880677 100.454334"
+  const plainMatch = trimmed.match(/^(-?\d{1,2}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+  if (plainMatch) {
+    const pLat = parseFloat(plainMatch[1]);
+    const pLng = parseFloat(plainMatch[2]);
+    if (pLat >= -90 && pLat <= 90 && pLng >= -180 && pLng <= 180) {
+      return { lat: pLat, lng: pLng };
+    }
+  }
+
+  return null;
 }
 
 export default function MapPicker({
   lat,
   lng,
   onChange,
-}: {
-  lat: number | null;
-  lng: number | null;
-  onChange: (lat: number | null, lng: number | null) => void;
-}) {
-  const mapDiv = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const [mapError, setMapError] = useState("");
+  height = "260px",
+  showInputs = true,
+}: MapPickerProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tileLayerRef = useRef<any>(null);
 
-  const hasCoords = lat != null && lng != null;
-  const center = hasCoords ? { lat: lat as number, lng: lng as number } : { lat: 13.7563, lng: 100.5018 };
+  const [activeLayer, setActiveLayer] = useState<LayerType>("hybrid");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchMsg, setSearchMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
+  const [gpsLocating, setGpsLocating] = useState(false);
 
-  useEffect(() => {
-    if (!GM_KEY || mapRef.current) return;
-    loadGoogleMaps()
-      .then((google) => {
-        if (!mapDiv.current || mapRef.current) return;
-        const map = new google.maps.Map(mapDiv.current, {
-          center,
-          zoom: hasCoords ? 16 : 11,
-          mapTypeControl: false,
-          streetViewControl: false,
-        });
-        map.addListener("click", (e: any) => {
-          const p = e.latLng;
-          onChange(Number(p.lat().toFixed(7)), Number(p.lng().toFixed(7)));
-        });
-        mapRef.current = map;
-        (window as any).__amsMap = map;
-      })
-      .catch((e) => setMapError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [GM_KEY]);
+  const defaultCenter = { lat: 13.7563, lng: 100.5018 };
+  const currentLat = lat ?? defaultCenter.lat;
+  const currentLng = lng ?? defaultCenter.lng;
+  const hasCoords = lat !== null && lng !== null;
 
-  // sync marker กับค่า lat/lng ปัจจุบัน
-  useEffect(() => {
-    const google = (window as any).google;
-    if (!google?.maps || !mapRef.current) return;
-    if (hasCoords) {
-      const pos = { lat: lat as number, lng: lng as number };
-      if (!markerRef.current) {
-        markerRef.current = new google.maps.Marker({ position: pos, map: mapRef.current, title: "จุดงาน" });
-      } else {
-        markerRef.current.setPosition(pos);
+  // ฟังก์ชันอัปเดตตำแหน่งแผนที่และหมุด
+  const setPinPosition = useCallback(
+    (newLat: number, newLng: number, zoomLevel?: number) => {
+      const formattedLat = Number(newLat.toFixed(6));
+      const formattedLng = Number(newLng.toFixed(6));
+      onChange(formattedLat, formattedLng);
+
+      if (markerInstanceRef.current) {
+        markerInstanceRef.current.setLatLng([formattedLat, formattedLng]);
       }
-      mapRef.current.panTo(pos);
-    } else if (markerRef.current) {
-      markerRef.current.setMap(null);
-      markerRef.current = null;
+      if (mapInstanceRef.current) {
+        if (zoomLevel) {
+          mapInstanceRef.current.setView([formattedLat, formattedLng], zoomLevel);
+        } else {
+          mapInstanceRef.current.panTo([formattedLat, formattedLng]);
+        }
+      }
+    },
+    [onChange]
+  );
+
+  // เริ่มต้น Leaflet Map
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initMap() {
+      if (!mapContainerRef.current) return;
+      const L = (await import("leaflet")).default;
+      if (!isMounted || !mapContainerRef.current) return;
+
+      // ล้างแผนที่เก่าถ้ามี
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+
+      // สร้าง Custom SVG Pin Marker ที่คมชัดและลากได้
+      const pinIcon = L.divIcon({
+        className: "ams-custom-pin",
+        html: `
+          <div style="transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: grab;">
+            <div style="background-color: #ef4444; color: white; width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2.5px solid #ffffff;">
+              <div style="width: 10px; height: 10px; background: white; border-radius: 50%;"></div>
+            </div>
+            <div style="width: 8px; height: 4px; background: rgba(0,0,0,0.3); border-radius: 50%; margin-top: 2px; filter: blur(1px);"></div>
+          </div>
+        `,
+        iconSize: [34, 42],
+        iconAnchor: [17, 42],
+      });
+
+      const map = L.map(mapContainerRef.current, {
+        center: [currentLat, currentLng],
+        zoom: hasCoords ? 16 : 12,
+        zoomControl: false,
+      });
+
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+
+      // Tile Layer เริ่มต้น
+      const layerCfg = TILE_LAYERS[activeLayer];
+      const tiles = L.tileLayer(layerCfg.url, {
+        subdomains: layerCfg.subdomains,
+        maxZoom: layerCfg.maxZoom,
+        attribution: layerCfg.attribution,
+      }).addTo(map);
+      tileLayerRef.current = tiles;
+
+      // Marker ปักหมุด
+      const marker = L.marker([currentLat, currentLng], {
+        icon: pinIcon,
+        draggable: true,
+      }).addTo(map);
+
+      // เมื่อลากหมุดเสร็จ
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        setPinPosition(pos.lat, pos.lng);
+      });
+
+      // เมื่อคลิกบนแผนที่
+      map.on("click", (e) => {
+        setPinPosition(e.latlng.lat, e.latlng.lng);
+      });
+
+      mapInstanceRef.current = map;
+      markerInstanceRef.current = marker;
+
+      setTimeout(() => {
+        if (isMounted && mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 150);
     }
-  }, [lat, lng, hasCoords]);
+
+    initMap();
+
+    return () => {
+      isMounted = false;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // สลับ Tile Layer เมื่อ activeLayer เปลี่ยน
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    import("leaflet").then((L) => {
+      if (tileLayerRef.current) {
+        mapInstanceRef.current.removeLayer(tileLayerRef.current);
+      }
+      const cfg = TILE_LAYERS[activeLayer];
+      const newTiles = L.tileLayer(cfg.url, {
+        subdomains: cfg.subdomains,
+        maxZoom: cfg.maxZoom,
+        attribution: cfg.attribution,
+      }).addTo(mapInstanceRef.current);
+      tileLayerRef.current = newTiles;
+    });
+  }, [activeLayer]);
+
+  // ซิงค์หมุดเมื่อพิกัดภายนอกเปลี่ยน
+  useEffect(() => {
+    if (!markerInstanceRef.current || !mapInstanceRef.current) return;
+    if (lat !== null && lng !== null) {
+      const curPos = markerInstanceRef.current.getLatLng();
+      if (Math.abs(curPos.lat - lat) > 0.000001 || Math.abs(curPos.lng - lng) > 0.000001) {
+        markerInstanceRef.current.setLatLng([lat, lng]);
+        mapInstanceRef.current.panTo([lat, lng]);
+      }
+    }
+  }, [lat, lng]);
+
+  // จัดการ Resize เมื่อเปิด/ปิด Fullscreen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [isFullscreen]);
+
+  // ดึง GPS อุปกรณ์
+  const handleAcquireGPS = () => {
+    if (!navigator.geolocation) {
+      alert("อุปกรณ์ไม่รองรับการดึงพิกัด GPS");
+      return;
+    }
+    setGpsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsLocating(false);
+        setPinPosition(pos.coords.latitude, pos.coords.longitude, 17);
+        setSearchMsg({ text: "ดึงพิกัดปัจจุบันจาก GPS สำเร็จ", tone: "ok" });
+      },
+      (err) => {
+        setGpsLocating(false);
+        alert("ไม่สามารถดึง GPS ได้: " + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // ค้นหาสถานที่ หรือ วางลิงก์ Google Maps / พิกัด
+  const handleSearchOrPaste = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = searchInput.trim();
+    if (!query) return;
+
+    setSearchMsg(null);
+
+    // 1. ลองถอดรหัสว่าเป็นพิกัด หรือ ลิงก์ Google Maps หรือไม่
+    const parsedCoords = parseCoordinateInput(query);
+    if (parsedCoords) {
+      setPinPosition(parsedCoords.lat, parsedCoords.lng, 17);
+      setSearchMsg({ text: `ตรวจพบพิกัด Google Maps: ${parsedCoords.lat}, ${parsedCoords.lng}`, tone: "ok" });
+      setSearchInput("");
+      return;
+    }
+
+    // 2. ถ้าไม่ใช่พิกัด ให้ค้นหาชื่อสถานที่ (Geocoding)
+    setSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query
+        )}&countrycodes=th&limit=1`
+      );
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const targetLat = parseFloat(data[0].lat);
+        const targetLng = parseFloat(data[0].lon);
+        setPinPosition(targetLat, targetLng, 16);
+        setSearchMsg({ text: `พบสถานที่: ${data[0].display_name.split(",")[0]}`, tone: "ok" });
+        setSearchInput("");
+      } else {
+        setSearchMsg({
+          text: "ไม่พบสถานที่ ลองระบุชื่ออำเภอ/จังหวัด หรือวางพิกัดจาก Google Maps",
+          tone: "err",
+        });
+      }
+    } catch {
+      setSearchMsg({ text: "เกิดข้อผิดพลาดในการค้นหา ลองวางพิกัดตัวเลขแทน", tone: "err" });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const renderMapBox = () => (
+    <div className="relative w-full h-full flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-inner bg-slate-100">
+      {/* Search & Tool Bar ด้านบนแผนที่ */}
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-col sm:flex-row gap-1.5 items-stretch sm:items-center">
+        {/* ช่องค้นหา / วางลิงก์ Google Maps */}
+        <form onSubmit={handleSearchOrPaste} className="flex-1 flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
+          <Search size={16} className="ml-3 text-gray-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="ค้นหาสถานที่ หรือ วางลิงก์ / พิกัด Google Maps..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full px-2.5 py-1.5 text-xs text-gray-800 bg-transparent focus:outline-none"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput("")}
+              className="p-1 mr-1 text-gray-400 hover:text-gray-600 rounded"
+            >
+              <X size={14} />
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={searching}
+            className="bg-govblue-700 hover:bg-govblue-800 text-white text-xs px-3 py-1.5 font-medium shrink-0 flex items-center gap-1 transition disabled:opacity-50"
+          >
+            {searching ? <Loader2 size={12} className="animate-spin" /> : "ค้นหา"}
+          </button>
+        </form>
+
+        {/* ปุ่มควบคุมเสริมบนแผนที่ */}
+        <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
+          {/* สลับ Layer */}
+          <div className="flex items-center gap-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveLayer("hybrid")}
+              className={`px-2 py-1 rounded text-[11px] font-medium transition ${
+                activeLayer === "hybrid" ? "bg-govblue-700 text-white shadow-xs" : "text-gray-600 hover:bg-gray-100"
+              }`}
+              title="ภาพถ่ายดาวเทียม Google"
+            >
+              🛰️ ดาวเทียม
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveLayer("roadmap")}
+              className={`px-2 py-1 rounded text-[11px] font-medium transition ${
+                activeLayer === "roadmap" ? "bg-govblue-700 text-white shadow-xs" : "text-gray-600 hover:bg-gray-100"
+              }`}
+              title="แผนที่ถนน Google"
+            >
+              🗺️ แผนที่
+            </button>
+          </div>
+
+          <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
+
+          {/* ปุ่มดึง GPS */}
+          <button
+            type="button"
+            onClick={handleAcquireGPS}
+            disabled={gpsLocating}
+            className="p-1.5 text-govblue-700 hover:bg-govblue-50 rounded transition"
+            title="ดึงพิกัดปัจจุบันจาก GPS"
+          >
+            {gpsLocating ? <Loader2 size={15} className="animate-spin text-govblue-600" /> : <Crosshair size={15} />}
+          </button>
+
+          {/* ปุ่มขยายเต็มจอ */}
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-1.5 text-gray-700 hover:bg-gray-100 rounded transition"
+            title={isFullscreen ? "ย่อหน้าจอ" : "ขยายแผนที่เต็มจอเพื่อเลือกพิกัด"}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+        </div>
+      </div>
+
+      {/* ข้อความแจ้งเตือนผลค้นหา */}
+      {searchMsg && (
+        <div
+          className={`absolute top-14 left-3 right-3 sm:right-auto sm:max-w-md z-[1000] px-3 py-1.5 rounded-md shadow-md text-xs flex items-center justify-between gap-2 border ${
+            searchMsg.tone === "ok"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+              : "bg-rose-50 border-rose-300 text-rose-800"
+          }`}
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            {searchMsg.tone === "ok" ? <Check size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
+            <span className="truncate">{searchMsg.text}</span>
+          </div>
+          <button onClick={() => setSearchMsg(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Leaflet Map Div */}
+      <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+      {/* แถบสถานะด้านล่างแผนที่ */}
+      <div className="absolute bottom-2 left-2 z-[1000] bg-black/75 backdrop-blur text-white px-2.5 py-1 rounded-md text-[11px] font-mono flex items-center gap-2 shadow pointer-events-none">
+        <MapPin size={12} className="text-rose-400 shrink-0" />
+        <span>
+          {currentLat.toFixed(6)}, {currentLng.toFixed(6)}
+        </span>
+        <span className="text-[10px] text-gray-300 border-l border-gray-600 pl-2 pointer-events-auto">
+          คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด
+        </span>
+      </div>
+
+      {/* ลิงก์เปิด Google Maps ด้านล่างขวา */}
+      <div className="absolute bottom-2 right-12 z-[1000]">
+        <a
+          href={`https://www.google.com/maps?q=${currentLat},${currentLng}`}
+          target="_blank"
+          rel="noreferrer"
+          className="bg-white/95 hover:bg-white text-govblue-800 border border-gray-300 text-[11px] font-medium px-2 py-1 rounded shadow-sm flex items-center gap-1 transition"
+          title="เปิดตรวจสอบตำแหน่งบนเว็บไซต์ Google Maps"
+        >
+          <span>เปิดดูใน Google Maps</span>
+          <ExternalLink size={11} />
+        </a>
+      </div>
+    </div>
+  );
 
   return (
-    <div>
-      {GM_KEY ? (
-        <>
-          <div
-            ref={mapDiv}
-            className="w-full h-56 rounded-lg border border-gray-300 overflow-hidden"
-            style={{ backgroundColor: "#e5eef7" }}
-          />
-          <p className="text-[11px] text-gray-500 mt-1">
-            คลิกบนแผนที่เพื่อปักหมุดจุดปฏิบัติงาน (ปัจจุบัน:{" "}
-            {hasCoords ? `${lat!.toFixed(6)}, ${lng!.toFixed(6)}` : "ยังไม่ระบุ"})
-          </p>
-          {hasCoords && (
-            <a
-              className="text-[11px] text-govblue-600 hover:underline"
-              href={`https://www.google.com/maps?q=${lat},${lng}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              เปิดดูใน Google Maps ↗
-            </a>
-          )}
-          {mapError && <p className="text-[11px] text-rose-600 mt-1">{mapError}</p>}
-        </>
-      ) : (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-3">
+      {/* แผนที่ปกติ */}
+      <div style={{ height }} className="w-full">
+        {renderMapBox()}
+      </div>
+
+      {/* ช่องกรอก Lat / Lng แบบตัวเลข (สองช่องด้านล่าง) */}
+      {showInputs && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              ละติจูด (Lat) <span className="text-[10px] text-gray-400">คลิกเลือกบนแผนที่ได้</span>
+            </label>
             <input
               type="number"
-              step="any"
-              placeholder="ละติจูด (13.7563)"
+              step="0.000001"
               value={lat ?? ""}
-              onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value), lng)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
-            />
-            <input
-              type="number"
-              step="any"
-              placeholder="ลองจิจูด (100.5018)"
-              value={lng ?? ""}
-              onChange={(e) => onChange(lat, e.target.value === "" ? null : Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+              onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null, lng)}
+              placeholder="เช่น 13.880677"
+              className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-mono"
             />
           </div>
-          <p className="text-[11px] text-gray-500">
-            เคล็ดลับ: เปิด{" "}
-            <a
-              className="text-govblue-600 hover:underline"
-              href="https://www.google.com/maps"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Google Maps
-            </a>{" "}
-            คลิกถูกที่จุดงานเพื่อคัดลอกพิกัด แล้ววางที่นี่ (ตั้งค่า NEXT_PUBLIC_GOOGLE_MAPS_API_KEY เพื่อใช้แผนที่เลือกจุดในหน้าเว็บ)
-          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              ลองจิจูด (Lng) <span className="text-[10px] text-gray-400">คลิกเลือกบนแผนที่ได้</span>
+            </label>
+            <input
+              type="number"
+              step="0.000001"
+              value={lng ?? ""}
+              onChange={(e) => onChange(lat, e.target.value ? Number(e.target.value) : null)}
+              placeholder="เช่น 100.454334"
+              className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-mono"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Modal View เมื่อผู้ใช้ต้องการขยายแผนที่ใหญ่เพื่อเลือกพิกัด */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-6xl flex flex-col overflow-hidden border border-gray-300">
+            {/* Modal Header */}
+            <div className="px-4 py-3 bg-govblue-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <MapPin className="text-govgold-400" size={18} />
+                <div>
+                  <h3 className="text-sm font-semibold">เลือกพิกัดจากแผนที่ Google Maps / ดาวเทียม</h3>
+                  <p className="text-[11px] text-blue-200">
+                    คลิกบนแผนที่หรือลากหมุดสีแดงไปยังแปลงที่ดิน/สิ่งปลูกสร้างที่ต้องการ
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  className="bg-govgold-500 hover:bg-govgold-400 text-govblue-900 text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow"
+                >
+                  <Check size={14} /> ยืนยันพิกัดนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  className="p-1.5 text-blue-200 hover:text-white rounded hover:bg-white/10"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Map */}
+            <div className="flex-1 w-full relative">
+              {renderMapBox()}
+            </div>
+          </div>
         </div>
       )}
     </div>
