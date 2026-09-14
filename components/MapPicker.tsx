@@ -148,6 +148,14 @@ export default function MapPicker({
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+      if (
+        mapContainerRef.current &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mapContainerRef.current as any)._leaflet_id
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (mapContainerRef.current as any)._leaflet_id;
+      }
 
       // สร้าง Custom SVG Pin Marker ที่คมชัด
       const pinIcon = L.divIcon({
@@ -203,11 +211,17 @@ export default function MapPicker({
       mapInstanceRef.current = map;
       markerInstanceRef.current = marker;
 
+      // กระตุ้น redraw เมื่อเริ่มต้น
       setTimeout(() => {
         if (isMounted && mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize();
         }
-      }, 150);
+      }, 100);
+      setTimeout(() => {
+        if (isMounted && mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 350);
     }
 
     initMap();
@@ -226,6 +240,7 @@ export default function MapPicker({
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     import("leaflet").then((L) => {
+      if (!mapInstanceRef.current) return;
       if (tileLayerRef.current) {
         mapInstanceRef.current.removeLayer(tileLayerRef.current);
       }
@@ -251,14 +266,50 @@ export default function MapPicker({
     }
   }, [lat, lng]);
 
-  // จัดการ Resize เมื่อเปิด/ปิด Fullscreen
+  // ตรวจจับการเปลี่ยนแปลงขนาด container ด้วย ResizeObserver เพื่อปรับขนาด Leaflet อัตโนมัติ
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (!mapContainerRef.current) return;
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      });
+      ro.observe(mapContainerRef.current);
+    }
+    return () => {
+      if (ro) ro.disconnect();
+    };
+  }, []);
+
+  // จัดการ Resize และปุ่ม ESC เมื่อเปิด/ปิด Fullscreen
+  useEffect(() => {
+    const t1 = setTimeout(() => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.invalidateSize();
       }
-    }, 200);
-    return () => clearTimeout(timer);
+    }, 80);
+    const t2 = setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 250);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    };
+    if (isFullscreen) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isFullscreen]);
 
   // ดึง GPS อุปกรณ์
@@ -475,9 +526,68 @@ export default function MapPicker({
 
   return (
     <div className="space-y-3">
-      {/* แผนที่ปกติ */}
-      <div style={{ height }} className="w-full">
-        {renderMapBox()}
+      {/* Map Container Wrapper: เมื่อเป็น Fullscreen จะกลายเป็น Fixed Modal คลุมทั้งหน้าจอ */}
+      <div
+        className={
+          isFullscreen
+            ? "fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
+            : "w-full"
+        }
+        style={isFullscreen ? undefined : { height }}
+      >
+        <div
+          className={
+            isFullscreen
+              ? "bg-white rounded-2xl shadow-2xl w-full h-full max-w-6xl flex flex-col overflow-hidden border border-gray-300 animate-in zoom-in-95 duration-150"
+              : "w-full h-full flex flex-col"
+          }
+        >
+          {/* Modal Header (แสดงเฉพาะเมื่อขยายเต็มจอ) */}
+          {isFullscreen && (
+            <div className="px-5 py-3.5 bg-gradient-to-r from-govblue-900 via-govblue-800 to-govblue-900 text-white flex items-center justify-between shrink-0 shadow-sm border-b border-govblue-700">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-govgold-400 border border-white/10 shrink-0">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">
+                    {readOnly
+                      ? "ตำแหน่งจุดปฏิบัติงาน (Google Maps / ภาพถ่ายดาวเทียม)"
+                      : "เลือกพิกัดจากแผนที่ Google Maps / ดาวเทียม"}
+                  </h3>
+                  <p className="text-[11px] text-blue-200">
+                    {readOnly
+                      ? "แสดงพิกัดและสภาพภูมิประเทศจริงของจุดที่ต้องลงพื้นที่ปฏิบัติงาน"
+                      : "คลิกบนแผนที่หรือลากหมุดสีแดงไปยังแปลงที่ดิน/สิ่งปลูกสร้างที่ต้องการ"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(false)}
+                    className="bg-govgold-500 hover:bg-govgold-400 text-govblue-900 text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow"
+                  >
+                    <Check size={14} /> ยืนยันพิกัดนี้
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  className="px-3 py-1.5 text-xs text-blue-200 hover:text-white rounded-lg hover:bg-white/10 flex items-center gap-1.5 transition border border-white/10"
+                >
+                  <X size={16} /> ปิดหน้าต่างขยาย
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Map Content (เรียก renderMapBox เพียง 1 ที่เท่านั้น เพื่อไม่ให้ Leaflet หลุดจาก DOM) */}
+          <div className="flex-1 w-full h-full relative min-h-0">
+            {renderMapBox()}
+          </div>
+        </div>
       </div>
 
       {/* ช่องกรอก Lat / Lng แบบตัวเลข (สองช่องด้านล่าง เฉพาะเมื่อไม่ใช่ readOnly) */}
@@ -508,55 +618,6 @@ export default function MapPicker({
               placeholder="เช่น 100.454334"
               className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 font-mono"
             />
-          </div>
-        </div>
-      )}
-
-      {/* Fullscreen Modal View เมื่อผู้ใช้ต้องการขยายแผนที่ใหญ่ */}
-      {isFullscreen && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl shadow-2xl w-full h-full max-w-6xl flex flex-col overflow-hidden border border-gray-300">
-            {/* Modal Header */}
-            <div className="px-4 py-3 bg-govblue-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <MapPin className="text-govgold-400" size={18} />
-                <div>
-                  <h3 className="text-sm font-semibold">
-                    {readOnly
-                      ? "ตำแหน่งจุดปฏิบัติงาน (Google Maps / ภาพถ่ายดาวเทียม)"
-                      : "เลือกพิกัดจากแผนที่ Google Maps / ดาวเทียม"}
-                  </h3>
-                  <p className="text-[11px] text-blue-200">
-                    {readOnly
-                      ? "แสดงพิกัดและสภาพภูมิประเทศจริงของจุดที่ต้องลงพื้นที่ปฏิบัติงาน"
-                      : "คลิกบนแผนที่หรือลากหมุดสีแดงไปยังแปลงที่ดิน/สิ่งปลูกสร้างที่ต้องการ"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => setIsFullscreen(false)}
-                    className="bg-govgold-500 hover:bg-govgold-400 text-govblue-900 text-xs font-semibold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow"
-                  >
-                    <Check size={14} /> ยืนยันพิกัดนี้
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsFullscreen(false)}
-                  className="px-3 py-1.5 text-xs text-blue-200 hover:text-white rounded-lg hover:bg-white/10 flex items-center gap-1.5 transition"
-                >
-                  <X size={16} /> ปิดแผนที่
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Map */}
-            <div className="flex-1 w-full relative">
-              {renderMapBox()}
-            </div>
           </div>
         </div>
       )}
