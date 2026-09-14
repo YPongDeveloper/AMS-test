@@ -420,10 +420,6 @@ export default function MapPicker({
             >
               <MapPin size={15} className="text-rose-600 shrink-0 group-hover:scale-110 transition-transform" />
               <span>ตำแหน่งจุดปฏิบัติงานที่ได้รับมอบหมาย</span>
-              <span className="text-[10px] font-normal text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded border border-govblue-200/80 transition flex items-center gap-1">
-                <Crosshair size={11} className="text-govblue-600" />
-                เลื่อนไปจุดนี้
-              </span>
             </button>
           ) : (
             <form onSubmit={handleSearchOrPaste} className="flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
@@ -547,7 +543,7 @@ export default function MapPicker({
           {currentLat.toFixed(6)}, {currentLng.toFixed(6)}
         </span>
         <span className="text-[10px] text-gray-300 border-l border-gray-600 pl-2">
-          {readOnly ? "จุดปฏิบัติงาน (คลิกเลื่อนดู)" : "คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด"}
+          {readOnly ? "จุดปฏิบัติงาน" : "คลิกหรือลากหมุดเพื่อเปลี่ยนพิกัด"}
         </span>
       </button>
 
