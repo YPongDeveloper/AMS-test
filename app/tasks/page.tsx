@@ -43,6 +43,7 @@ import {
   Map,
   List,
   Navigation,
+  RotateCcw,
 } from "lucide-react";
 
 // 4 ขั้นตอนหลักของ Workflow ภารกิจสำรวจ
@@ -58,9 +59,24 @@ const getTodayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+function getShiftedDate(baseDateStr: string, daysOffset: number): string {
+  try {
+    const parts = baseDateStr.split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    d.setDate(d.getDate() + daysOffset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+}
+
 const getTaskDateStr = (task: Task) => {
   const dt = task.due_at || task.created_at;
   if (!dt) return "";
+  const m = String(dt).match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
   try {
     const d = new Date(dt);
     if (isNaN(d.getTime())) return "";
@@ -84,102 +100,287 @@ function formatThaiDate(dateStr: string): string {
   return `${day} ${month} ${year}`;
 }
 
-const DEFAULT_SAMPLE_TASKS: Task[] = [
-  {
-    public_id: "sample-tk-1",
-    code: "TK-2569-001",
-    title: "สำรวจรังวัดแนวเขตแปลงที่ดิน ย่านสถานีรถไฟอยุธยา",
-    task_type: "survey",
-    description:
-      "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน รฟท. และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา เพื่อนำข้อมูลเข้าสู่ระบบบริหารจัดการทรัพย์สิน รฟท. ตามมาตรฐานปี 2569 พร้อมทั้งตรวจสอบหลักหมุดที่ดินว่ามีสภาพสมบูรณ์หรือไม่",
-    status: "in_progress",
-    assignee_public_id: "usr-normal",
-    assignee_name: "เจ้าหน้าที่สำรวจ",
-    assigner_public_id: "usr-leader",
-    assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date().toISOString(),
-    lat: 14.3532,
-    lng: 100.5828,
-    place_name: "สถานีรถไฟอยุธยา (ย่านสินค้า)",
-    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    public_id: "sample-tk-2",
-    code: "TK-2569-002",
-    title: "ตรวจสอบสภาพอาคารสิ่งปลูกสร้าง ย่านบางซื่อ",
-    task_type: "inspect",
-    description:
-      "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบ AMS รฟท. รวมถึงประเมินสภาพความมั่นคงแข็งแรงของตัวโครงสร้าง และตรวจสอบการขอใช้พื้นที่ของผู้เช่า",
-    status: "pending",
-    assignee_public_id: "usr-normal",
-    assignee_name: "เจ้าหน้าที่สำรวจ",
-    assigner_public_id: "usr-leader",
-    assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date().toISOString(),
-    lat: 13.8045,
-    lng: 100.5398,
-    place_name: "สถานีกลางกรุงเทพอภิวัฒน์ / ย่านพหลโยธิน",
-    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    public_id: "sample-tk-3",
-    code: "TK-2569-003",
-    title: "ตรวจสอบอาคารพาณิชย์ให้เช่า สถานีรถไฟดอนเมือง",
-    task_type: "inspect",
-    description:
-      "ตรวจสอบสัญญาเช่าและพื้นที่ใช้สอยจริงของร้านค้าและอาคารพาณิชย์บริเวณแนวเขตสถานีรถไฟดอนเมือง",
-    status: "pending",
-    assignee_public_id: "usr-normal",
-    assignee_name: "เจ้าหน้าที่สำรวจ",
-    assigner_public_id: "usr-leader",
-    assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date().toISOString(),
-    lat: 13.913,
-    lng: 100.598,
-    place_name: "สถานีรถไฟดอนเมือง (แนวเขต รฟท.)",
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    public_id: "sample-tk-4",
-    code: "TK-2569-004",
-    title: "รังวัดหมุดหลักเขตแนวทางรถไฟ ย่านมักกะสัน",
-    task_type: "survey",
-    description:
-      "ตรวจสภาพหลักหมุดคอนกรีตและรังวัดพิกัดดาวเทียม GNSS แปลงที่ดินโรงงานมักกะสัน",
-    status: "done",
-    assignee_public_id: "usr-normal",
-    assignee_name: "เจ้าหน้าที่สำรวจ",
-    assigner_public_id: "usr-leader",
-    assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date().toISOString(),
-    lat: 13.7505,
-    lng: 100.5515,
-    place_name: "โรงงานรถไฟมักกะสัน",
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    public_id: "sample-tk-5",
-    code: "TK-2569-005",
-    title: "สำรวจพื้นที่ทับซ้อนแนวเขต ย่านยมราช",
-    task_type: "survey",
-    description: "งานสำรวจยกเลิกเนื่องจากมีการปรับปรุงแผนงานร่วมกับหน่วยงานภายนอก",
-    status: "cancelled",
-    assignee_public_id: "usr-normal",
-    assignee_name: "เจ้าหน้าที่สำรวจ",
-    assigner_public_id: "usr-leader",
-    assigner_name: "หัวหน้างานสำรวจ",
-    due_at: new Date().toISOString(),
-    lat: 13.757,
-    lng: 100.521,
-    place_name: "จุดตัดทางรถไฟยมราช",
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+function createSampleTasks(baseDateStr?: string): Task[] {
+  const today = baseDateStr || getTodayStr();
+  const yesterday = getShiftedDate(today, -1);
+  const tomorrow = getShiftedDate(today, 1);
+
+  return [
+    // === งานสำหรับวันนี้ (TODAY) ครบทุกสถานะ ===
+    {
+      public_id: "tk-mock-01",
+      code: "TK-2569-001",
+      title: "สำรวจรังวัดแนวเขตแปลงที่ดิน ย่านสถานีรถไฟอยุธยา",
+      task_type: "survey",
+      description:
+        "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน รฟท. และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา เพื่อนำข้อมูลเข้าสู่ระบบบริหารจัดการทรัพย์สิน รฟท. ตามมาตรฐานปี 2569 พร้อมทั้งตรวจสอบหลักหมุดคอนกรีตว่ามีสภาพสมบูรณ์หรือไม่",
+      status: "in_progress",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T16:30:00`,
+      lat: 14.3532,
+      lng: 100.5828,
+      place_name: "สถานีรถไฟอยุธยา (ย่านสินค้า รฟท.)",
+      created_at: `${today}T08:30:00`,
+      updated_at: `${today}T09:15:00`,
+    },
+    {
+      public_id: "tk-mock-02",
+      code: "TK-2569-002",
+      title: "ตรวจสอบสภาพอาคารสิ่งปลูกสร้าง ย่านกลางบางซื่อ",
+      task_type: "inspect",
+      description:
+        "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบ AMS รฟท. รวมถึงประเมินสภาพความมั่นคงแข็งแรงของตัวโครงสร้าง และตรวจสอบการขอใช้พื้นที่ของผู้เช่า",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T14:00:00`,
+      lat: 13.8045,
+      lng: 100.5398,
+      place_name: "สถานีกลางกรุงเทพอภิวัฒน์ / ย่านพหลโยธิน",
+      created_at: `${today}T08:00:00`,
+      updated_at: `${today}T08:00:00`,
+    },
+    {
+      public_id: "tk-mock-03",
+      code: "TK-2569-003",
+      title: "สำรวจพื้นที่เชิงพาณิชย์ให้เช่า สถานีรถไฟดอนเมือง",
+      task_type: "survey",
+      description:
+        "ตรวจสอบสัญญาเช่าและพื้นที่ใช้สอยจริงของร้านค้าและอาคารพาณิชย์บริเวณแนวเขตสถานีรถไฟดอนเมือง เพื่อป้องกันการรุกล้ำพื้นที่นอกสัญญาเช่า",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T11:30:00`,
+      lat: 13.913,
+      lng: 100.598,
+      place_name: "สถานีรถไฟดอนเมือง (แนวเชื่อมต่อสนามบิน)",
+      created_at: `${today}T08:15:00`,
+      updated_at: `${today}T08:15:00`,
+    },
+    {
+      public_id: "tk-mock-04",
+      code: "TK-2569-004",
+      title: "รังวัดหมุดหลักเขตแนวทางรถไฟ โรงงานมักกะสัน แปลง A",
+      task_type: "survey",
+      description:
+        "ตรวจสภาพหลักหมุดคอนกรีตและรังวัดพิกัดดาวเทียม GNSS แปลงที่ดินโรงงานมักกะสัน เพื่อเตรียมส่งมอบพื้นที่พัฒนาเชิงพาณิชย์",
+      status: "accepted",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T13:00:00`,
+      lat: 13.7505,
+      lng: 100.5515,
+      place_name: "โรงงานรถไฟมักกะสัน แปลง A",
+      created_at: `${today}T08:45:00`,
+      updated_at: `${today}T09:30:00`,
+    },
+    {
+      public_id: "tk-mock-05",
+      code: "TK-2569-005",
+      title: "ตรวจสอบอาคารสถานีรถไฟประวัติศาสตร์ หัวลำโพง",
+      task_type: "inspect",
+      description:
+        "ตรวจสอบการอนุรักษ์อาคารสถาปัตยกรรมประวัติศาสตร์ และสำรวจพื้นที่เช่าบริการเชิงพาณิชย์ภายในโถงสถานีรถไฟกรุงเทพ",
+      status: "in_progress",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T15:00:00`,
+      lat: 13.738,
+      lng: 100.5165,
+      place_name: "สถานีรถไฟกรุงเทพ (หัวลำโพง)",
+      created_at: `${today}T09:00:00`,
+      updated_at: `${today}T10:00:00`,
+    },
+    {
+      public_id: "tk-mock-06",
+      code: "TK-2569-006",
+      title: "สำรวจแนวเขตทางรถไฟสายแม่กลอง ย่านวงเวียนใหญ่",
+      task_type: "survey",
+      description:
+        "รังวัดแนวรั้วและเขตทางรถไฟสายแม่กลอง ตรวจสอบระยะร่นความปลอดภัยจากทางรถไฟและสิ่งปลูกสร้างชั่วคราว",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T17:00:00`,
+      lat: 13.7225,
+      lng: 100.4905,
+      place_name: "สถานีรถไฟวงเวียนใหญ่ (สายแม่กลอง)",
+      created_at: `${today}T09:20:00`,
+      updated_at: `${today}T09:20:00`,
+    },
+    {
+      public_id: "tk-mock-07",
+      code: "TK-2569-007",
+      title: "ตรวจสอบสัญญาเช่าที่ดินแปลงย่อย ย่านตลาดพลู",
+      task_type: "inspect",
+      description:
+        "ตรวจวัดขนาดพื้นที่เช่าแผงค้าและร้านอาหารริมทางรถไฟ เปรียบเทียบกับแบบแปลนสัญญาเช่า รฟท. บันทึกผลตรวจเรียบร้อย",
+      status: "done",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T10:00:00`,
+      lat: 13.7198,
+      lng: 100.4789,
+      place_name: "สถานีรถไฟตลาดพลู (ริมทางรถไฟ)",
+      created_at: `${today}T07:30:00`,
+      updated_at: `${today}T10:15:00`,
+    },
+    {
+      public_id: "tk-mock-08",
+      code: "TK-2569-008",
+      title: "สำรวจแปลงที่ดินว่างเปล่า ย่านคลองเตยริมแม่น้ำเจ้าพระยา",
+      task_type: "survey",
+      description:
+        "สำรวจรังวัดแนวเขตแปลงที่ดินริมแม่น้ำเจ้าพระยา และตรวจสอบระดับความลาดชันของตลิ่งเพื่อจัดทำแผนผังแม่บทพัฒนาทรัพย์สิน",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T18:00:00`,
+      lat: 13.7085,
+      lng: 100.582,
+      place_name: "คลังสินค้าริมแม่น้ำเจ้าพระยา คลองเตย",
+      created_at: `${today}T09:40:00`,
+      updated_at: `${today}T09:40:00`,
+    },
+    {
+      public_id: "tk-mock-09",
+      code: "TK-2569-009",
+      title: "รังวัดแนวเขตที่ดินสถานีรถไฟธนบุรี (ศิริราช)",
+      task_type: "survey",
+      description:
+        "สำรวจรังวัดแนวเขตที่ดินติดริมคลองบางกอกน้อย ตรวจสอบหลักเขตและแนวเขื่อนกันดินของ รฟท. พร้อมบันทึกภาพถ่ายสภาพพื้นที่",
+      status: "in_progress",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T16:00:00`,
+      lat: 13.7588,
+      lng: 100.4855,
+      place_name: "สถานีรถไฟธนบุรีเดิม (ริมคลองบางกอกน้อย)",
+      created_at: `${today}T08:50:00`,
+      updated_at: `${today}T09:10:00`,
+    },
+    {
+      public_id: "tk-mock-10",
+      code: "TK-2569-010",
+      title: "สำรวจจุดตัดทางรถไฟและอาคารควบคุม ยมราช",
+      task_type: "survey",
+      description:
+        "งานสำรวจชะลอและยกเลิกชั่วคราวเนื่องจากมีการปรับปรุงแผนระบบระบายน้ำร่วมกับกรุงเทพมหานคร",
+      status: "cancelled",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${today}T12:00:00`,
+      lat: 13.757,
+      lng: 100.521,
+      place_name: "จุดตัดทางรถไฟยมราช ถนนเพชรบุรี",
+      created_at: `${today}T08:10:00`,
+      updated_at: `${today}T08:40:00`,
+    },
+
+    // === งานวันก่อนหน้า (YESTERDAY) ===
+    {
+      public_id: "tk-mock-11",
+      code: "TK-2569-011",
+      title: "ตรวจสอบเสาสัญญาณและอาคารโทรคมนาคม ย่านรังสิต",
+      task_type: "inspect",
+      description:
+        "ตรวจเช็กสภาพความปลอดภัยของเสาส่งสัญญาณรถไฟและแนวสายเคเบิลสื่อสารตามแนวเขตทางรถไฟ เสร็จสิ้นสมบูรณ์",
+      status: "done",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${yesterday}T16:00:00`,
+      lat: 13.9895,
+      lng: 100.6035,
+      place_name: "สถานีรถไฟรังสิต (ชุมทางรถไฟสายเหนือ)",
+      created_at: `${yesterday}T08:30:00`,
+      updated_at: `${yesterday}T16:15:00`,
+    },
+    {
+      public_id: "tk-mock-12",
+      code: "TK-2569-012",
+      title: "ตรวจสอบอาคารที่พักอาศัยพนักงาน ย่านสถานีศาลายา",
+      task_type: "inspect",
+      description:
+        "ตรวจเช็กสภาพอาคารบ้านพักสวัสดิการพนักงาน รฟท. สำรวจความชำรุดเสียหายเพื่อเสนอของบประมาณซ่อมบำรุงประจำปี",
+      status: "done",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${yesterday}T14:00:00`,
+      lat: 13.8015,
+      lng: 100.3255,
+      place_name: "บ้านพักพนักงานรถไฟ สถานีศาลายา",
+      created_at: `${yesterday}T09:00:00`,
+      updated_at: `${yesterday}T14:20:00`,
+    },
+
+    // === งานวันถัดไป (TOMORROW) ===
+    {
+      public_id: "tk-mock-13",
+      code: "TK-2569-013",
+      title: "สำรวจจุดทับซ้อนและแนวเขตเวนคืน สถานีนครปฐม",
+      task_type: "survey",
+      description:
+        "เตรียมลงพื้นที่สำรวจรังวัดแปลงที่ดินและหมุดหลักเขตแนวทางคู่ช่วงนครปฐม",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${tomorrow}T10:00:00`,
+      lat: 13.821,
+      lng: 100.061,
+      place_name: "สถานีรถไฟนครปฐม (ย่านตะวันตก)",
+      created_at: `${today}T16:00:00`,
+      updated_at: `${today}T16:00:00`,
+    },
+    {
+      public_id: "tk-mock-14",
+      code: "TK-2569-014",
+      title: "ตรวจสอบงานปรับปรุงชานชาลา สถานีชุมทางฉะเชิงเทรา",
+      task_type: "inspect",
+      description:
+        "ตรวจรับงานปรับปรุงพื้นชานชาลาและสิ่งอำนวยความสะดวกผู้โดยสารสถานีรถไฟชุมทางฉะเชิงเทรา",
+      status: "pending",
+      assignee_public_id: "usr-normal",
+      assignee_name: "เจ้าหน้าที่สำรวจ",
+      assigner_public_id: "usr-leader",
+      assigner_name: "หัวหน้างานสำรวจ",
+      due_at: `${tomorrow}T14:00:00`,
+      lat: 13.6965,
+      lng: 101.0745,
+      place_name: "สถานีรถไฟชุมทางฉะเชิงเทรา",
+      created_at: `${today}T15:30:00`,
+      updated_at: `${today}T15:30:00`,
+    },
+  ];
+}
+
+const DEFAULT_SAMPLE_TASKS: Task[] = createSampleTasks();
 
 export default function TasksPage() {
   const { lang } = useI18n();
@@ -215,12 +416,15 @@ export default function TasksPage() {
   }, [me?.role]);
 
   const loadTasks = useCallback(async () => {
+    const todayStr = getTodayStr();
+    const cacheKey = "ams_saved_tasks_v5";
+
     try {
       const data = await api<Task[]>("/api/tasks");
       if (Array.isArray(data) && data.length > 0) {
         setTasks(data);
         if (typeof window !== "undefined") {
-          window.localStorage.setItem("ams_saved_tasks", JSON.stringify(data));
+          window.localStorage.setItem(cacheKey, JSON.stringify(data));
         }
         return;
       }
@@ -230,19 +434,39 @@ export default function TasksPage() {
 
     // Fallback เมื่อออฟไลน์หรือไม่มีข้อมูล
     if (typeof window !== "undefined") {
-      const cached = window.localStorage.getItem("ams_saved_tasks");
+      const cached = window.localStorage.getItem(cacheKey);
       if (cached) {
         try {
-          setTasks(JSON.parse(cached));
-          return;
+          const parsed = JSON.parse(cached);
+          const hasToday = Array.isArray(parsed) && parsed.some((t: Task) => getTaskDateStr(t) === todayStr);
+          if (hasToday && parsed.length >= 8) {
+            setTasks(parsed);
+            return;
+          }
         } catch {
           /* ignore parse error */
         }
       }
-      setTasks(DEFAULT_SAMPLE_TASKS);
-      window.localStorage.setItem("ams_saved_tasks", JSON.stringify(DEFAULT_SAMPLE_TASKS));
+
+      // สร้างชุดข้อมูลใหม่สำหรับวันนี้ทันที (14 รายการ)
+      const fresh = createSampleTasks(todayStr);
+      setTasks(fresh);
+      window.localStorage.setItem(cacheKey, JSON.stringify(fresh));
+      window.localStorage.removeItem("ams_saved_tasks");
     }
   }, []);
+
+  const handleReloadSampleTasks = () => {
+    const todayStr = getTodayStr();
+    const fresh = createSampleTasks(todayStr);
+    setTasks(fresh);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(fresh));
+      window.localStorage.removeItem("ams_saved_tasks");
+    }
+    setNotice(th ? "รีเซ็ตและโหลดข้อมูลตัวอย่างงานประจำวันนี้เรียบร้อยแล้ว (14 รายการ)" : "Sample tasks for today reloaded (14 tasks)");
+    setTimeout(() => setNotice(""), 4000);
+  };
 
   const loadUsers = useCallback(async () => {
     try {
@@ -316,7 +540,7 @@ export default function TasksPage() {
       setTasks((prev) => {
         const next = prev.map((t) => (t.public_id === task.public_id ? { ...t, status } : t));
         if (typeof window !== "undefined") {
-          window.localStorage.setItem("ams_saved_tasks", JSON.stringify(next));
+          window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(next));
         }
         return next;
       });
@@ -869,6 +1093,17 @@ export default function TasksPage() {
                   {!filterByDate ? t("แสดงทุกวัน (ไม่จำกัด)", "Showing All Days") : t("แสดงงานทุกวัน", "Show All Days")}
                 </button>
 
+                {/* Reload Sample Tasks Button */}
+                <button
+                  type="button"
+                  onClick={handleReloadSampleTasks}
+                  title="โหลดข้อมูลตัวอย่างงานวันนี้ใหม่ (14 งาน)"
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-govblue-200 bg-govblue-50/80 hover:bg-govblue-100 text-govblue-800 font-medium transition flex items-center gap-1 shadow-2xs"
+                >
+                  <RotateCcw size={13} className="text-govblue-700" />
+                  <span>{t("โหลดตัวอย่างวันนี้", "Load Sample Today")}</span>
+                </button>
+
                 {filterByDate && (
                   <span className="text-[11px] text-gray-500 hidden lg:inline ml-1 font-medium">
                     ({formatThaiDate(selectedDate)})
@@ -983,16 +1218,24 @@ export default function TasksPage() {
                 /* Task Cards Grid (Clean, Fixed-size, Uniform & Modern) */
                 <div className="space-y-4">
                   {displayedTasks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-300 bg-white text-center py-14 px-4 text-gray-500 shadow-xs">
+                    <div className="rounded-xl border border-dashed border-gray-300 bg-white text-center py-12 px-4 text-gray-500 shadow-xs flex flex-col items-center">
                       <ClipboardList size={36} className="mx-auto text-gray-300 mb-2" />
                       <p className="font-medium text-gray-700">
                         {activeTab === "assigned_by_me"
                           ? t("ยังไม่มีงานที่คุณสั่ง — กดปุ่ม “+ สั่งงานใหม่” เพื่อเริ่มต้น", "No tasks assigned by you yet")
-                          : t("ยังไม่มีงานที่ได้รับมอบหมาย", "No assigned tasks yet")}
+                          : t("ยังไม่มีงานที่ได้รับมอบหมายในวันที่เลือก", "No assigned tasks for this date")}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-400 mt-1 mb-4">
                         งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบ Real-time
                       </p>
+                      <button
+                        type="button"
+                        onClick={handleReloadSampleTasks}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-govblue-700 hover:bg-govblue-800 text-white shadow-sm transition"
+                      >
+                        <RotateCcw size={14} />
+                        <span>{t("โหลดข้อมูลตัวอย่างงานวันนี้ (14 รายการ)", "Load Today's Sample Tasks (14 Tasks)")}</span>
+                      </button>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
