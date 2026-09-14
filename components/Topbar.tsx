@@ -45,13 +45,16 @@ export function Topbar() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [menuOpen]);
 
+  const isOfficer = user?.role === "subordinate";
+  const tasksLabel = isOfficer ? t("navMyTasks") : t("navTasks");
+
   const navItems = [
-    { href: "/dashboard", key: "navDashboard" },
-    { href: "/tasks", key: "navTasks", roles: ["supervisor"] },
-    { href: "/land", key: "navLand" },
-    { href: "/building", key: "navBuilding" },
-    { href: "/tax", key: "navTax" },
-    { href: "/admin", key: "navAdmin", roles: ["admin"] },
+    { href: "/dashboard", label: t("navDashboard") },
+    { href: "/tasks", label: tasksLabel },
+    { href: "/land", label: t("navLand") },
+    { href: "/building", label: t("navBuilding") },
+    { href: "/tax", label: t("navTax") },
+    { href: "/admin", label: t("navAdmin"), roles: ["admin"] },
   ].filter((it) => !it.roles || (user && it.roles.includes(user.role)));
 
   async function handleLogout() {
@@ -219,7 +222,7 @@ export function Topbar() {
                     : "border-transparent text-gray-600 hover:text-govblue-700 hover:bg-white"
                 }`}
               >
-                {t(it.key)}
+                {it.label}
               </Link>
             );
           })}

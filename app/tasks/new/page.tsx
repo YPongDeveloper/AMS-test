@@ -158,7 +158,7 @@ export default function NewTaskPage() {
             disabled={saving}
             className="flex-1 bg-gradient-to-r from-govblue-700 to-govblue-600 hover:from-govblue-800 hover:to-govblue-700 text-white font-medium py-2.5 rounded-lg shadow-sm transition disabled:opacity-60"
           >
-            {saving ? t("กำลังส่ง...", "Sending...") : t("ส่งงาน + แจ้งเตือน LINE", "Assign & notify via LINE")}
+            {saving ? t("กำลังบันทึกและส่งงาน...", "Assigning...") : t("ส่งมอบหมายงาน", "Assign Task")}
           </button>
           <button
             onClick={() => router.push("/tasks")}
@@ -209,8 +209,8 @@ export default function NewTaskPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-govblue-800 mb-1">{t("สั่งงานใหม่", "New task")}</h1>
         <p className="text-xs text-gray-500 mb-5">
           {t(
-            "เมื่อกดสั่งงาน ระบบจะแจ้งเตือนลูกน้องทันทีทั้ง Realtime บนหน้าเว็บและข้อความ LINE",
-            "On submit, the assignee gets an instant realtime alert on the web plus a LINE message",
+            "เมื่อกดสั่งงาน ระบบจะแจ้งเตือนผู้รับงานทันทีแบบ Real-time บนระบบ",
+            "On submit, the assignee receives an instant realtime notification on the system",
           )}
         </p>
         {body()}

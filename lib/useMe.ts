@@ -6,12 +6,13 @@ import {
   API_CONFIGURED,
   clearTokens,
   getAccessToken,
+  getCurrentUser,
   type AppUser,
 } from "./api";
 
 export function useMe() {
-  const [me, setMe] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(API_CONFIGURED);
+  const [me, setMe] = useState<AppUser | null>(() => getCurrentUser());
+  const [loading, setLoading] = useState(API_CONFIGURED && !getCurrentUser());
   const [needLogin, setNeedLogin] = useState(false);
   const [serverDown, setServerDown] = useState(false);
 
