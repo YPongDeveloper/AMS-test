@@ -41,7 +41,6 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		handler.WriteOK(w, http.StatusOK, "ok", nil)
 	})
-	mux.HandleFunc("POST /api/auth/line", authH.Login)
 	mux.HandleFunc("POST /api/auth/login", authH.LoginPassword)
 	mux.HandleFunc("POST /api/auth/refresh", authH.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", authH.Logout)

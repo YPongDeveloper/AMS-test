@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 import { api, TYPE_LABEL, type AppUser, type Role } from "@/lib/api";
 import { useMe } from "@/lib/useMe";
@@ -17,7 +18,7 @@ export default function AdminPage() {
   const { lang } = useI18n();
   const th = lang === "th";
   const t = (thTxt: string, enTxt: string) => (th ? thTxt : enTxt);
-  const { me, loading, needLogin, serverDown, authing, signInWithLine, retry } = useMe();
+  const { me, loading, needLogin, serverDown, retry } = useMe();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [editing, setEditing] = useState<AppUser | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,14 +56,15 @@ export default function AdminPage() {
       return (
         <div className="py-16 text-center max-w-md mx-auto">
           <ClipboardList size={40} className="mx-auto text-govblue-600" />
-          <p className="text-sm text-gray-600 mt-4">{t("เข้าสู่ระบบเพื่อจัดการผู้ใช้", "Sign in to manage users")}</p>
-          <button
-            onClick={signInWithLine}
-            disabled={authing}
-            className="mt-4 w-full bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg transition disabled:opacity-60"
+          <p className="text-sm text-gray-600 mt-4">
+            {t("กรุณาเข้าสู่ระบบเพื่อจัดการผู้ใช้", "Sign in to manage users")}
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-block w-full bg-govblue-700 hover:bg-govblue-600 text-white font-medium py-2.5 rounded-lg transition text-center"
           >
-            {t("เข้าสู่ระบบด้วย LINE", "Sign in with LINE")}
-          </button>
+            {t("ไปหน้าเข้าสู่ระบบ", "Go to Sign in")}
+          </Link>
         </div>
       );
     }

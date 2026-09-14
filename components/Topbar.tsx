@@ -6,7 +6,6 @@ import { useI18n } from "@/lib/i18n";
 import { Wifi, WifiOff, Languages, Search, Bell, User, ChevronDown, Smartphone, LogOut, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Logo from "./Logo";
-import { getStoredLineProfile, LineProfile } from "@/lib/liff";
 import { clearTokens, getCurrentUser, logout, type AppUser } from "@/lib/api";
 import { usePwaInstall } from "@/lib/usePwaInstall";
 
@@ -15,7 +14,6 @@ export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [online, setOnline] = useState(true);
-  const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -23,7 +21,6 @@ export function Topbar() {
 
   useEffect(() => {
     setUser(getCurrentUser());
-    setLineProfile(getStoredLineProfile());
   }, []);
 
   useEffect(() => {
@@ -76,7 +73,7 @@ export function Topbar() {
     setMenuOpen(false);
   }
 
-  const displayName = user?.display_name || lineProfile?.displayName || t("officerName");
+  const displayName = user?.display_name || t("officerName");
   const roleLabel =
     user?.role === "admin"
       ? lang === "th" ? "ผู้ดูแลระบบ" : "Administrator"
@@ -150,9 +147,9 @@ export function Topbar() {
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-2 pl-1 pr-2 sm:pr-3 py-1 rounded-lg hover:bg-gray-100"
             >
-              {lineProfile?.pictureUrl ? (
+              {user?.picture_url ? (
                 <img
-                  src={lineProfile.pictureUrl}
+                  src={user.picture_url}
                   alt=""
                   className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-1 ring-gray-200"
                 />

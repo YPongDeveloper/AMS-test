@@ -144,17 +144,6 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
   return env?.data as T;
 }
 
-// แลก LINE ID Token (จาก LIFF) เป็นบัญชี + token pair
-export async function loginWithLineIdToken(idToken: string): Promise<AppUser> {
-  const data = await api<{ user: AppUser; token: TokenPair }>("/api/auth/line", {
-    method: "POST",
-    json: { id_token: idToken },
-  });
-  if (data?.token) saveTokens(data.token.access_token, data.token.refresh_token);
-  saveCurrentUser(data.user);
-  return data.user;
-}
-
 // เข้าสู่ระบบด้วย username/password (บัญชีที่ admin จัดการ: admin/leader/normal)
 export async function loginWithPassword(username: string, password: string): Promise<AppUser> {
   const data = await api<{ user: AppUser; token: TokenPair }>("/api/auth/login", {

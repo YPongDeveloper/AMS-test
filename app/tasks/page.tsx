@@ -29,7 +29,7 @@ export default function TasksPage() {
   const { lang } = useI18n();
   const th = lang === "th";
   const t = (thTxt: string, enTxt: string) => (th ? thTxt : enTxt);
-  const { me, loading, needLogin, serverDown, authing, signInWithLine, retry } = useMe();
+  const { me, loading, needLogin, serverDown, retry } = useMe();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [notice, setNotice] = useState("");
@@ -154,17 +154,16 @@ export default function TasksPage() {
           </h1>
           <p className="text-sm text-gray-500 mt-2">
             {t(
-              "ระบบสั่งงานใช้ตัวตนจาก LINE Login เพื่อรู้ว่างานเป็นของใคร และส่งแจ้งเตือนเข้า LINE ของคุณ",
-              "The task system uses LINE Login identity for assignment and LINE notifications",
+              "ระบบสั่งงานใช้ตัวตนผู้ใช้งานเพื่อกำหนดและมอบหมายงานภาคสนาม",
+              "Sign in to access task orders and assignments",
             )}
           </p>
-          <button
-            onClick={signInWithLine}
-            disabled={authing}
-            className="mt-6 w-full bg-[#06C755] hover:bg-[#05b34d] text-white font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-60"
+          <Link
+            href="/"
+            className="mt-6 inline-block w-full bg-govblue-700 hover:bg-govblue-600 text-white font-medium py-2.5 rounded-lg text-center shadow-sm transition"
           >
-            {t("เข้าสู่ระบบด้วย LINE", "Sign in with LINE")}
-          </button>
+            {t("ไปหน้าเข้าสู่ระบบ", "Go to Sign in")}
+          </Link>
         </div>
       )}
 
