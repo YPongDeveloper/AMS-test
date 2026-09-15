@@ -43,15 +43,19 @@ CREATE TABLE IF NOT EXISTS users (
 	password_hash TEXT,
 	display_name  TEXT NOT NULL,
 	picture_url   TEXT,
-	role          TEXT NOT NULL DEFAULT 'subordinate' CHECK (role IN ('admin','supervisor','subordinate')),
+	role          TEXT NOT NULL DEFAULT 'subordinate' CHECK (role IN ('admin','supervisor','subordinate','accountant')),
+	status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','resigned')),
 	created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- อัปเกรดฐานที่สร้างไว้ก่อนหน้า (constraint เดิมไม่มี admin / ไม่มีคอลัมน์ username)
+-- อัปเกรดฐานที่สร้างไว้ก่อนหน้า
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','supervisor','subordinate'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','supervisor','subordinate','accountant'));
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+ALTER TABLE users ADD CONSTRAINT users_status_check CHECK (status IN ('active','resigned'));
 ALTER TABLE users ALTER COLUMN line_user_id DROP NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_line ON users(line_user_id) WHERE line_user_id IS NOT NULL;

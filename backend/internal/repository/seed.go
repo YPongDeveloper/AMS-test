@@ -28,6 +28,7 @@ func seedAccounts(ctx context.Context, pool *pgxpool.Pool) {
 		{"admin", "admin", "ผู้ดูแลระบบ", model.RoleAdmin},
 		{"leader", "leader", "หัวหน้างานสำรวจ", model.RoleSupervisor},
 		{"normal", "normal", "เจ้าหน้าที่สำรวจ", model.RoleSubordinate},
+		{"accountant", "accountant", "พนักงานบัญชีและการเงิน", model.RoleAccountant},
 	}
 	for _, a := range accounts {
 		var exists bool

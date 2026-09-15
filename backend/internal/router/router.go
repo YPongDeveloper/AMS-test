@@ -33,6 +33,9 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	manage := func(h http.HandlerFunc) http.Handler {
 		return middleware.Auth(deps.Secret)(middleware.RequireAnyRole("supervisor", "admin")(h))
 	}
+	adminOnly := func(h http.HandlerFunc) http.Handler {
+		return middleware.Auth(deps.Secret)(middleware.RequireRole("admin", h))
+	}
 	authed := func(h http.HandlerFunc) http.Handler {
 		return middleware.Auth(deps.Secret)(h)
 	}
@@ -46,9 +49,13 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	mux.HandleFunc("POST /api/auth/logout", authH.Logout)
 	mux.Handle("GET /api/me", authed(authH.Me))
 	mux.Handle("GET /api/users", manage(userH.List))
+	mux.Handle("POST /api/users", adminOnly(userH.Create))
+	mux.Handle("PUT /api/users/{public_id}", adminOnly(userH.Update))
+	mux.Handle("POST /api/users/{public_id}/password", adminOnly(userH.ResetPassword))
+	mux.Handle("PATCH /api/users/{public_id}/status", adminOnly(userH.SetStatus))
 	mux.Handle("PATCH /api/users/{public_id}/role", manage(userH.ChangeRole))
 	mux.Handle("GET /api/tasks", authed(taskH.List))
-	mux.Handle("POST /api/tasks", middleware.Auth(deps.Secret)(middleware.RequireRole("supervisor", http.HandlerFunc(taskH.Create))))
+	mux.Handle("POST /api/tasks", middleware.Auth(deps.Secret)(middleware.RequireAnyRole("supervisor", "admin")(http.HandlerFunc(taskH.Create))))
 	mux.Handle("PATCH /api/tasks/{public_id}/status", authed(taskH.UpdateStatus))
 	mux.Handle("GET /api/dashboard", authed(dashH.Get))
 

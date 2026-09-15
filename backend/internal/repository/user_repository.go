@@ -21,11 +21,11 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 }
 
 // COALESCE line_user_id — บัญชี username/password ไม่มี LINE (NULL) ต้อง scan เป็น string ได้
-const userCols = `id, public_id, COALESCE(line_user_id,'') AS line_user_id, username, password_hash, display_name, picture_url, role, created_at`
+const userCols = `id, public_id, COALESCE(line_user_id,'') AS line_user_id, username, password_hash, display_name, picture_url, role, status, created_at`
 
 func scanUser(row pgx.Row) (*model.User, error) {
 	var u model.User
-	err := row.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt)
+	err := row.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.Status, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -50,15 +50,15 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 
 func (r *UserRepository) CreateWithPassword(ctx context.Context, username, passwordHash, displayName string, role model.Role) (*model.User, error) {
 	return scanUser(r.db.QueryRow(ctx,
-		`INSERT INTO users (username, password_hash, display_name, role)
-		 VALUES ($1,$2,$3,$4) RETURNING `+userCols,
+		`INSERT INTO users (username, password_hash, display_name, role, status)
+		 VALUES ($1,$2,$3,$4,'active') RETURNING `+userCols,
 		username, passwordHash, displayName, string(role)))
 }
 
 func (r *UserRepository) Create(ctx context.Context, lineUserID, displayName string, pictureURL *string, role model.Role) (*model.User, error) {
 	return scanUser(r.db.QueryRow(ctx,
-		`INSERT INTO users (line_user_id, display_name, picture_url, role)
-		 VALUES ($1,$2,$3,$4) RETURNING `+userCols,
+		`INSERT INTO users (line_user_id, display_name, picture_url, role, status)
+		 VALUES ($1,$2,$3,$4,'active') RETURNING `+userCols,
 		lineUserID, displayName, pictureURL, string(role)))
 }
 
@@ -82,7 +82,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id int64) (*model.User, e
 func (r *UserRepository) List(ctx context.Context, role *string) ([]model.User, error) {
 	q := `SELECT ` + userCols + ` FROM users`
 	args := []any{}
-	if role != nil && (*role == string(model.RoleSupervisor) || *role == string(model.RoleSubordinate)) {
+	if role != nil && *role != "" {
 		q += ` WHERE role=$1`
 		args = append(args, *role)
 	}
@@ -95,7 +95,7 @@ func (r *UserRepository) List(ctx context.Context, role *string) ([]model.User, 
 	out := []model.User{}
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.PublicID, &u.LineUserID, &u.Username, &u.PasswordHash, &u.DisplayName, &u.PictureURL, &u.Role, &u.Status, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -105,6 +105,39 @@ func (r *UserRepository) List(ctx context.Context, role *string) ([]model.User, 
 
 func (r *UserRepository) UpdateRole(ctx context.Context, id int64, role model.Role) error {
 	tag, err := r.db.Exec(ctx, `UPDATE users SET role=$1 WHERE id=$2`, string(role), id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
+	tag, err := r.db.Exec(ctx, `UPDATE users SET status=$1 WHERE id=$2`, status, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
+	tag, err := r.db.Exec(ctx, `UPDATE users SET password_hash=$1 WHERE id=$2`, passwordHash, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUser(ctx context.Context, id int64, displayName string, role model.Role, status string) error {
+	tag, err := r.db.Exec(ctx, `UPDATE users SET display_name=$1, role=$2, status=$3 WHERE id=$4`, displayName, string(role), status, id)
 	if err != nil {
 		return err
 	}

@@ -102,7 +102,7 @@ export default function Dashboard() {
   };
 
   return (
-    <Page>
+    <Page allowedRoles={["admin", "supervisor", "subordinate", "accountant"]}>
       {/* Welcome header */}
       <div className="mb-5 sm:mb-6 flex items-center justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold text-govblue-800">

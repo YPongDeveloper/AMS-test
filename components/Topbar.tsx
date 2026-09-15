@@ -50,10 +50,10 @@ export function Topbar() {
 
   const navItems = [
     { href: "/dashboard", label: t("navDashboard") },
-    { href: "/tasks", label: tasksLabel },
-    { href: "/land", label: t("navLand") },
-    { href: "/building", label: t("navBuilding") },
-    { href: "/tax", label: t("navTax") },
+    { href: "/tasks", label: tasksLabel, roles: ["admin", "supervisor", "subordinate"] },
+    { href: "/land", label: t("navLand"), roles: ["admin", "supervisor", "subordinate", "accountant"] },
+    { href: "/building", label: t("navBuilding"), roles: ["admin", "supervisor", "subordinate", "accountant"] },
+    { href: "/tax", label: t("navTax"), roles: ["admin", "supervisor", "accountant"] },
     { href: "/admin", label: t("navAdmin"), roles: ["admin"] },
   ].filter((it) => !it.roles || (user && it.roles.includes(user.role)));
 
@@ -82,7 +82,9 @@ export function Topbar() {
       ? lang === "th" ? "ผู้ดูแลระบบ" : "Administrator"
       : user?.role === "supervisor"
         ? lang === "th" ? "หัวหน้างาน" : "Supervisor"
-        : lang === "th" ? "เจ้าหน้าที่" : "Officer";
+        : user?.role === "accountant"
+          ? lang === "th" ? "พนักงานบัญชี" : "Accountant"
+          : lang === "th" ? "เจ้าหน้าที่" : "Officer";
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">

@@ -652,7 +652,7 @@ export default function TasksPage() {
   };
 
   return (
-    <Page>
+    <Page allowedRoles={["admin", "supervisor", "subordinate"]}>
       {!API_CONFIGURED && !me && (
         <div className="py-16 text-center">
           <ClipboardList size={40} className="mx-auto text-gray-300" />
