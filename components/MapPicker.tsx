@@ -415,11 +415,10 @@ export default function MapPicker({
             <button
               type="button"
               onClick={handleCenterOnTarget}
-              className="inline-flex items-center gap-2 bg-white/95 hover:bg-white active:bg-govblue-50 backdrop-blur px-3 py-1.5 rounded-lg shadow-md border border-gray-200 hover:border-govblue-400 text-xs font-semibold text-govblue-900 transition-all cursor-pointer group active:scale-95"
-              title="คลิกเพื่อเลื่อนแผนที่ไปยังจุดที่ได้รับมอบหมาย"
+              className="inline-flex items-center justify-center bg-white/95 hover:bg-white active:bg-govblue-50 backdrop-blur p-2 rounded-lg shadow-md border border-gray-200 hover:border-govblue-400 text-govblue-900 transition-all cursor-pointer group active:scale-95"
+              title="เลื่อนแผนที่ไปยังจุดพิกัด"
             >
-              <MapPin size={15} className="text-rose-600 shrink-0 group-hover:scale-110 transition-transform" />
-              <span>ตำแหน่งจุดปฏิบัติงานที่ได้รับมอบหมาย</span>
+              <MapPin size={18} className="text-rose-600 shrink-0 group-hover:scale-110 transition-transform" />
             </button>
           ) : (
             <form onSubmit={handleSearchOrPaste} className="flex items-center bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 overflow-hidden">
@@ -457,20 +456,10 @@ export default function MapPicker({
           <button
             type="button"
             onClick={() => setActiveLayer((prev) => (prev === "hybrid" ? "roadmap" : "hybrid"))}
-            className="px-2.5 py-1 rounded text-[11px] font-medium transition flex items-center gap-1.5 bg-govblue-700 hover:bg-govblue-800 text-white shadow-xs cursor-pointer"
-            title={activeLayer === "hybrid" ? "คลิกเพื่อสลับเป็น แผนที่ถนน Google" : "คลิกเพื่อสลับเป็น ภาพถ่ายดาวเทียม Google"}
+            className="px-2.5 py-1 rounded text-[11px] font-medium transition flex items-center gap-1 bg-govblue-700 hover:bg-govblue-800 text-white shadow-xs cursor-pointer"
+            title={activeLayer === "hybrid" ? "สลับเป็นแผนที่ถนน" : "สลับเป็นภาพดาวเทียม"}
           >
-            {activeLayer === "hybrid" ? (
-              <>
-                <span>🛰️ ดาวเทียม</span>
-                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ แผนที่</span>
-              </>
-            ) : (
-              <>
-                <span>🗺️ แผนที่</span>
-                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ ดาวเทียม</span>
-              </>
-            )}
+            {activeLayer === "hybrid" ? "🗺️ แผนที่" : "🛰️ ดาวเทียม"}
           </button>
 
           {!readOnly && (
