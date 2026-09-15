@@ -14,18 +14,52 @@ import {
   Calculator,
   FileText,
   CircleDollarSign,
-  Percent,
-  Receipt,
   Printer,
-  CheckCircle2,
   Layers,
   Landmark,
   Download,
+  Search,
+  Eye,
+  MapPin,
+  Building2,
+  TreePine,
+  X,
 } from "lucide-react";
+import LandDetailModal from "@/components/LandDetailModal";
+import BuildingDetailModal from "@/components/BuildingDetailModal";
+import TaxInvoiceModal from "@/components/TaxInvoiceModal";
+import {
+  calculateLandTax,
+  calculateBuildingTax,
+  formatShortAddress,
+  DEFAULT_APPRAISAL_LAND_PER_WAH,
+  DEFAULT_APPRAISAL_BLDG_PER_SQM,
+} from "@/lib/tax";
+
+interface ConsolidatedPortfolioItem {
+  id: string;
+  type: "land" | "building";
+  code: string;
+  name: string;
+  srtType: string;
+  useType: string;
+  refInfo: string;
+  address: string;
+  areaNum: number;
+  areaUnit: string;
+  areaFormatted: string;
+  appraisalPerUnit: number;
+  baseValue: number;
+  ratePercent: number;
+  rateDecimal: number;
+  tax: number;
+  rawLand?: LandParcel;
+  rawBuilding?: Building;
+}
 
 export default function TaxPage() {
   const { t } = useI18n();
-  const [activeTab, setActiveTab] = useState<"individual" | "consolidated">("individual");
+  const [activeTab, setActiveTab] = useState<"individual" | "consolidated">("consolidated");
   const [lands, setLands] = useState<LandParcel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [selectedLandCode, setSelectedLandCode] = useState<string>("");
@@ -38,6 +72,16 @@ export default function TaxPage() {
   const [landAreaWah, setLandAreaWah] = useState<number>(850);
   const [bldgAreaSqm, setBldgAreaSqm] = useState<number>(900);
   const [landUseType, setLandUseType] = useState<string>("พาณิชยกรรม / อื่นๆ");
+
+  // Consolidated View State
+  const [portfolioFilter, setPortfolioFilter] = useState<"all" | "land" | "building">("all");
+  const [searchConsolidated, setSearchConsolidated] = useState<string>("");
+
+  // Modals State
+  const [detailLand, setDetailLand] = useState<LandParcel | null>(null);
+  const [detailBuilding, setDetailBuilding] = useState<Building | null>(null);
+  const [taxInvoiceLand, setTaxInvoiceLand] = useState<LandParcel | null>(null);
+  const [taxInvoiceBuilding, setTaxInvoiceBuilding] = useState<Building | null>(null);
 
   useEffect(() => {
     Promise.all([fetchLands(), fetchBuildings()]).then(([lData, bData]) => {
@@ -120,74 +164,143 @@ export default function TaxPage() {
   const fmtCurrency = (n: number) =>
     "฿ " + n.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-  // Consolidated Portfolio Calculation (แบบรวมภาพรวมทั้งหมดสำหรับพนักงานบัญชี)
+  // Consolidated Portfolio Calculation (รวมทั้งพอร์ต: ที่ดิน + สิ่งปลูกสร้าง)
   const consolidatedStats = useMemo(() => {
     let totalLandVal = 0;
     let totalBldgVal = 0;
     let totalLandTx = 0;
     let totalBldgTx = 0;
+    let totalLandWah = 0;
+    let totalBldgSqm = 0;
 
-    const items = lands.map((l) => {
-      const wah = calculateWah(l);
-      const val = wah * 25000;
-      let rate = 0.003;
-      let use = "พาณิชยกรรม / อื่นๆ";
-      if (l.land_use?.includes("ที่อยู่อาศัย")) {
-        rate = 0.0002;
-        use = "ที่อยู่อาศัย";
-      } else if (l.land_use?.includes("เกษตร")) {
-        rate = 0.0001;
-        use = "เกษตรกรรม";
-      }
-      const tx = Math.round(val * rate);
-      totalLandVal += val;
-      totalLandTx += tx;
+    const landItems: ConsolidatedPortfolioItem[] = lands.map((l) => {
+      const taxRes = calculateLandTax(l, appraisalLandPerWah || DEFAULT_APPRAISAL_LAND_PER_WAH);
+      totalLandVal += taxRes.baseValue;
+      totalLandTx += taxRes.taxPayable;
+      totalLandWah += taxRes.totalWah;
       return {
-        landCode: l.land_code,
-        srtType: l.srt_land_type || "-",
-        useType: use,
-        wah,
-        val,
-        rate,
-        tax: tx,
+        id: `land-${l.public_id || l.land_code}`,
+        type: "land",
+        code: l.land_code,
+        name: l.land_type ? `${l.srt_land_type || ""} (${l.land_type})` : (l.srt_land_type || l.land_code),
+        srtType: l.srt_land_type || "ที่ดิน รฟท.",
+        useType: taxRes.useType,
+        refInfo: l.deed_no ? `โฉนด ${l.deed_no}` : "-",
+        address: formatShortAddress(l),
+        areaNum: taxRes.totalWah,
+        areaUnit: "ตร.ว.",
+        areaFormatted: `${taxRes.totalWah.toLocaleString()} ตร.ว.`,
+        appraisalPerUnit: taxRes.appraisalPerWah,
+        baseValue: taxRes.baseValue,
+        ratePercent: taxRes.taxRatePercent,
+        rateDecimal: taxRes.taxRateDecimal,
+        tax: taxRes.taxPayable,
+        rawLand: l,
       };
     });
 
-    buildings.forEach((b) => {
-      let area = 0;
-      if (b.floors && b.floors.length > 0) {
-        area = b.floors.reduce((s, f) => s + (f.dim || 0), 0);
-      }
-      if (area === 0) area = 450;
-      const val = area * 12000;
-      const tx = Math.round(val * 0.003);
-      totalBldgVal += val;
-      totalBldgTx += tx;
+    const bldgItems: ConsolidatedPortfolioItem[] = buildings.map((b) => {
+      const taxRes = calculateBuildingTax(b, appraisalBldgPerSqm || DEFAULT_APPRAISAL_BLDG_PER_SQM);
+      totalBldgVal += taxRes.baseValue;
+      totalBldgTx += taxRes.taxPayable;
+      totalBldgSqm += taxRes.totalUsableSqm;
+      return {
+        id: `bldg-${b.public_id || b.bldg_code}`,
+        type: "building",
+        code: b.bldg_code,
+        name: b.name || b.bldg_code,
+        srtType: b.bld_condition_type || b.material_type || "สิ่งปลูกสร้าง รฟท.",
+        useType: taxRes.useType,
+        refInfo: b.land_code ? `แปลง ${b.land_code}` : "-",
+        address: formatShortAddress(b),
+        areaNum: taxRes.totalUsableSqm,
+        areaUnit: "ตร.ม.",
+        areaFormatted: `${taxRes.totalUsableSqm.toLocaleString()} ตร.ม.`,
+        appraisalPerUnit: taxRes.appraisalPerSqm,
+        baseValue: taxRes.baseValue,
+        ratePercent: taxRes.taxRatePercent,
+        rateDecimal: taxRes.taxRateDecimal,
+        tax: taxRes.taxPayable,
+        rawBuilding: b,
+      };
     });
 
+    const allItems = [...landItems, ...bldgItems];
+
     return {
-      items,
+      landItems,
+      bldgItems,
+      allItems,
       totalLandVal,
       totalBldgVal,
       totalBase: totalLandVal + totalBldgVal,
       totalLandTx,
       totalBldgTx,
       grandTotalTx: totalLandTx + totalBldgTx,
+      totalLandWah,
+      totalBldgSqm,
     };
-  }, [lands, buildings]);
+  }, [lands, buildings, appraisalLandPerWah, appraisalBldgPerSqm]);
+
+  // Filtered Items for Consolidated Table
+  const filteredConsolidatedItems = useMemo(() => {
+    let list = consolidatedStats.allItems;
+    if (portfolioFilter === "land") {
+      list = consolidatedStats.landItems;
+    } else if (portfolioFilter === "building") {
+      list = consolidatedStats.bldgItems;
+    }
+    if (searchConsolidated.trim()) {
+      const q = searchConsolidated.toLowerCase();
+      list = list.filter((i) =>
+        i.code.toLowerCase().includes(q) ||
+        i.name.toLowerCase().includes(q) ||
+        i.srtType.toLowerCase().includes(q) ||
+        i.useType.toLowerCase().includes(q) ||
+        i.refInfo.toLowerCase().includes(q) ||
+        i.address.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [consolidatedStats, portfolioFilter, searchConsolidated]);
+
+  const filteredTotals = useMemo(() => {
+    const totalBase = filteredConsolidatedItems.reduce((s, i) => s + i.baseValue, 0);
+    const totalTx = filteredConsolidatedItems.reduce((s, i) => s + i.tax, 0);
+    return { totalBase, totalTx };
+  }, [filteredConsolidatedItems]);
 
   const exportCSV = () => {
-    const headers = ["รหัสแปลงที่ดิน,ประเภทการใช้ประโยชน์,ขนาดพื้นที่ (ตร.ว.),ฐานภาษีประเมิน (บาท),อัตราภาษี,ภาษีที่ต้องชำระ (บาท)\n"];
-    const rows = consolidatedStats.items.map(
-      (it) => `"${it.landCode}","${it.useType}",${it.wah},${it.val},${(it.rate * 100).toFixed(2)}%,${it.tax}\n`
-    );
-    const blob = new Blob(["\uFEFF" + headers.concat(rows).join("")], { type: "text/csv;charset=utf-8;" });
+    const headers = [
+      "ประเภททรัพย์สิน,รหัสทรัพย์สิน,ชื่อทรัพย์สิน,เอกสารสิทธิ์/แปลงอ้างอิง,สถานที่/ที่อยู่,การใช้ประโยชน์,ขนาดพื้นที่,หน่วย,ราคาประเมินต่อหน่วย (บาท),ฐานภาษีประเมิน (บาท),อัตราภาษี,ภาษีที่ต้องชำระ (บาท)\n",
+    ];
+    const rows = filteredConsolidatedItems.map((it) => {
+      const typeLabel = it.type === "land" ? "ที่ดิน" : "สิ่งปลูกสร้าง";
+      const cleanAddress = it.address.replace(/"/g, '""');
+      const cleanName = it.name.replace(/"/g, '""');
+      return `"${typeLabel}","${it.code}","${cleanName}","${it.refInfo}","${cleanAddress}","${it.useType}",${it.areaNum},"${it.areaUnit}",${it.appraisalPerUnit},${it.baseValue},${it.ratePercent.toFixed(2)}%,${it.tax}\n`;
+    });
+    const blob = new Blob(["\uFEFF" + headers.concat(rows).join("")], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `tax-report-consolidated-${taxYear}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const openTaxInvoiceModalForIndividual = () => {
+    const foundLand = lands.find((l) => l.land_code === selectedLandCode);
+    const foundBldg = buildings.find((b) => b.bldg_code === selectedBldgCode);
+    if (foundLand) {
+      setTaxInvoiceLand(foundLand);
+    } else if (foundBldg) {
+      setTaxInvoiceBuilding(foundBldg);
+    } else {
+      window.print();
+    }
   };
 
   return (
@@ -200,20 +313,8 @@ export default function TaxPage() {
           </p>
         </div>
 
-        {/* Tab Selector: รายแห่ง vs แบบรวม */}
+        {/* Tab Selector: สรุปภาพรวมทั้งพอร์ต vs คำนวณรายแห่ง */}
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-200 shadow-xs self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab("individual")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-              activeTab === "individual"
-                ? "bg-govblue-800 text-white shadow-xs"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            <Calculator size={14} />
-            คำนวณรายแห่ง (Individual)
-          </button>
           <button
             type="button"
             onClick={() => setActiveTab("consolidated")}
@@ -225,6 +326,18 @@ export default function TaxPage() {
           >
             <Layers size={14} />
             สรุปภาพรวมทั้งพอร์ต (Consolidated)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("individual")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              activeTab === "individual"
+                ? "bg-govblue-800 text-white shadow-xs"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Calculator size={14} />
+            คำนวณรายแห่ง (Individual)
           </button>
         </div>
       </div>
@@ -353,7 +466,7 @@ export default function TaxPage() {
               <div className="text-[11px] opacity-80 mt-1">ประจำปีภาษี {taxYear}</div>
               <div className="mt-4 flex flex-col gap-2">
                 <Btn
-                  onClick={() => window.print()}
+                  onClick={openTaxInvoiceModalForIndividual}
                   variant="secondary"
                   className="!bg-govgold-500 !text-govblue-900 !border-0 hover:!bg-govgold-400 justify-center font-semibold"
                 >
@@ -374,6 +487,7 @@ export default function TaxPage() {
       ) : (
         /* โหมดรายงานสรุปภาพรวมทั้งพอร์ต (Consolidated Portfolio Tax Report) */
         <div className="space-y-4">
+          {/* Top 4 Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               label="แปลงที่ดินทั้งหมด"
@@ -402,18 +516,19 @@ export default function TaxPage() {
           </div>
 
           <Card className="p-4 sm:p-5">
+            {/* Header & Export Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
               <div>
                 <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-2">
                   <Landmark size={16} className="text-govblue-700" />
-                  บัญชีรายการภาษีที่ดินและสิ่งปลูกสร้างแยกรายแปลง (Consolidated Portfolio Tax)
+                  บัญชีรายการภาษีที่ดินและสิ่งปลูกสร้างรวมทั้งพอร์ต (Consolidated Portfolio Tax)
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  สรุปรายละเอียดการคำนวณภาษีประจำปี {taxYear} สำหรับฝ่ายการเงินและบัญชี รฟท.
+                  สรุปรายละเอียดการคำนวณภาษีประจำปี {taxYear} ครอบคลุมทั้งแปลงที่ดิน ({lands.length}) และสิ่งปลูกสร้าง ({buildings.length}) สำหรับฝ่ายการเงินและบัญชี รฟท.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Btn
                   variant="secondary"
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
@@ -430,68 +545,368 @@ export default function TaxPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              {/* Type Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setPortfolioFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    portfolioFilter === "all"
+                      ? "bg-govblue-800 text-white shadow-xs"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  ทั้งหมด ({consolidatedStats.allItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPortfolioFilter("land")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    portfolioFilter === "land"
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  }`}
+                >
+                  <TreePine size={13} />
+                  แปลงที่ดิน ({consolidatedStats.landItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPortfolioFilter("building")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    portfolioFilter === "building"
+                      ? "bg-blue-700 text-white shadow-xs"
+                      : "bg-blue-50 text-blue-800 hover:bg-blue-100"
+                  }`}
+                >
+                  <Building2 size={13} />
+                  สิ่งปลูกสร้าง ({consolidatedStats.bldgItems.length})
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full md:w-80">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหารหัส, ชื่อ, โฉนด, สถานที่/ที่อยู่, ประเภท..."
+                  value={searchConsolidated}
+                  onChange={(e) => setSearchConsolidated(e.target.value)}
+                  className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-govblue-500 bg-white"
+                />
+                {searchConsolidated && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchConsolidated("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-y border-gray-200 text-gray-700 font-semibold">
                     <th className="py-2.5 px-3">ลำดับ</th>
-                    <th className="py-2.5 px-3">รหัสแปลงที่ดิน</th>
-                    <th className="py-2.5 px-3">ประเภททรัพย์สิน รฟท.</th>
+                    <th className="py-2.5 px-3">ประเภท</th>
+                    <th className="py-2.5 px-3">รหัส / ชื่อทรัพย์สิน</th>
+                    <th className="py-2.5 px-3">สถานที่ / ที่อยู่</th>
+                    <th className="py-2.5 px-3">เอกสารสิทธิ์ / แปลงอ้างอิง</th>
                     <th className="py-2.5 px-3">การใช้ประโยชน์</th>
-                    <th className="py-2.5 px-3 text-right">เนื้อที่ (ตร.ว.)</th>
+                    <th className="py-2.5 px-3 text-right">ขนาดพื้นที่</th>
                     <th className="py-2.5 px-3 text-right">ฐานภาษีประเมิน (บาท)</th>
                     <th className="py-2.5 px-3 text-center">อัตราภาษี</th>
                     <th className="py-2.5 px-3 text-right font-bold text-govblue-900">ภาษีประจำปี (บาท)</th>
+                    <th className="py-2.5 px-3 text-center">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {consolidatedStats.items.map((it, idx) => (
-                    <tr key={it.landCode} className="hover:bg-blue-50/40 transition">
-                      <td className="py-2.5 px-3 text-gray-500">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-semibold text-govblue-800">{it.landCode}</td>
-                      <td className="py-2.5 px-3 text-gray-600">{it.srtType}</td>
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            it.useType.includes("พาณิชย์")
-                              ? "bg-amber-100 text-amber-800"
-                              : it.useType.includes("ที่อยู่อาศัย")
-                              ? "bg-sky-100 text-sky-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {it.useType}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono">{it.wah.toLocaleString()}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">{fmtCurrency(it.val)}</td>
-                      <td className="py-2.5 px-3 text-center font-mono">{(it.rate * 100).toFixed(2)}%</td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">
-                        {fmtCurrency(it.tax)}
+                  {filteredConsolidatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-8 text-center text-gray-500">
+                        ไม่พบข้อมูลทรัพย์สินที่ตรงกับเงื่อนไขการค้นหา
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredConsolidatedItems.map((it, idx) => (
+                      <tr key={it.id} className="hover:bg-blue-50/40 transition">
+                        <td className="py-2.5 px-3 text-gray-500">{idx + 1}</td>
+                        <td className="py-2.5 px-3">
+                          {it.type === "land" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                              <TreePine size={11} />
+                              ที่ดิน
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
+                              <Building2 size={11} />
+                              สิ่งปลูกสร้าง
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-govblue-900">{it.code}</div>
+                          <div className="text-[11px] text-gray-500 truncate max-w-[160px]">{it.name}</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-600 max-w-[180px]">
+                          <div className="flex items-center gap-1 text-[11px] truncate" title={it.address}>
+                            <MapPin size={11} className="text-gray-400 shrink-0" />
+                            <span>{it.address}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-600 font-mono text-[11px]">
+                          {it.refInfo}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${
+                              it.useType.includes("พาณิชย์")
+                                ? "bg-amber-100 text-amber-800"
+                                : it.useType.includes("ที่อยู่อาศัย")
+                                ? "bg-sky-100 text-sky-800"
+                                : it.useType.includes("เกษตร")
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {it.useType}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-gray-700 whitespace-nowrap">
+                          {it.areaFormatted}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-800">
+                          {fmtCurrency(it.baseValue)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-gray-600">
+                          {(it.ratePercent).toFixed(2)}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">
+                          {fmtCurrency(it.tax)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (it.type === "land" && it.rawLand) {
+                                  setDetailLand(it.rawLand);
+                                } else if (it.type === "building" && it.rawBuilding) {
+                                  setDetailBuilding(it.rawBuilding);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded transition"
+                              title="ดูรายละเอียดทรัพย์สิน"
+                            >
+                              <Eye size={12} />
+                              ดูรายละเอียด
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (it.type === "land" && it.rawLand) {
+                                  setTaxInvoiceLand(it.rawLand);
+                                } else if (it.type === "building" && it.rawBuilding) {
+                                  setTaxInvoiceBuilding(it.rawBuilding);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded transition"
+                              title="พิมพ์ใบกำกับภาษี / ภ.ด.ส. 3"
+                            >
+                              <Printer size={12} />
+                              ใบภาษี
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-govblue-50/60 border-t-2 border-govblue-200 font-bold text-govblue-950 text-xs">
-                    <td colSpan={4} className="py-3 px-3">รวมยอดทั้งพอร์ต ({consolidatedStats.items.length} รายการ)</td>
-                    <td className="py-3 px-3 text-right font-mono">
-                      {consolidatedStats.items.reduce((s, i) => s + i.wah, 0).toLocaleString()} ตร.ว.
+                  <tr className="bg-govblue-50/70 border-t-2 border-govblue-200 font-bold text-govblue-950 text-xs">
+                    <td colSpan={7} className="py-3 px-3">
+                      รวมยอดตามที่แสดง ({filteredConsolidatedItems.length} รายการ จากทั้งหมด {consolidatedStats.allItems.length} รายการในพอร์ต)
                     </td>
                     <td className="py-3 px-3 text-right font-mono">
-                      {fmtCurrency(consolidatedStats.totalLandVal)}
+                      {fmtCurrency(filteredTotals.totalBase)}
                     </td>
                     <td className="py-3 px-3 text-center">-</td>
                     <td className="py-3 px-3 text-right font-mono text-rose-700 text-sm">
-                      {fmtCurrency(consolidatedStats.totalLandTx)}
+                      {fmtCurrency(filteredTotals.totalTx)}
                     </td>
+                    <td className="py-3 px-3"></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
+
+            {/* Mobile Cards View (md:hidden) */}
+            <div className="md:hidden space-y-3">
+              {filteredConsolidatedItems.length === 0 ? (
+                <div className="py-8 text-center text-gray-500 text-xs bg-gray-50 rounded-xl">
+                  ไม่พบข้อมูลทรัพย์สินที่ตรงกับเงื่อนไขการค้นหา
+                </div>
+              ) : (
+                filteredConsolidatedItems.map((it) => (
+                  <div
+                    key={it.id}
+                    className="p-3.5 bg-white border border-gray-200 rounded-xl shadow-xs space-y-2.5 hover:border-govblue-300 transition"
+                  >
+                    {/* Card Top: Type Badge & Code & Use */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {it.type === "land" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                            <TreePine size={11} />
+                            ที่ดิน
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
+                            <Building2 size={11} />
+                            สิ่งปลูกสร้าง
+                          </span>
+                        )}
+                        <span className="font-bold text-xs text-govblue-900">{it.code}</span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          it.useType.includes("พาณิชย์")
+                            ? "bg-amber-100 text-amber-800"
+                            : it.useType.includes("ที่อยู่อาศัย")
+                            ? "bg-sky-100 text-sky-800"
+                            : it.useType.includes("เกษตร")
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {it.useType}
+                      </span>
+                    </div>
+
+                    {/* Property Name & Ref */}
+                    <div>
+                      <div className="text-xs font-semibold text-gray-800">{it.name}</div>
+                      <div className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+                        <MapPin size={11} className="text-gray-400 shrink-0" />
+                        <span className="truncate">{it.address}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        อ้างอิง: {it.refInfo} • {it.srtType}
+                      </div>
+                    </div>
+
+                    {/* Tax & Value Box */}
+                    <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
+                      <div>
+                        <div className="text-[10px] text-gray-500">ขนาดพื้นที่</div>
+                        <div className="font-mono font-medium text-gray-800">{it.areaFormatted}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500">ฐานประเมินทุนทรัพย์</div>
+                        <div className="font-mono font-medium text-gray-800">{fmtCurrency(it.baseValue)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500">อัตราภาษี</div>
+                        <div className="font-mono text-gray-700">{(it.ratePercent).toFixed(2)}%</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500">ภาษีประจำปี</div>
+                        <div className="font-mono font-bold text-rose-700">{fmtCurrency(it.tax)}</div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (it.type === "land" && it.rawLand) {
+                            setDetailLand(it.rawLand);
+                          } else if (it.type === "building" && it.rawBuilding) {
+                            setDetailBuilding(it.rawBuilding);
+                          }
+                        }}
+                        className="w-full py-1.5 px-2 rounded-lg text-xs font-medium text-govblue-800 bg-govblue-50 hover:bg-govblue-100 flex items-center justify-center gap-1 transition"
+                      >
+                        <Eye size={12} />
+                        ดูรายละเอียด
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (it.type === "land" && it.rawLand) {
+                            setTaxInvoiceLand(it.rawLand);
+                          } else if (it.type === "building" && it.rawBuilding) {
+                            setTaxInvoiceBuilding(it.rawBuilding);
+                          }
+                        }}
+                        className="w-full py-1.5 px-2 rounded-lg text-xs font-medium text-white bg-govblue-800 hover:bg-govblue-700 flex items-center justify-center gap-1 transition shadow-xs"
+                      >
+                        <Printer size={12} />
+                        พิมพ์ใบภาษี
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {/* Mobile Summary Footer Card */}
+              <div className="p-3 bg-govblue-50 border border-govblue-200 rounded-xl space-y-1 text-xs text-govblue-900">
+                <div className="flex justify-between">
+                  <span>รวมรายการที่แสดง:</span>
+                  <span className="font-semibold">{filteredConsolidatedItems.length} รายการ</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ฐานภาษีประเมินรวม:</span>
+                  <span className="font-mono font-semibold">{fmtCurrency(filteredTotals.totalBase)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold text-rose-700 pt-1 border-t border-govblue-200">
+                  <span>ภาษีรวมทั้งสิ้น:</span>
+                  <span className="font-mono">{fmtCurrency(filteredTotals.totalTx)}</span>
+                </div>
+              </div>
+            </div>
           </Card>
         </div>
       )}
+
+      {/* Land Detail Modal */}
+      <LandDetailModal
+        isOpen={Boolean(detailLand)}
+        onClose={() => setDetailLand(null)}
+        land={detailLand}
+        onOpenTaxInvoice={(l) => setTaxInvoiceLand(l)}
+      />
+
+      {/* Building Detail Modal */}
+      <BuildingDetailModal
+        isOpen={Boolean(detailBuilding)}
+        onClose={() => setDetailBuilding(null)}
+        building={detailBuilding}
+        onOpenTaxInvoice={(b) => setTaxInvoiceBuilding(b)}
+      />
+
+      {/* Tax Invoice Modal for Land */}
+      <TaxInvoiceModal
+        isOpen={Boolean(taxInvoiceLand)}
+        onClose={() => setTaxInvoiceLand(null)}
+        targetType="land"
+        land={taxInvoiceLand}
+      />
+
+      {/* Tax Invoice Modal for Building */}
+      <TaxInvoiceModal
+        isOpen={Boolean(taxInvoiceBuilding)}
+        onClose={() => setTaxInvoiceBuilding(null)}
+        targetType="building"
+        building={taxInvoiceBuilding}
+      />
     </Page>
   );
 }
