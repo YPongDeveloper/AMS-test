@@ -201,7 +201,7 @@ export default function LandDetailModal({
                     lat={land.lat}
                     lng={land.lng}
                     readOnly={true}
-                    height="100%"
+                    height="224px"
                     showInputs={false}
                   />
                 </div>
