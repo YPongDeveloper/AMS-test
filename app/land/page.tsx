@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import LandDetailModal from "@/components/LandDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import {
   calculateLandTax,
   calculateLandTotalWah,
@@ -79,6 +80,9 @@ export default function LandPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentUser = getCurrentUser();
+
+  // Confirmation Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{ publicId: string; code: string } | null>(null);
 
   // Request Modal State (สำหรับพนักงานบัญชีสร้างคำร้องขอแก้ไข / สำรวจใหม่)
   const [requestModalOpen, setRequestModalOpen] = useState(false);
@@ -302,14 +306,20 @@ export default function LandPage() {
     setMsg(null);
   };
 
-  const handleDelete = async (publicId: string, code: string) => {
-    if (!confirm(`ยืนยันการลบแปลงที่ดิน "${code}" ใช่หรือไม่?`)) return;
+  const handleDelete = (publicId: string, code: string) => {
+    setDeleteTarget({ publicId, code });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteLand(publicId);
-      setMsg({ text: `ลบแปลงที่ดิน "${code}" สำเร็จ`, tone: "green" });
+      await deleteLand(deleteTarget.publicId);
+      setMsg({ text: `ลบแปลงที่ดิน "${deleteTarget.code}" สำเร็จ`, tone: "green" });
       loadData(search);
     } catch (e) {
       setMsg({ text: (e as Error).message || "เกิดข้อผิดพลาดในการลบ", tone: "red" });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -1239,6 +1249,26 @@ export default function LandPage() {
         onClose={() => setTaxInvoiceLand(null)}
         targetType="land"
         land={taxInvoiceLand}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="ยืนยันการลบแปลงที่ดิน"
+        message={
+          <div className="text-left space-y-2">
+            <p className="text-center text-gray-700">
+              คุณต้องการลบแปลงที่ดิน <strong className="text-gray-900 font-semibold">"{deleteTarget?.code}"</strong> ใช่หรือไม่?
+            </p>
+            <p className="text-[11px] text-rose-700 bg-rose-50 p-2.5 rounded-xl border border-rose-100 leading-relaxed">
+              ⚠️ <strong>คำเตือน:</strong> การลบแปลงที่ดินนี้จะไม่สามารถกู้คืนได้ และอาจส่งผลต่อสิ่งปลูกสร้างที่ผูกอยู่กับแปลงที่ดินนี้
+            </p>
+          </div>
+        }
+        confirmLabel="ยืนยันลบข้อมูล"
+        cancelLabel="ยกเลิก"
+        tone="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </Page>
   );
