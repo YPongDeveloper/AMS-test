@@ -84,7 +84,8 @@ function getShiftedDate(baseDateStr: string, daysOffset: number): string {
   }
 }
 
-const getTaskDateStr = (task: Task) => {
+const getTaskDateStr = (task?: Task | null) => {
+  if (!task) return "";
   const dt = task.due_at || task.created_at;
   if (!dt) return "";
   const m = String(dt).match(/^(\d{4}-\d{2}-\d{2})/);
@@ -698,10 +699,13 @@ export default function TasksPage() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          const hasToday = Array.isArray(parsed) && parsed.some((t: Task) => getTaskDateStr(t) === todayStr);
-          if (hasToday && parsed.length >= 8) {
-            setTasks(parsed);
-            return;
+          if (Array.isArray(parsed)) {
+            const validTasks = parsed.filter((t: any) => t && typeof t === "object" && t.public_id && t.status);
+            const hasToday = validTasks.some((t: Task) => getTaskDateStr(t) === todayStr);
+            if (hasToday && validTasks.length >= 8) {
+              setTasks(validTasks);
+              return;
+            }
           }
         } catch {
           /* ignore parse error */
@@ -827,7 +831,8 @@ export default function TasksPage() {
 
   // คัดกรองงานตามแท็บที่เลือก
   const currentTabTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    return (tasks || []).filter((task) => {
+      if (!task) return false;
       if (activeTab === "assigned_by_me") {
         return (
           task.assigner_public_id === me?.public_id ||
@@ -849,6 +854,7 @@ export default function TasksPage() {
   // คัดกรองงานตามวันที่เลือก
   const dateFilteredTasks = useMemo(() => {
     return currentTabTasks.filter((task) => {
+      if (!task) return false;
       if (!filterByDate) return true;
       const tDate = getTaskDateStr(task);
       return tDate === selectedDate;
@@ -858,6 +864,7 @@ export default function TasksPage() {
   // คัดกรองงานตามสถานะที่เลือกจากปุ่ม Filter Cards
   const displayedTasks = useMemo(() => {
     return dateFilteredTasks.filter((task) => {
+      if (!task) return false;
       if (statusFilter === "all") return true;
       if (statusFilter === "in_progress") {
         return task.status === "in_progress" || task.status === "accepted";
@@ -870,15 +877,15 @@ export default function TasksPage() {
   const baseForStats = filterByDate ? dateFilteredTasks : currentTabTasks;
   const stats = useMemo(() => ({
     total: baseForStats.length,
-    pending: baseForStats.filter((t) => t.status === "pending").length,
-    inProgress: baseForStats.filter((t) => t.status === "in_progress" || t.status === "accepted").length,
-    done: baseForStats.filter((t) => t.status === "done").length,
-    cancelled: baseForStats.filter((t) => t.status === "cancelled").length,
+    pending: baseForStats.filter((t) => t?.status === "pending").length,
+    inProgress: baseForStats.filter((t) => t?.status === "in_progress" || t?.status === "accepted").length,
+    done: baseForStats.filter((t) => t?.status === "done").length,
+    cancelled: baseForStats.filter((t) => t?.status === "cancelled").length,
   }), [baseForStats]);
 
   // อัปเดต orderedTaskIds เริ่มต้นเมื่อ dateFilteredTasks เปลี่ยน
   useEffect(() => {
-    const ids = dateFilteredTasks.map((t) => t.public_id);
+    const ids = dateFilteredTasks.map((t) => t?.public_id).filter(Boolean) as string[];
     setOrderedTaskIds((prev) => {
       const kept = prev.filter((id) => ids.includes(id));
       const newlyAdded = ids.filter((id) => !kept.includes(id));
@@ -1039,9 +1046,9 @@ export default function TasksPage() {
                 >
                   <AlertCircle size={16} className="text-amber-600" />
                   <span>คำร้องจากบัญชี</span>
-                  {revisionRequests.filter((r) => r.status === "pending").length > 0 && (
+                  {(Array.isArray(revisionRequests) ? revisionRequests : []).filter((r) => r && r.status === "pending").length > 0 && (
                     <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
-                      {revisionRequests.filter((r) => r.status === "pending").length}
+                      {(Array.isArray(revisionRequests) ? revisionRequests : []).filter((r) => r && r.status === "pending").length}
                     </span>
                   )}
                 </button>
@@ -1053,9 +1060,9 @@ export default function TasksPage() {
                 >
                   <Users size={16} className="text-govblue-600" />
                   <span>จัดการทีม</span>
-                  {myTeam.filter((m) => m.status === "accepted").length > 0 && (
+                  {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length > 0 && (
                     <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
-                      {myTeam.filter((m) => m.status === "accepted").length}
+                      {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length}
                     </span>
                   )}
                 </button>
@@ -1605,20 +1612,20 @@ export default function TasksPage() {
                                   </span>
                                   <span
                                     className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                                      STATUS_COLOR[task.status]
+                                      STATUS_COLOR[task.status] || "bg-gray-100 text-gray-800"
                                     }`}
                                   >
-                                    {STATUS_LABEL[task.status]}
+                                    {STATUS_LABEL[task.status] || task.status || "—"}
                                   </span>
                                   <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                    {TYPE_LABEL[task.task_type] || task.task_type}
+                                    {TYPE_LABEL[task.task_type] || task.task_type || "—"}
                                   </span>
                                 </div>
 
                                 {task.due_at && (
                                   <div className="text-xs text-gray-500 font-mono flex items-center gap-1 shrink-0">
                                     <Calendar size={12} className="text-gray-400" />
-                                    <span>{fmtDateTime(task.due_at).split(" ")[0]}</span>
+                                    <span>{(fmtDateTime(task.due_at) || "").split(" ")[0] || "-"}</span>
                                   </div>
                                 )}
                               </div>
@@ -1753,13 +1760,13 @@ export default function TasksPage() {
                   </span>
                   <span
                     className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                      STATUS_COLOR[selectedTask.status]
+                      STATUS_COLOR[selectedTask.status] || "bg-white/20 text-white"
                     }`}
                   >
-                    {STATUS_LABEL[selectedTask.status]}
+                    {STATUS_LABEL[selectedTask.status] || selectedTask.status || "—"}
                   </span>
                   <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-white/10 text-blue-100 border border-white/10">
-                    {TYPE_LABEL[selectedTask.task_type] || selectedTask.task_type}
+                    {TYPE_LABEL[selectedTask.task_type] || selectedTask.task_type || "—"}
                   </span>
                 </div>
                 <h2 className="text-lg sm:text-xl font-bold text-white leading-snug break-words">
@@ -1852,8 +1859,8 @@ export default function TasksPage() {
                 <div className="mt-3.5 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="text-gray-500">สถานะปัจจุบัน:</span>
-                    <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[selectedTask.status]}`}>
-                      {STATUS_LABEL[selectedTask.status]}
+                    <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[selectedTask.status] || "bg-gray-100 text-gray-800"}`}>
+                      {STATUS_LABEL[selectedTask.status] || selectedTask.status || "—"}
                     </span>
                   </div>
 
