@@ -61,6 +61,13 @@ export interface TaskSubmissionPayload {
   items?: any[];
   lands?: Partial<LandParcel>[];
   buildings?: Partial<Building>[];
+  photos?: { id?: string; url: string; name: string; caption?: string; sizeKb?: number }[];
+  polygon?: { lat: number; lng: number }[];
+  area_sqm?: number;
+  area_thai?: string;
+  rai?: number;
+  ngan?: number;
+  wa?: number;
 }
 
 export class ApiError extends Error {
