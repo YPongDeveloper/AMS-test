@@ -22,7 +22,7 @@ export default function LoginPage() {
   function routeByRole(u: AppUser) {
     if (u.role === "admin") router.replace("/dashboard");
     else if (u.role === "supervisor") router.replace("/dashboard");
-    else if (u.role === "accountant") router.replace("/land");
+    else if (u.role === "accountant") router.replace("/tax");
     else router.replace("/tasks");
   }
 

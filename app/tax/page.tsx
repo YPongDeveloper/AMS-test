@@ -9,6 +9,7 @@ import {
   fetchBuildings,
   type LandParcel,
   type Building,
+  createRevisionRequest,
 } from "@/lib/api";
 import {
   Calculator,
@@ -24,6 +25,8 @@ import {
   Building2,
   TreePine,
   X,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import LandDetailModal from "@/components/LandDetailModal";
 import BuildingDetailModal from "@/components/BuildingDetailModal";
@@ -83,6 +86,17 @@ export default function TaxPage() {
   const [detailBuilding, setDetailBuilding] = useState<Building | null>(null);
   const [taxInvoiceLand, setTaxInvoiceLand] = useState<LandParcel | null>(null);
   const [taxInvoiceBuilding, setTaxInvoiceBuilding] = useState<Building | null>(null);
+
+  // Revision Request Modal State (ทำเรื่องขอแก้ไข / สำรวจใหม่)
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [reqTargetType, setReqTargetType] = useState<"land" | "building">("land");
+  const [reqTargetId, setReqTargetId] = useState<string>("");
+  const [reqTargetCode, setReqTargetCode] = useState<string>("");
+  const [reqTargetName, setReqTargetName] = useState<string>("");
+  const [reqType, setReqType] = useState<"revision" | "survey_new">("revision");
+  const [reqRemarks, setReqRemarks] = useState("");
+  const [reqSending, setReqSending] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{ text: string; tone: "green" | "red" } | null>(null);
 
   useEffect(() => {
     Promise.all([fetchLands(), fetchBuildings()]).then(([lData, bData]) => {
@@ -337,6 +351,54 @@ export default function TaxPage() {
       } else if (buildings.length > 0) {
         setDetailBuilding(buildings[0]);
       }
+    }
+  };
+
+  const openRevisionForLand = (l: LandParcel) => {
+    setReqTargetType("land");
+    setReqTargetId(l.public_id);
+    setReqTargetCode(l.land_code);
+    setReqTargetName(l.deed_no ? `โฉนด: ${l.deed_no}` : (l.srt_land_type || "แปลงที่ดิน รฟท."));
+    setReqType("revision");
+    setReqRemarks("");
+    setRequestModalOpen(true);
+  };
+
+  const openRevisionForBuilding = (b: Building) => {
+    setReqTargetType("building");
+    setReqTargetId(b.public_id);
+    setReqTargetCode(b.bldg_code);
+    setReqTargetName(b.name || b.bldg_code);
+    setReqType("revision");
+    setReqRemarks("");
+    setRequestModalOpen(true);
+  };
+
+  const handleSubmitRevisionRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reqRemarks.trim()) {
+      alert("กรุณาระบุรายละเอียดหรือหมายเหตุคำร้อง");
+      return;
+    }
+    setReqSending(true);
+    try {
+      await createRevisionRequest({
+        target_type: reqTargetType,
+        target_id: reqTargetId || undefined,
+        target_code: reqTargetCode || undefined,
+        request_type: reqType,
+        remarks: reqRemarks.trim(),
+      });
+      setRequestModalOpen(false);
+      setToastMsg({
+        text: `สร้างคำร้องขอแก้ไข/สำรวจใหม่สำหรับ "${reqTargetCode}" สำเร็จ (ส่งไปยังหัวหน้างานแล้ว)`,
+        tone: "green",
+      });
+      setTimeout(() => setToastMsg(null), 6000);
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งคำร้อง");
+    } finally {
+      setReqSending(false);
     }
   };
 
@@ -1102,6 +1164,7 @@ export default function TaxPage() {
         onClose={() => setDetailLand(null)}
         land={detailLand}
         onOpenTaxInvoice={(l) => setTaxInvoiceLand(l)}
+        onOpenRevisionRequest={(l) => openRevisionForLand(l)}
       />
 
       {/* Building Detail Modal */}
@@ -1110,6 +1173,7 @@ export default function TaxPage() {
         onClose={() => setDetailBuilding(null)}
         building={detailBuilding}
         onOpenTaxInvoice={(b) => setTaxInvoiceBuilding(b)}
+        onOpenRevisionRequest={(b) => openRevisionForBuilding(b)}
       />
 
       {/* Tax Invoice Modal for Land */}
@@ -1127,6 +1191,152 @@ export default function TaxPage() {
         targetType="building"
         building={taxInvoiceBuilding}
       />
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-xl border flex items-center gap-2.5 text-xs animate-in slide-in-from-bottom duration-200 ${
+            toastMsg.tone === "green"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+              : "bg-rose-50 text-rose-900 border-rose-300"
+          }`}
+        >
+          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+          <span className="font-medium">{toastMsg.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastMsg(null)}
+            className="ml-2 text-gray-400 hover:text-gray-600"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Revision Request Modal (หน้าต่างทำเรื่องขอแก้ไข / สำรวจใหม่) */}
+      {requestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-gray-200 relative">
+            <button
+              onClick={() => setRequestModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  ทำเรื่องขอแก้ไข / สำรวจใหม่
+                </h3>
+                <p className="text-xs text-gray-500">
+                  ส่งคำร้องจากฝ่ายบัญชีเพื่อขอให้หัวหน้างานสั่งสำรวจตรวจสอบทรัพย์สิน
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitRevisionRequest} className="space-y-4 mt-4">
+              {/* Target Property Badge */}
+              <div className="p-3 bg-slate-50 border border-gray-200 rounded-xl text-xs space-y-1">
+                <div className="text-[10px] text-gray-500 font-semibold uppercase">
+                  ทรัพย์สินที่ต้องการขอแก้ไข / สำรวจใหม่
+                </div>
+                <div className="flex items-center justify-between font-bold text-govblue-900">
+                  <span className="flex items-center gap-1.5">
+                    {reqTargetType === "land" ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800">
+                        🌱 แปลงที่ดิน
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800">
+                        🏢 สิ่งปลูกสร้าง
+                      </span>
+                    )}
+                    <span>{reqTargetCode}</span>
+                  </span>
+                  <span className="text-xs font-normal text-gray-600">{reqTargetName}</span>
+                </div>
+              </div>
+
+              {/* Request Type Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                  ประเภทคำร้อง <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReqType("revision")}
+                    className={`p-3 rounded-xl border text-xs font-medium text-left transition ${
+                      reqType === "revision"
+                        ? "border-govblue-600 bg-blue-50/70 text-govblue-900 ring-2 ring-govblue-500/20"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-bold">ขอแก้ไขข้อมูลเดิม</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      ข้อมูลผิดพลาด, ขนาดเนื้อที่ไม่ตรง, สิทธิประโยชน์ผิด
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReqType("survey_new")}
+                    className={`p-3 rounded-xl border text-xs font-medium text-left transition ${
+                      reqType === "survey_new"
+                        ? "border-govblue-600 bg-blue-50/70 text-govblue-900 ring-2 ring-govblue-500/20"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-bold">ขอให้ลงสำรวจใหม่</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      รังวัดแนวเขตใหม่, สำรวจอาคารภาคสนามจริง
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                  รายละเอียด / หมายเหตุคำร้อง <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={reqRemarks}
+                  onChange={(e) => setReqRemarks(e.target.value)}
+                  placeholder="ระบุสิ่งที่พบ เช่น เนื้อที่ดินในระบบไม่ตรงกับเอกสารสิทธิ์ หรือขอให้วัดพิกัดแนวเขตใหม่..."
+                  className="w-full text-xs p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  คำร้องนี้จะถูกส่งไปยังหน้าตรวจสอบคำร้องของหัวหน้างาน เพื่อสั่งงานลูกน้องลงสำรวจต่อไป
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setRequestModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={reqSending}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-900 rounded-xl shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {reqSending ? "กำลังส่งคำร้อง..." : "ส่งคำร้องไปยังหัวหน้างาน"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }
