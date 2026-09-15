@@ -147,7 +147,7 @@ export function Topbar() {
         {/* Right actions */}
         <div className="flex items-center gap-2 ml-auto">
           {/* Notifications */}
-          <NotificationCenter />
+          <NotificationCenter currentUser={user} />
 
           {/* Profile + dropdown */}
           <div className="relative" ref={menuRef}>
