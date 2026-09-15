@@ -109,6 +109,8 @@ export function hasValidSession(): boolean {
     if (at && !isTokenExpired(at)) return true;
     if (rt) return true;
     if (u.public_id?.startsWith("mock-")) return true;
+    // หากมีข้อมูลผู้ใช้อยู่ในเครื่อง ให้ถือว่ายังมีเซสชัน (ป้องกันการเด้งหลุดโดยไม่จำเป็น)
+    return true;
   }
   return false;
 }
@@ -153,19 +155,24 @@ export async function refreshTokens(): Promise<boolean> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: rt }),
       });
-      if (!res.ok) {
+      // เฉพาะกรณีเซิร์ฟเวอร์ตอบ 401 ชัดเจนว่า token หมดอายุ/ถูกเพิกถอนจริง จึงค่อยล้าง token
+      if (res.status === 401) {
         clearTokens();
+        return false;
+      }
+      if (!res.ok) {
+        // หากเซิร์ฟเวอร์ตอบ 500/502/503/504 (เช่น Render หลับ / Cold start) ห้ามล้าง token เด็ดขาด
         return false;
       }
       const env = (await res.json()) as Envelope<{ token: TokenPair; user: AppUser }>;
       if (!env.data?.token) {
-        clearTokens();
         return false;
       }
       saveTokens(env.data.token.access_token, env.data.token.refresh_token);
       if (env.data.user) saveCurrentUser(env.data.user);
       return true;
     } catch {
+      // Network failure / Failed to fetch (เช่น เน็ตมือถือสะดุดหรือเซิร์ฟเวอร์กำลังตื่น) ห้ามล้าง token
       return false;
     } finally {
       refreshing = null;
@@ -185,7 +192,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const rt = getRefreshToken();
     const u = getCurrentUser();
 
-    // ถ้าไม่มี at และ rt เลย แต่เป็น demo mock user ให้ผ่านได้
+    // ถ้าไม่มี at และ rt เลย และไม่มี user ในเครื่อง
     if (!at && !rt) {
       if (!u || !u.public_id?.startsWith("mock-")) {
         clearTokens();
@@ -193,12 +200,16 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
         throw new ApiError("กรุณาเข้าสู่ระบบก่อนทำรายการ", 401);
       }
     } else if (isTokenExpired(at) && rt) {
-      // Proactive refresh ก่อนส่ง Action เสมอ
+      // Proactive refresh ก่อนส่ง Action
       const ok = await refreshTokens();
       if (!ok) {
-        clearTokens();
-        window.location.href = "/?reason=session_expired";
-        throw new ApiError("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", 401);
+        // ถ้า refresh ไม่สำเร็จ (เช่น เน็ตช้า หรือเซิร์ฟเวอร์ตื่นช้า) แต่ยังมี rt อยู่
+        // อย่าเพิ่งสั่ง clearTokens() และเตะผู้ใช้ออก ให้ยิง doFetch ดูก่อน
+        if (!getRefreshToken()) {
+          clearTokens();
+          window.location.href = "/?reason=session_expired";
+          throw new ApiError("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", 401);
+        }
       }
     }
   }
