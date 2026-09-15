@@ -145,8 +145,44 @@ CREATE TABLE IF NOT EXISTS buildings (
 	updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ตารางสมาชิกในทีมของหัวหน้างาน
+CREATE TABLE IF NOT EXISTS team_members (
+	id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	supervisor_id  BIGINT NOT NULL REFERENCES users(id),
+	subordinate_id BIGINT NOT NULL REFERENCES users(id),
+	status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined')),
+	invited_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+	responded_at   TIMESTAMPTZ,
+	UNIQUE (supervisor_id, subordinate_id)
+);
+
+-- คำร้องขอแก้ไข/ตรวจสอบจากฝ่ายบัญชี
+CREATE TABLE IF NOT EXISTS revision_requests (
+	id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	public_id        UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+	requested_by     BIGINT NOT NULL REFERENCES users(id),
+	target_type      TEXT NOT NULL DEFAULT 'land' CHECK (target_type IN ('land','building','general')),
+	target_code      TEXT,
+	remark           TEXT NOT NULL,
+	status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','assigned','resolved')),
+	assigned_task_id BIGINT REFERENCES tasks(id),
+	created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- อัปเกรดตาราง tasks สำหรับ workflow การตรวจรับงานและกรอกข้อมูล
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS submission_data JSONB;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS supervisor_feedback TEXT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS target_type TEXT;
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check;
+ALTER TABLE tasks ADD CONSTRAINT tasks_status_check CHECK (status IN ('pending','accepted','in_progress','submitted','revision_requested','done','cancelled'));
+
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_team_supervisor ON team_members(supervisor_id);
+CREATE INDEX IF NOT EXISTS idx_team_subordinate ON team_members(subordinate_id);
+CREATE INDEX IF NOT EXISTS idx_requests_status ON revision_requests(status);
+CREATE INDEX IF NOT EXISTS idx_requests_requested_by ON revision_requests(requested_by);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_land_code ON land_parcels(land_code);
 CREATE INDEX IF NOT EXISTS idx_bldg_code ON buildings(bldg_code);

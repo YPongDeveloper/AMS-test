@@ -4,20 +4,22 @@ import { useEffect, useState } from "react";
 import { Page } from "@/components/Page";
 import { Card, Tag } from "@/components/ui";
 import { useI18n } from "@/lib/i18n";
-import { api, API_CONFIGURED, getAccessToken } from "@/lib/api";
+import { api, API_CONFIGURED, getAccessToken, getCurrentUser, type AppUser } from "@/lib/api";
 import {
   MapPin, Building2, CircleDollarSign, Database,
   ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText,
-  Calendar, AlertCircle,
+  Calendar, AlertCircle, Users,
 } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
   const { t, lang } = useI18n();
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
 
   // เนื้อหาจากหลังบ้าน (mock data) — ถ้าไม่ได้เชื่อม API ใช้ค่าเริ่มต้นด้านล่าง
   const [content, setContent] = useState<any>(null);
   useEffect(() => {
+    setCurrentUser(getCurrentUser());
     if (!API_CONFIGURED || !getAccessToken()) return;
     api<any>("/api/dashboard")
       .then((d) => d && Object.keys(d).length > 0 && setContent(d))
@@ -42,12 +44,19 @@ export default function Dashboard() {
     ...(statsMeta[s.key] || statsMeta.parcels),
   }));
 
-  const quickActions = [
-    { href: "/land", label: t("navLand"), icon: MapPin, tone: "blue" as const },
-    { href: "/building", label: t("navBuilding"), icon: Building2, tone: "gold" as const },
-    { href: "/tax", label: t("navTax"), icon: CircleDollarSign, tone: "rose" as const },
-    { href: "/dashboard", label: lang === "th" ? "รายงาน" : "Reports", icon: FileText, tone: "emerald" as const },
-  ];
+  const quickActions = currentUser?.role === "supervisor"
+    ? [
+        { href: "/tasks/new", label: lang === "th" ? "สั่งงานใหม่" : "New Task", icon: Plus, tone: "blue" as const },
+        { href: "/tasks", label: lang === "th" ? "งานทั้งหมด" : "Tasks", icon: FileText, tone: "gold" as const },
+        { href: "/tasks?tab=requests", label: lang === "th" ? "คำร้องจากบัญชี" : "Requests", icon: AlertCircle, tone: "rose" as const },
+        { href: "/tasks?tab=team", label: lang === "th" ? "จัดการทีม" : "Team", icon: Users, tone: "emerald" as const },
+      ]
+    : [
+        { href: "/tasks/new", label: lang === "th" ? "สั่งงานใหม่" : "New Task", icon: Plus, tone: "blue" as const },
+        { href: "/land", label: t("navLand"), icon: MapPin, tone: "gold" as const },
+        { href: "/building", label: t("navBuilding"), icon: Building2, tone: "rose" as const },
+        { href: "/tax", label: t("navTax"), icon: CircleDollarSign, tone: "emerald" as const },
+      ];
 
   const fallbackRecent = [
     { code: "LP-2569-0042", name: "ที่ดินสถานีรังสิต", type: "land", progress: 78, status: "synced" },
@@ -102,19 +111,19 @@ export default function Dashboard() {
   };
 
   return (
-    <Page allowedRoles={["admin", "supervisor", "subordinate", "accountant"]}>
+    <Page allowedRoles={["admin", "supervisor"]}>
       {/* Welcome header */}
       <div className="mb-5 sm:mb-6 flex items-center justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold text-govblue-800">
-          {t("dashWelcome")}, <span className="text-govblue-600">เจ้าหน้าที่</span> 👋
+          {t("dashWelcome")}, <span className="text-govblue-600">{currentUser?.display_name || "หัวหน้างาน"}</span> 👋
         </h1>
-        <button
-          aria-label={lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}
+        <Link
+          href="/tasks/new"
           className="inline-flex items-center gap-1.5 px-3 py-2 bg-govblue-700 hover:bg-govblue-600 text-white text-sm font-medium rounded-lg shadow-sm transition"
         >
           <Plus size={16} />
-          <span className="hidden sm:inline">{lang === "th" ? "เริ่มสำรวจใหม่" : "New survey"}</span>
-        </button>
+          <span className="hidden sm:inline">{lang === "th" ? "สั่งงานใหม่" : "New task"}</span>
+        </Link>
       </div>
 
       {/* Stats grid */}

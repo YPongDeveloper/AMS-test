@@ -191,7 +191,7 @@ export default function TaxPage() {
   };
 
   return (
-    <Page allowedRoles={["admin", "supervisor", "accountant"]}>
+    <Page allowedRoles={["admin", "accountant"]}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <SectionHeader title={t("taxTitle")} />

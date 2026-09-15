@@ -68,4 +68,23 @@ func (h *Hub) SendToUser(userID int64, msg WSMessage) {
 	}
 }
 
+// Broadcast — ส่งหาทุก connection ทุก user
+func (h *Hub) Broadcast(msg WSMessage) {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, clientSet := range h.clients {
+		for c := range clientSet {
+			select {
+			case c.send <- b:
+			default:
+				go h.Unregister(c)
+			}
+		}
+	}
+}
+
 func (c *Client) Send() chan<- []byte { return c.send }

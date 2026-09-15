@@ -33,17 +33,25 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	authSvc := service.NewAuthService(userRepo, repository.NewRefreshTokenRepository(pool), cfg.JWTSecret, cfg.LineChannelID)
 	userSvc := service.NewUserService(userRepo)
-	taskSvc := service.NewTaskService(repository.NewTaskRepository(pool), userRepo, hub)
+	taskRepo := repository.NewTaskRepository(pool)
 	dashRepo := repository.NewDashboardRepository(pool)
 	landRepo := repository.NewLandRepository(pool)
 	landSvc := service.NewLandService(landRepo)
 	bldgRepo := repository.NewBuildingRepository(pool)
 	bldgSvc := service.NewBuildingService(bldgRepo)
 
+	taskSvc := service.NewTaskService(taskRepo, userRepo, landRepo, bldgRepo, hub)
+
+	teamRepo := repository.NewTeamRepository(pool)
+	teamSvc := service.NewTeamService(teamRepo, userRepo, hub)
+
+	reqRepo := repository.NewRequestRepository(pool)
+	reqSvc := service.NewRequestService(reqRepo, taskRepo, hub)
+
 	handler := router.New(router.Deps{
 		Secret:         cfg.JWTSecret,
 		AllowedOrigins: cfg.AllowedOrigins,
-	}, authSvc, userSvc, taskSvc, hub, dashRepo, landSvc, bldgSvc)
+	}, authSvc, userSvc, taskSvc, teamSvc, reqSvc, hub, dashRepo, landSvc, bldgSvc)
 
 	log.Println("AMS backend listening on :" + cfg.Port)
 	srv := &http.Server{

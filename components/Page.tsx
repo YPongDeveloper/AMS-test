@@ -80,12 +80,23 @@ export function Page({ children, allowedRoles }: PageProps) {
                   <LogIn size={15} /> ไปหน้าเข้าสู่ระบบ
                 </Link>
               ) : (
-                <Link
-                  href="/dashboard"
-                  className="w-full bg-govblue-800 hover:bg-govblue-900 text-white font-medium py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
-                >
-                  <ArrowLeft size={15} /> กลับสู่หน้าแดชบอร์ดหลัก
-                </Link>
+                (() => {
+                  const u = getCurrentUser();
+                  const homeHref =
+                    u?.role === "accountant"
+                      ? "/land"
+                      : u?.role === "subordinate"
+                        ? "/tasks"
+                        : "/dashboard";
+                  return (
+                    <Link
+                      href={homeHref}
+                      className="w-full bg-govblue-800 hover:bg-govblue-900 text-white font-medium py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                    >
+                      <ArrowLeft size={15} /> กลับสู่หน้าหลักของคุณ
+                    </Link>
+                  );
+                })()
               )}
             </div>
           </div>

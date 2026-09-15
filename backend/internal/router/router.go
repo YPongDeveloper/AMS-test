@@ -15,10 +15,12 @@ type Deps struct {
 	AllowedOrigins []string
 }
 
-func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks *service.TaskService, hub *ws.Hub, dash *repository.DashboardRepository, lands *service.LandService, bldgs *service.BuildingService) http.Handler {
+func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks *service.TaskService, team *service.TeamService, reqs *service.RequestService, hub *ws.Hub, dash *repository.DashboardRepository, lands *service.LandService, bldgs *service.BuildingService) http.Handler {
 	authH := handler.NewAuthHandler(auth)
 	userH := handler.NewUserHandler(users)
 	taskH := handler.NewTaskHandler(tasks)
+	teamH := handler.NewTeamHandler(team)
+	reqH := handler.NewRequestHandler(reqs)
 	dashH := handler.NewDashboardHandler(dash)
 	landH := handler.NewLandHandler(lands)
 	bldgH := handler.NewBuildingHandler(bldgs)
@@ -54,9 +56,26 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 	mux.Handle("POST /api/users/{public_id}/password", adminOnly(userH.ResetPassword))
 	mux.Handle("PATCH /api/users/{public_id}/status", adminOnly(userH.SetStatus))
 	mux.Handle("PATCH /api/users/{public_id}/role", manage(userH.ChangeRole))
+
+	// Tasks API
 	mux.Handle("GET /api/tasks", authed(taskH.List))
 	mux.Handle("POST /api/tasks", middleware.Auth(deps.Secret)(middleware.RequireAnyRole("supervisor", "admin")(http.HandlerFunc(taskH.Create))))
 	mux.Handle("PATCH /api/tasks/{public_id}/status", authed(taskH.UpdateStatus))
+	mux.Handle("POST /api/tasks/{public_id}/submit", authed(taskH.Submit))
+	mux.Handle("POST /api/tasks/{public_id}/review", manage(taskH.Review))
+
+	// Team Management API
+	mux.Handle("POST /api/team/invite", manage(teamH.Invite))
+	mux.Handle("GET /api/team/members", manage(teamH.MyTeam))
+	mux.Handle("GET /api/team/invitations", authed(teamH.MyInvitations))
+	mux.Handle("POST /api/team/respond", authed(teamH.Respond))
+	mux.Handle("DELETE /api/team/{public_id}", manage(teamH.Remove))
+
+	// Accountant Revision Requests API
+	mux.Handle("POST /api/requests", authed(reqH.Create))
+	mux.Handle("GET /api/requests", authed(reqH.List))
+	mux.Handle("POST /api/requests/{public_id}/assign", manage(reqH.Assign))
+
 	mux.Handle("GET /api/dashboard", authed(dashH.Get))
 
 	// Land Parcels API
