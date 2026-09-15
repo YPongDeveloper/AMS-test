@@ -453,29 +453,25 @@ export default function MapPicker({
 
         {/* ปุ่มควบคุมเสริมบนแผนที่ */}
         <div className="pointer-events-auto flex items-center gap-1 shrink-0 self-end sm:self-auto bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
-          {/* สลับ Layer */}
-          <div className="flex items-center gap-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveLayer("hybrid")}
-              className={`px-2 py-1 rounded text-[11px] font-medium transition ${
-                activeLayer === "hybrid" ? "bg-govblue-700 text-white shadow-xs" : "text-gray-600 hover:bg-gray-100"
-              }`}
-              title="ภาพถ่ายดาวเทียม Google"
-            >
-              🛰️ ดาวเทียม
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveLayer("roadmap")}
-              className={`px-2 py-1 rounded text-[11px] font-medium transition ${
-                activeLayer === "roadmap" ? "bg-govblue-700 text-white shadow-xs" : "text-gray-600 hover:bg-gray-100"
-              }`}
-              title="แผนที่ถนน Google"
-            >
-              🗺️ แผนที่
-            </button>
-          </div>
+          {/* ปุ่มสลับ Layer แผนที่ / ดาวเทียม (ปุ่มเดียวสลับได้) */}
+          <button
+            type="button"
+            onClick={() => setActiveLayer((prev) => (prev === "hybrid" ? "roadmap" : "hybrid"))}
+            className="px-2.5 py-1 rounded text-[11px] font-medium transition flex items-center gap-1.5 bg-govblue-700 hover:bg-govblue-800 text-white shadow-xs cursor-pointer"
+            title={activeLayer === "hybrid" ? "คลิกเพื่อสลับเป็น แผนที่ถนน Google" : "คลิกเพื่อสลับเป็น ภาพถ่ายดาวเทียม Google"}
+          >
+            {activeLayer === "hybrid" ? (
+              <>
+                <span>🛰️ ดาวเทียม</span>
+                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ แผนที่</span>
+              </>
+            ) : (
+              <>
+                <span>🗺️ แผนที่</span>
+                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ ดาวเทียม</span>
+              </>
+            )}
+          </button>
 
           {!readOnly && (
             <>
