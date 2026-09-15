@@ -84,7 +84,7 @@ export function Page({ children, allowedRoles }: PageProps) {
                   const u = getCurrentUser();
                   const homeHref =
                     u?.role === "accountant"
-                      ? "/land"
+                      ? "/tax"
                       : u?.role === "subordinate"
                         ? "/tasks"
                         : "/dashboard";

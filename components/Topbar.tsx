@@ -50,7 +50,7 @@ export function Topbar() {
 
   const homeHref =
     user?.role === "accountant"
-      ? "/land"
+      ? "/tax"
       : user?.role === "subordinate"
         ? "/tasks"
         : "/dashboard";
@@ -58,8 +58,8 @@ export function Topbar() {
   const navItems = [
     { href: "/dashboard", label: t("navDashboard"), roles: ["admin", "supervisor"] },
     { href: "/tasks", label: tasksLabel, roles: ["admin", "supervisor", "subordinate"] },
-    { href: "/land", label: t("navLand"), roles: ["admin", "accountant"] },
-    { href: "/building", label: t("navBuilding"), roles: ["admin", "accountant"] },
+    { href: "/land", label: t("navLand"), roles: ["admin"] },
+    { href: "/building", label: t("navBuilding"), roles: ["admin"] },
     { href: "/tax", label: t("navTax"), roles: ["admin", "accountant"] },
     { href: "/admin", label: t("navAdmin"), roles: ["admin"] },
   ].filter((it) => user && it.roles.includes(user.role));
@@ -216,27 +216,29 @@ export function Topbar() {
         </div>
       </div>
 
-      {/* Row 3: nav menu */}
-      <nav className="bg-gray-50 border-t border-gray-200">
-        <div className="mx-auto max-w-7xl px-2 sm:px-6 flex overflow-x-auto">
-          {navItems.map((it) => {
-            const active = pathname?.startsWith(it.href);
-            return (
-              <Link
-                key={it.href}
-                href={it.href}
-                className={`px-3 sm:px-4 py-2.5 text-sm whitespace-nowrap border-b-2 transition ${
-                  active
-                    ? "border-govblue-700 text-govblue-700 font-semibold"
-                    : "border-transparent text-gray-600 hover:text-govblue-700 hover:bg-white"
-                }`}
-              >
-                {it.label}
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Row 3: nav menu (ซ่อนสำหรับพนักงานบัญชี ให้แสดงเฉพาะหน้าคำนวณภาษี) */}
+      {user?.role !== "accountant" && navItems.length > 0 && (
+        <nav className="bg-gray-50 border-t border-gray-200">
+          <div className="mx-auto max-w-7xl px-2 sm:px-6 flex overflow-x-auto">
+            {navItems.map((it) => {
+              const active = pathname?.startsWith(it.href);
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={`px-3 sm:px-4 py-2.5 text-sm whitespace-nowrap border-b-2 transition ${
+                    active
+                      ? "border-govblue-700 text-govblue-700 font-semibold"
+                      : "border-transparent text-gray-600 hover:text-govblue-700 hover:bg-white"
+                  }`}
+                >
+                  {it.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

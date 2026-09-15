@@ -252,7 +252,7 @@ export default function LandDetailModal({
               }}
               className="w-full sm:w-auto px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5"
             >
-              <AlertCircle size={14} /> สร้างคำร้องขอแก้ไข / ตรวจสอบ
+              <AlertCircle size={14} /> ทำเรื่องขอแก้ไข / สำรวจใหม่
             </button>
           ) : (
             <div />
