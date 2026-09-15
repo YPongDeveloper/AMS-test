@@ -28,6 +28,7 @@ import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
 import MapPicker from "@/components/MapPicker";
+import SurveyPolygonMap, { type LatLngPoint, type ThaiAreaResult } from "@/components/SurveyPolygonMap";
 import TasksMasterMap from "@/components/TasksMasterMap";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import {
@@ -54,6 +55,7 @@ import {
   Map,
   List,
   Navigation,
+  Navigation2,
   RotateCcw,
   Search,
   Lock,
@@ -62,6 +64,14 @@ import {
   Briefcase,
   History,
   UserMinus,
+  Camera,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Eye,
+  Compass,
+  ZoomIn,
+  Info,
 } from "lucide-react";
 
 // 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน (ออกแบบตาม Delivery Tracker Pipeline)
@@ -500,12 +510,97 @@ export default function TasksPage() {
   const [reqStatusFilter, setReqStatusFilter] = useState<"all" | "pending" | "assigned" | "resolved">("all");
   const [reqTypeFilter, setReqTypeFilter] = useState<"all" | "land" | "building">("all");
 
-  // 4. Subordinate Data Submission Modal
+  // 4. Subordinate Data Submission Modal (Multi-Step Wizard)
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const [submittingTask, setSubmittingTask] = useState<Task | null>(null);
+  const [submissionStep, setSubmissionStep] = useState<1 | 2 | 3 | 4>(1);
   const [batchItems, setBatchItems] = useState<any[]>([]);
   const [submissionSummary, setSubmissionSummary] = useState("");
   const [submittingData, setSubmittingData] = useState(false);
+  const [submissionPhotos, setSubmissionPhotos] = useState<{ id: string; url: string; name: string; caption: string; sizeKb: number }[]>([]);
+  const [submissionPolygon, setSubmissionPolygon] = useState<LatLngPoint[]>([]);
+  const [submissionArea, setSubmissionArea] = useState<ThaiAreaResult | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; name: string; caption?: string } | null>(null);
+
+  // GPS Navigation State
+  const [userGps, setUserGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [navigatingGps, setNavigatingGps] = useState(false);
+
+  // Helpers
+  const compressImageFile = (file: File, maxDim = 1280, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const calculateGpsDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  };
+
+  const handleStartNavigation = (destLat: number, destLng: number) => {
+    setNavigatingGps(true);
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setNavigatingGps(false);
+          const uLat = pos.coords.latitude;
+          const uLng = pos.coords.longitude;
+          setUserGps({ lat: uLat, lng: uLng });
+          const url = `https://www.google.com/maps/dir/?api=1&origin=${uLat},${uLng}&destination=${destLat},${destLng}&travelmode=driving`;
+          window.open(url, "_blank");
+        },
+        () => {
+          setNavigatingGps(false);
+          const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
+          window.open(url, "_blank");
+        },
+        { timeout: 6000, enableHighAccuracy: true }
+      );
+    } else {
+      setNavigatingGps(false);
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
+      window.open(url, "_blank");
+    }
+  };
 
   // 5. Supervisor Review Modal
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -620,10 +715,8 @@ export default function TasksPage() {
     }
   };
 
-  const openSubmissionModal = (task: Task) => {
-    setSubmittingTask(task);
-    setSubmissionSummary("");
-    if (task.target_type === "building") {
+  const initDefaultBatchItems = (targetType?: string | null) => {
+    if (targetType === "building") {
       setBatchItems([
         {
           bldg_code: `BL-${new Date().getFullYear() + 543}-${String(Math.floor(Math.random() * 900) + 100)}`,
@@ -659,7 +752,119 @@ export default function TasksPage() {
         },
       ]);
     }
+  };
+
+  const openSubmissionModal = (task: Task) => {
+    setSubmittingTask(task);
+    setSubmissionStep(1);
+
+    let existingData: any = null;
+    if (task.submission_data) {
+      if (typeof task.submission_data === "string") {
+        try {
+          existingData = JSON.parse(task.submission_data);
+        } catch {
+          existingData = null;
+        }
+      } else {
+        existingData = task.submission_data;
+      }
+    }
+
+    if (existingData) {
+      setSubmissionSummary(existingData.summary || "");
+      if (Array.isArray(existingData.items) && existingData.items.length > 0) {
+        setBatchItems(existingData.items);
+      } else if (Array.isArray(existingData.lands) && existingData.lands.length > 0) {
+        setBatchItems(existingData.lands);
+      } else if (Array.isArray(existingData.buildings) && existingData.buildings.length > 0) {
+        setBatchItems(existingData.buildings);
+      } else {
+        initDefaultBatchItems(task.target_type);
+      }
+      setSubmissionPhotos(existingData.photos || []);
+      setSubmissionPolygon(existingData.polygon || []);
+      if (existingData.area_sqm) {
+        setSubmissionArea({
+          sqm: existingData.area_sqm,
+          totalWah: (existingData.area_sqm || 0) / 4,
+          rai: existingData.rai || 0,
+          ngan: existingData.ngan || 0,
+          wa: existingData.wa || 0,
+          formattedThai:
+            existingData.area_thai ||
+            `${existingData.rai || 0} ไร่ ${existingData.ngan || 0} งาน ${existingData.wa || 0} ตร.ว.`,
+        });
+      } else {
+        setSubmissionArea(null);
+      }
+    } else {
+      setSubmissionSummary("");
+      setSubmissionPhotos([]);
+      setSubmissionPolygon([]);
+      setSubmissionArea(null);
+      initDefaultBatchItems(task.target_type);
+    }
     setSubmissionModalOpen(true);
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const added: { id: string; url: string; name: string; caption: string; sizeKb: number }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      try {
+        const dataUrl = await compressImageFile(f, 1280, 0.8);
+        added.push({
+          id: `p_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+          url: dataUrl,
+          name: f.name,
+          caption: "",
+          sizeKb: Math.round(dataUrl.length / 1024),
+        });
+      } catch (err) {
+        console.error("Failed to compress image", err);
+      }
+    }
+    setSubmissionPhotos((prev) => [...prev, ...added]);
+    e.target.value = "";
+  };
+
+  const handleRemovePhoto = (id: string) => {
+    setSubmissionPhotos((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handlePhotoCaptionChange = (id: string, caption: string) => {
+    setSubmissionPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, caption } : p)));
+  };
+
+  const handlePolygonChange = (points: LatLngPoint[], area: ThaiAreaResult) => {
+    setSubmissionPolygon(points);
+    setSubmissionArea(area);
+    // Auto-fill area into batchItems[0]
+    setBatchItems((prev) => {
+      if (prev.length === 0) return prev;
+      return prev.map((it, idx) => {
+        if (idx !== 0) return it;
+        if (submittingTask?.target_type === "building") {
+          return {
+            ...it,
+            size_sqm: area.sqm,
+            dimension: `${area.sqm} ตร.ม.`,
+          };
+        } else {
+          return {
+            ...it,
+            rai: area.rai,
+            ngan: area.ngan,
+            wa: area.wa,
+            size_sqm: area.sqm,
+            dimension: `${area.rai}-${area.ngan}-${area.wa}`,
+          };
+        }
+      });
+    });
   };
 
   const handleAddBatchItem = () => {
@@ -713,8 +918,8 @@ export default function TasksPage() {
     );
   };
 
-  const handleSubmitTaskData = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitTaskData = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!submittingTask) return;
     setSubmittingData(true);
     try {
@@ -724,6 +929,13 @@ export default function TasksPage() {
         items: batchItems,
         lands: !isBldg ? (batchItems as any) : undefined,
         buildings: isBldg ? (batchItems as any) : undefined,
+        photos: submissionPhotos,
+        polygon: submissionPolygon,
+        area_sqm: submissionArea?.sqm,
+        area_thai: submissionArea?.formattedThai,
+        rai: submissionArea?.rai,
+        ngan: submissionArea?.ngan,
+        wa: submissionArea?.wa,
       });
       setSubmissionModalOpen(false);
       setNotice(`ส่งข้อมูลงาน "${submittingTask.title}" ให้หัวหน้างานตรวจสอบเรียบร้อยแล้ว`);
@@ -3056,26 +3268,122 @@ export default function TasksPage() {
               )}
 
               {/* Submitted Data Preview (ถ้ามี) */}
-              {selectedTask.submission_data && (
-                <div className="p-4 bg-slate-50 border border-gray-200 rounded-xl space-y-2 text-xs">
-                  <div className="font-bold text-gray-800 flex items-center justify-between">
-                    <span>ข้อมูลที่บันทึกส่งมอบ (Submission Data):</span>
-                    {selectedTask.target_type && (
-                      <span className="text-[11px] font-medium text-govblue-700 bg-govblue-50 px-2 py-0.5 rounded">
-                        {selectedTask.target_type === "land" ? "ข้อมูลแปลงที่ดิน" : "ข้อมูลสิ่งปลูกสร้าง"}
-                      </span>
+              {/* Submitted Data Preview (ถ้ามี) */}
+              {(() => {
+                if (!selectedTask.submission_data) return null;
+                let sub: any = null;
+                if (typeof selectedTask.submission_data === "string") {
+                  try {
+                    sub = JSON.parse(selectedTask.submission_data);
+                  } catch {
+                    sub = null;
+                  }
+                } else {
+                  sub = selectedTask.submission_data;
+                }
+                if (!sub) return null;
+
+                const photos: any[] = Array.isArray(sub.photos) ? sub.photos : [];
+                const polygon: LatLngPoint[] = Array.isArray(sub.polygon) ? sub.polygon : [];
+                const items: any[] = Array.isArray(sub.items)
+                  ? sub.items
+                  : Array.isArray(sub.lands)
+                  ? sub.lands
+                  : Array.isArray(sub.buildings)
+                  ? sub.buildings
+                  : [];
+
+                return (
+                  <div className="p-4 bg-slate-50 border border-govblue-200/80 rounded-2xl space-y-3 text-xs shadow-2xs">
+                    <div className="font-bold text-govblue-900 flex items-center justify-between border-b border-govblue-100 pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <FileCheck2 size={16} className="text-emerald-600" />
+                        <span className="text-sm">ผลงานและข้อมูลที่บันทึกส่งมอบ (Submission Data)</span>
+                      </div>
+                      {selectedTask.target_type && (
+                        <span className="text-[11px] font-semibold text-govblue-700 bg-govblue-100/60 px-2.5 py-0.5 rounded-full">
+                          {selectedTask.target_type === "land" ? "ข้อมูลแปลงที่ดิน" : "ข้อมูลสิ่งปลูกสร้าง"}
+                        </span>
+                      )}
+                    </div>
+
+                    {sub.summary && (
+                      <div className="bg-white p-3 rounded-xl border border-gray-200">
+                        <span className="text-gray-400 block text-[11px] mb-0.5">หมายเหตุสรุปจากผู้ปฏิบัติงาน:</span>
+                        <p className="text-gray-800 italic font-medium">"{sub.summary}"</p>
+                      </div>
+                    )}
+
+                    {/* Calculated Area Badge */}
+                    {(sub.area_thai || sub.area_sqm) && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">📐</span>
+                          <div>
+                            <span className="text-[11px] text-emerald-800 font-semibold block">
+                              ขนาดพื้นที่สำรวจ (คำนวณจากแผนที่ดาวเทียม):
+                            </span>
+                            <span className="text-emerald-950 font-extrabold text-xs sm:text-sm">
+                              {sub.area_thai || `${sub.rai || 0} ไร่ ${sub.ngan || 0} งาน ${sub.wa || 0} ตร.ว.`}
+                              {sub.area_sqm ? ` (${Number(sub.area_sqm).toLocaleString()} ตร.ม.)` : ""}
+                            </span>
+                          </div>
+                        </div>
+                        {polygon.length > 0 && (
+                          <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                            {polygon.length} จุดแนวเขต
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Photos Gallery */}
+                    {photos.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="font-bold text-gray-700 flex items-center gap-1">
+                          <Camera size={13} className="text-govblue-600" /> ภาพถ่ายสำรวจภาคสนาม ({photos.length} ภาพ)
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {photos.map((p: any, pIdx: number) => (
+                            <div
+                              key={p.id || pIdx}
+                              onClick={() =>
+                                setPreviewPhoto({
+                                  url: p.url,
+                                  name: p.name || `ภาพที่ ${pIdx + 1}`,
+                                  caption: p.caption,
+                                })
+                              }
+                              className="group relative bg-black rounded-xl overflow-hidden aspect-video border border-gray-200 cursor-pointer shadow-2xs hover:border-govblue-500 transition"
+                            >
+                              <img
+                                src={p.url}
+                                alt={p.name || "Survey Photo"}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ZoomIn size={16} className="text-white" />
+                              </div>
+                              {p.caption && (
+                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 text-[10px] text-white truncate">
+                                  {p.caption}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Items table summary */}
+                    {items.length > 0 && (
+                      <div className="text-[11px] text-gray-500 font-medium">
+                        รวมข้อมูลรายการทรัพย์สิน: <strong>{items.length} รายการ</strong>
+                      </div>
                     )}
                   </div>
-                  {selectedTask.submission_data.summary && (
-                    <p className="text-gray-600 italic">"{selectedTask.submission_data.summary}"</p>
-                  )}
-                  {Array.isArray(selectedTask.submission_data.items) && selectedTask.submission_data.items.length > 0 && (
-                    <div className="text-[11px] text-gray-500 font-medium">
-                      รวมทั้งหมด {selectedTask.submission_data.items.length} รายการ
-                    </div>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Full Description Section */}
               <div>
@@ -3107,40 +3415,105 @@ export default function TasksPage() {
                 </div>
               </div>
 
-              {/* Location & Map Section */}
+              {/* Location & Map Section (สไตล์เดียวกับหน้าคำนวณภาษี LandDetailModal พร้อมปุ่มนำทาง GPS) */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold text-govblue-900 flex items-center gap-1.5 uppercase tracking-wide">
-                    <MapPin size={14} className="text-rose-500" /> สถานที่และพิกัดภูมิศาสตร์
-                  </h4>
-                  {selectedTask.lat != null && selectedTask.lng != null && (
-                    <a
-                      href={`https://www.google.com/maps?q=${selectedTask.lat},${selectedTask.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-govblue-700 hover:text-govblue-900 hover:underline flex items-center gap-1 font-medium"
-                    >
-                      เปิดดูใน Google Maps <ExternalLink size={12} />
-                    </a>
-                  )}
-                </div>
+                <h4 className="font-bold text-xs uppercase tracking-wider text-gray-700 mb-2 flex items-center gap-1.5">
+                  <MapPin size={15} className="text-rose-500" /> พิกัดและแผนที่ตำแหน่งที่ดิน (Location Map)
+                </h4>
 
                 {selectedTask.place_name && (
-                  <div className="text-xs text-gray-700 mb-2.5 font-medium bg-rose-50/60 border border-rose-200 px-3 py-2 rounded-lg flex items-center gap-2">
+                  <div className="text-xs text-gray-700 mb-2.5 font-medium bg-rose-50/70 border border-rose-200 px-3 py-2 rounded-xl flex items-center gap-2">
                     <MapPin size={14} className="text-rose-500 shrink-0" />
                     <span>{selectedTask.place_name}</span>
                   </div>
                 )}
 
                 {selectedTask.lat != null && selectedTask.lng != null ? (
-                  <div className="rounded-xl overflow-hidden border border-gray-300 shadow-xs">
-                    <MapPicker
-                      lat={selectedTask.lat}
-                      lng={selectedTask.lng}
-                      height="220px"
-                      showInputs={false}
-                      readOnly={true}
-                    />
+                  <div className="space-y-2">
+                    <div className="h-52 sm:h-60 rounded-xl overflow-hidden border border-gray-300 shadow-2xs">
+                      {(() => {
+                        let parsedPolygon: LatLngPoint[] = [];
+                        if (selectedTask.submission_data) {
+                          try {
+                            const sub =
+                              typeof selectedTask.submission_data === "string"
+                                ? JSON.parse(selectedTask.submission_data)
+                                : selectedTask.submission_data;
+                            if (Array.isArray(sub?.polygon) && sub.polygon.length >= 3) {
+                              parsedPolygon = sub.polygon;
+                            }
+                          } catch {
+                            parsedPolygon = [];
+                          }
+                        }
+
+                        if (parsedPolygon.length >= 3) {
+                          return (
+                            <SurveyPolygonMap
+                              initialPoints={parsedPolygon}
+                              height="240px"
+                              readOnly={true}
+                            />
+                          );
+                        }
+
+                        return (
+                          <MapPicker
+                            lat={selectedTask.lat}
+                            lng={selectedTask.lng}
+                            height="240px"
+                            showInputs={false}
+                            readOnly={true}
+                          />
+                        );
+                      })()}
+                    </div>
+
+                    {/* GPS Coordinates & Navigation Bar (รูปแบบเดียวกับหน้าคำนวณ) */}
+                    <div className="flex flex-wrap items-center justify-between text-xs text-gray-500 px-1 gap-2 pt-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-gray-400 shrink-0">พิกัด GPS:</span>
+                        <strong className="font-mono text-gray-800 text-[11px] sm:text-xs truncate">
+                          {selectedTask.lat.toFixed(6)}, {selectedTask.lng.toFixed(6)}
+                        </strong>
+                        {userGps && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full ml-1 shrink-0">
+                            ห่าง ~{calculateGpsDistanceKm(userGps.lat, userGps.lng, selectedTask.lat, selectedTask.lng)} กม.
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* ปุ่มนำทาง (GPS Navigation Button) */}
+                        <button
+                          type="button"
+                          onClick={() => handleStartNavigation(selectedTask.lat!, selectedTask.lng!)}
+                          disabled={navigatingGps}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg shadow-2xs font-bold text-xs transition active:scale-95 cursor-pointer"
+                          title="เริ่มนำทางด้วย GPS ระหว่างตำแหน่งของคุณกับพิกัดปลายทาง"
+                        >
+                          <Navigation size={13} className={navigatingGps ? "animate-spin" : ""} />
+                          <span>{navigatingGps ? "กำลังคำนวณ..." : "🧭 นำทาง (เริ่มเดินทาง)"}</span>
+                        </button>
+
+                        {/* Google Maps Button */}
+                        <a
+                          href={`https://www.google.com/maps?q=${selectedTask.lat},${selectedTask.lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg shadow-2xs font-semibold text-[11px] transition shrink-0 hover:border-slate-400 hover:text-govblue-900 group"
+                          title="เปิดตำแหน่งนี้บน Google Maps"
+                        >
+                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform">
+                            <path fill="#EA4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                            <circle cx="12" cy="9" r="2.8" fill="#FFFFFF"/>
+                            <circle cx="12" cy="9" r="1.5" fill="#4285F4"/>
+                          </svg>
+                          <span>Google Maps</span>
+                          <ExternalLink size={11} className="text-slate-400" />
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs text-center text-gray-400">
@@ -3520,24 +3893,62 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* 3. Modal กรอกและส่งข้อมูลผลงาน (Subordinate Data Submission Modal) */}
+      {/* 3. Modal กรอกและส่งข้อมูลผลงานแบบ 4 ขั้นตอน (Subordinate Multi-Step Submission Wizard) */}
       {submissionModalOpen && submittingTask && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-gray-100">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-gray-100">
+            {/* Modal Top Header */}
             <div className="px-6 py-4 bg-gradient-to-r from-govblue-800 to-govblue-700 text-white flex items-center justify-between shrink-0">
               <div>
-                <div className="text-xs text-blue-200">แบบฟอร์มส่งมอบผลงาน</div>
+                <div className="text-xs text-blue-200">แบบฟอร์มส่งมอบผลงานสำรวจ (Field Survey Data Submission)</div>
                 <h3 className="text-base font-bold truncate">{submittingTask.title}</h3>
               </div>
               <button
                 onClick={() => setSubmissionModalOpen(false)}
-                className="text-blue-200 hover:text-white p-1"
+                className="text-blue-200 hover:text-white p-1 rounded-lg transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitTaskData} className="p-6 space-y-4 overflow-y-auto flex-1">
+            {/* Step Progress Stepper Bar */}
+            <div className="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-gray-200 flex items-center justify-between text-xs font-semibold overflow-x-auto gap-2 shrink-0">
+              {[
+                { step: 1, title: "1. กรอกข้อมูลทั่วไป", icon: ClipboardList },
+                { step: 2, title: `2. ใส่รูปภาพ (${submissionPhotos.length})`, icon: Camera },
+                { step: 3, title: "3. วาดพื้นที่ดาวเทียม", icon: Layers },
+                { step: 4, title: "4. ตรวจสอบก่อนส่ง", icon: FileCheck2 },
+              ].map((s) => (
+                <button
+                  key={s.step}
+                  type="button"
+                  onClick={() => setSubmissionStep(s.step as any)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer text-xs ${
+                    submissionStep === s.step
+                      ? "bg-govblue-800 text-white shadow-xs font-bold"
+                      : submissionStep > s.step
+                      ? "text-emerald-700 bg-emerald-50 border border-emerald-200 font-medium"
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  <s.icon
+                    size={14}
+                    className={
+                      submissionStep === s.step
+                        ? "text-govgold-400"
+                        : submissionStep > s.step
+                        ? "text-emerald-600"
+                        : "text-gray-400"
+                    }
+                  />
+                  <span>{s.title}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Step Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 text-xs">
+              {/* Supervisor Feedback (If revision requested) */}
               {submittingTask.status === "revision_requested" && submittingTask.supervisor_feedback && (
                 <div className="p-3.5 bg-orange-50 border border-orange-200 rounded-xl space-y-1 text-xs">
                   <div className="font-bold text-orange-900 flex items-center gap-1.5">
@@ -3548,310 +3959,684 @@ export default function TasksPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  สรุปผลการปฏิบัติงาน / หมายเหตุรายงานหัวหน้า
-                </label>
-                <textarea
-                  rows={2}
-                  value={submissionSummary}
-                  onChange={(e) => setSubmissionSummary(e.target.value)}
-                  placeholder="เช่น ลงพื้นที่สำรวจรังวัดแนวเขตเรียบร้อย หรือ ตรวจนับและจัดทำแบบฟอร์มบันทึกข้อมูลเรียบร้อย..."
-                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
-                />
-              </div>
-
-              {/* Dynamic Batch Data Items Form */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              {/* STEP 1: กรอกข้อมูลทั่วไป (General Data) */}
+              {submissionStep === 1 && (
+                <div className="space-y-4">
                   <div>
-                    <h4 className="text-xs font-bold text-govblue-900 uppercase">
-                      รายการข้อมูลทรัพย์สินที่จะส่งให้หัวหน้าอนุมัติ ({batchItems.length} รายการ)
-                    </h4>
-                    <p className="text-[11px] text-gray-500">
-                      ประเภท: {submittingTask.target_type === "building" ? "สิ่งปลูกสร้าง (Buildings)" : "แปลงที่ดิน (Land Parcels)"}
-                    </p>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      สรุปผลการปฏิบัติงาน / หมายเหตุรายงานหัวหน้า
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={submissionSummary}
+                      onChange={(e) => setSubmissionSummary(e.target.value)}
+                      placeholder="เช่น ลงพื้นที่สำรวจรังวัดแนวเขตเรียบร้อย หรือ ตรวจนับและจัดทำแบบฟอร์มบันทึกข้อมูลเรียบร้อย..."
+                      className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddBatchItem}
-                    className="px-2.5 py-1 text-xs font-semibold text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded-lg border border-govblue-200 flex items-center gap-1"
-                  >
-                    <Plus size={13} /> เพิ่มรายการอีก
-                  </button>
-                </div>
 
-                <div className="space-y-3 max-h-80 overflow-y-auto p-1">
-                  {submittingTask.target_type === "building"
-                    ? batchItems.map((item, idx) => (
-                        <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-gray-600">อาคารรายการที่ {idx + 1}</span>
-                            {batchItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveBatchItem(idx)}
-                                className="text-xs text-rose-500 hover:text-rose-700"
-                              >
-                                ลบรายการนี้
-                              </button>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">รหัสอาคาร *</label>
-                              <input
-                                value={item.bldg_code}
-                                onChange={(e) => handleBatchFieldChange(idx, "bldg_code", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ชื่ออาคาร *</label>
-                              <input
-                                value={item.name}
-                                onChange={(e) => handleBatchFieldChange(idx, "name", e.target.value)}
-                                placeholder="เช่น อาคารสถานี"
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">รหัสแปลงที่ดินตั้งอยู่</label>
-                              <input
-                                value={item.land_code}
-                                onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
-                                placeholder="เช่น LP-2569-001"
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">โครงสร้างวัสดุ</label>
-                              <input
-                                value={item.material_type}
-                                onChange={(e) => handleBatchFieldChange(idx, "material_type", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">จำนวนชั้น</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.num_fl}
-                                onChange={(e) => handleBatchFieldChange(idx, "num_fl", Number(e.target.value))}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">สภาพอาคาร</label>
-                              <select
-                                value={item.bld_condition_type}
-                                onChange={(e) => handleBatchFieldChange(idx, "bld_condition_type", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              >
-                                <option value="ดี">ดี</option>
-                                <option value="พอใช้">พอใช้</option>
-                                <option value="ทรุดโทรม">ทรุดโทรม</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
-                              <input
-                                value={item.address_no || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
-                                placeholder="เช่น 123/4"
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
-                              <input
-                                value={item.subdistrict || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
-                              <input
-                                value={item.district || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">จังหวัด</label>
-                              <input
-                                value={item.province || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    : batchItems.map((item, idx) => (
-                        <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-gray-600">แปลงที่ดินรายการที่ {idx + 1}</span>
-                            {batchItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveBatchItem(idx)}
-                                className="text-xs text-rose-500 hover:text-rose-700"
-                              >
-                                ลบรายการนี้
-                              </button>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">รหัสที่ดิน *</label>
-                              <input
-                                value={item.land_code}
-                                onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">เลขที่โฉนด</label>
-                              <input
-                                value={item.deed_no}
-                                onChange={(e) => handleBatchFieldChange(idx, "deed_no", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ประเภท รฟท.</label>
-                              <input
-                                value={item.srt_land_type}
-                                onChange={(e) => handleBatchFieldChange(idx, "srt_land_type", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">การใช้ประโยชน์</label>
-                              <input
-                                value={item.land_use}
-                                onChange={(e) => handleBatchFieldChange(idx, "land_use", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ไร่</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={item.rai}
-                                onChange={(e) => handleBatchFieldChange(idx, "rai", Number(e.target.value))}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">งาน</label>
-                              <input
-                                type="number"
-                                min="0"
-                                max="3"
-                                value={item.ngan}
-                                onChange={(e) => handleBatchFieldChange(idx, "ngan", Number(e.target.value))}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ตารางวา</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.wa}
-                                onChange={(e) => handleBatchFieldChange(idx, "wa", Number(e.target.value))}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">กว้าง × ยาว (ม.)</label>
-                              <div className="flex gap-1">
-                                <input
-                                  type="number"
-                                  placeholder="กว้าง"
-                                  value={item.width}
-                                  onChange={(e) => handleBatchFieldChange(idx, "width", Number(e.target.value))}
-                                  className="w-1/2 text-xs p-1.5 border rounded bg-white"
-                                />
-                                <input
-                                  type="number"
-                                  placeholder="ยาว"
-                                  value={item.length}
-                                  onChange={(e) => handleBatchFieldChange(idx, "length", Number(e.target.value))}
-                                  className="w-1/2 text-xs p-1.5 border rounded bg-white"
-                                />
+                  {/* Dynamic Batch Data Items Form */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-govblue-900 uppercase">
+                          รายการข้อมูลทรัพย์สินที่จะส่งให้หัวหน้าอนุมัติ ({batchItems.length} รายการ)
+                        </h4>
+                        <p className="text-[11px] text-gray-500">
+                          ประเภท: {submittingTask.target_type === "building" ? "สิ่งปลูกสร้าง (Buildings)" : "แปลงที่ดิน (Land Parcels)"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddBatchItem}
+                        className="px-2.5 py-1 text-xs font-semibold text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded-lg border border-govblue-200 flex items-center gap-1"
+                      >
+                        <Plus size={13} /> เพิ่มรายการอีก
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-80 overflow-y-auto p-1">
+                      {submittingTask.target_type === "building"
+                        ? batchItems.map((item, idx) => (
+                            <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-gray-600">อาคารรายการที่ {idx + 1}</span>
+                                {batchItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveBatchItem(idx)}
+                                    className="text-xs text-rose-500 hover:text-rose-700"
+                                  >
+                                    ลบรายการนี้
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">รหัสอาคาร *</label>
+                                  <input
+                                    value={item.bldg_code}
+                                    onChange={(e) => handleBatchFieldChange(idx, "bldg_code", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ชื่ออาคาร *</label>
+                                  <input
+                                    value={item.name}
+                                    onChange={(e) => handleBatchFieldChange(idx, "name", e.target.value)}
+                                    placeholder="เช่น อาคารสถานี"
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">รหัสแปลงที่ดินตั้งอยู่</label>
+                                  <input
+                                    value={item.land_code}
+                                    onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
+                                    placeholder="เช่น LP-2569-001"
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">โครงสร้างวัสดุ</label>
+                                  <input
+                                    value={item.material_type}
+                                    onChange={(e) => handleBatchFieldChange(idx, "material_type", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">จำนวนชั้น</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={item.num_fl}
+                                    onChange={(e) => handleBatchFieldChange(idx, "num_fl", Number(e.target.value))}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">สภาพอาคาร</label>
+                                  <select
+                                    value={item.bld_condition_type}
+                                    onChange={(e) => handleBatchFieldChange(idx, "bld_condition_type", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  >
+                                    <option value="ดี">ดี</option>
+                                    <option value="พอใช้">พอใช้</option>
+                                    <option value="ทรุดโทรม">ทรุดโทรม</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
+                                  <input
+                                    value={item.address_no || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
+                                    placeholder="เช่น 123/4"
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
+                                  <input
+                                    value={item.subdistrict || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
+                                  <input
+                                    value={item.district || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">จังหวัด</label>
+                                  <input
+                                    value={item.province || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
                               </div>
                             </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
-                              <input
-                                value={item.address_no || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
-                                placeholder="เช่น 123/4"
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
+                          ))
+                        : batchItems.map((item, idx) => (
+                            <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-gray-600">แปลงที่ดินรายการที่ {idx + 1}</span>
+                                {batchItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveBatchItem(idx)}
+                                    className="text-xs text-rose-500 hover:text-rose-700"
+                                  >
+                                    ลบรายการนี้
+                                  </button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">รหัสที่ดิน *</label>
+                                  <input
+                                    value={item.land_code}
+                                    onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">เลขที่โฉนด</label>
+                                  <input
+                                    value={item.deed_no}
+                                    onChange={(e) => handleBatchFieldChange(idx, "deed_no", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ประเภท รฟท.</label>
+                                  <input
+                                    value={item.srt_land_type}
+                                    onChange={(e) => handleBatchFieldChange(idx, "srt_land_type", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">การใช้ประโยชน์</label>
+                                  <input
+                                    value={item.land_use}
+                                    onChange={(e) => handleBatchFieldChange(idx, "land_use", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ไร่</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.rai}
+                                    onChange={(e) => handleBatchFieldChange(idx, "rai", Number(e.target.value))}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">งาน</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="3"
+                                    value={item.ngan}
+                                    onChange={(e) => handleBatchFieldChange(idx, "ngan", Number(e.target.value))}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ตารางวา</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.wa}
+                                    onChange={(e) => handleBatchFieldChange(idx, "wa", Number(e.target.value))}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">กว้าง × ยาว (ม.)</label>
+                                  <div className="flex gap-1">
+                                    <input
+                                      type="number"
+                                      placeholder="กว้าง"
+                                      value={item.width}
+                                      onChange={(e) => handleBatchFieldChange(idx, "width", Number(e.target.value))}
+                                      className="w-1/2 text-xs p-1.5 border rounded bg-white"
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="ยาว"
+                                      value={item.length}
+                                      onChange={(e) => handleBatchFieldChange(idx, "length", Number(e.target.value))}
+                                      className="w-1/2 text-xs p-1.5 border rounded bg-white"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
+                                  <input
+                                    value={item.address_no || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
+                                    placeholder="เช่น 123/4"
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
+                                  <input
+                                    value={item.subdistrict || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
+                                  <input
+                                    value={item.district || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-500 block">จังหวัด</label>
+                                  <input
+                                    value={item.province || ""}
+                                    onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
+                                    className="w-full text-xs p-1.5 border rounded bg-white"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
-                              <input
-                                value={item.subdistrict || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
+                          ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: ใส่รูปภาพ (Survey Photos) */}
+              {submissionStep === 2 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-govblue-900 uppercase flex items-center gap-1.5">
+                        <Camera size={15} className="text-govblue-700" />
+                        แนบรูปภาพหลักฐานการลงพื้นที่สำรวจ ({submissionPhotos.length} ภาพ)
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        อัปโหลดภาพถ่ายสถานที่จริง สภาพแปลงที่ดิน หมุดหลักเขต หรือสิ่งปลูกสร้าง
+                      </p>
+                    </div>
+
+                    {/* Hidden Inputs */}
+                    <input
+                      id="ams-photo-file-input"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                    />
+                    <input
+                      id="ams-photo-camera-input"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                    />
+
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="ams-photo-camera-input"
+                        className="px-3 py-1.5 bg-govblue-50 hover:bg-govblue-100 text-govblue-700 border border-govblue-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                      >
+                        <Camera size={14} />
+                        <span>ถ่ายรูปกล้อง</span>
+                      </label>
+                      <label
+                        htmlFor="ams-photo-file-input"
+                        className="px-3 py-1.5 bg-govblue-700 hover:bg-govblue-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                      >
+                        <Upload size={14} />
+                        <span>เลือกรูปภาพ</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Photos Grid */}
+                  {submissionPhotos.length === 0 ? (
+                    <label
+                      htmlFor="ams-photo-file-input"
+                      className="border-2 border-dashed border-gray-300 hover:border-govblue-400 bg-gray-50/60 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-govblue-50 text-govblue-700 flex items-center justify-center mb-2 shadow-2xs">
+                        <Camera size={24} />
+                      </div>
+                      <span className="font-bold text-gray-700 text-xs">คลิกเพื่อเลือกรูปภาพ หรือ ถ่ายรูปหลักฐานการลงพื้นที่</span>
+                      <span className="text-[11px] text-gray-400 mt-0.5">
+                        รองรับไฟล์ JPG, PNG, WEBP (ระบบจะบีบอัดขนาดภาพให้เหมาะสมอัตโนมัติ)
+                      </span>
+                    </label>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto p-1">
+                      {submissionPhotos.map((p, pIdx) => (
+                        <div
+                          key={p.id}
+                          className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-2xs flex flex-col group relative"
+                        >
+                          {/* Image preview */}
+                          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                            <img
+                              src={p.url}
+                              alt={p.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md font-mono">
+                              #{pIdx + 1} • {p.sizeKb} KB
                             </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
-                              <input
-                                value={item.district || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
+                            <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewPhoto({ url: p.url, name: p.name, caption: p.caption })}
+                                className="p-1 bg-black/60 hover:bg-black text-white rounded-md transition"
+                                title="ขยายดูภาพ"
+                              >
+                                <ZoomIn size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhoto(p.id)}
+                                className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md transition"
+                                title="ลบรูปนี้"
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </div>
-                            <div>
-                              <label className="text-[10px] text-gray-500 block">จังหวัด</label>
-                              <input
-                                value={item.province || ""}
-                                onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
-                                className="w-full text-xs p-1.5 border rounded bg-white"
-                              />
-                            </div>
+                          </div>
+
+                          {/* Caption Input */}
+                          <div className="p-2.5 space-y-1 bg-gray-50 flex-1 flex flex-col justify-between">
+                            <input
+                              type="text"
+                              value={p.caption}
+                              onChange={(e) => handlePhotoCaptionChange(p.id, e.target.value)}
+                              placeholder="ระบุคำอธิบายภาพ (เช่น สภาพที่ดิน, หลักหมุดที่ 1...)"
+                              className="w-full text-xs p-1.5 bg-white border border-gray-300 rounded focus:ring-1 focus:ring-govblue-500 focus:outline-hidden"
+                            />
                           </div>
                         </div>
                       ))}
-                </div>
-              </div>
+                    </div>
+                  )}
 
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-[11px] text-gray-500">
-                  เมื่อกดส่ง ข้อมูลจะไปแสดงที่หัวหน้างานในสถานะ "ส่งตรวจแล้ว"
-                </span>
-                <div className="flex gap-2">
+                  <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center gap-2 text-blue-900 text-xs">
+                    <Info size={15} className="text-blue-600 shrink-0" />
+                    <span>
+                      แนบภาพถ่ายอย่างน้อย 1-4 ภาพ เพื่อให้หัวหน้างานตรวจสอบความถูกต้องของแปลงสำรวจจริง
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: วาดพื้นที่บน Google Map ดาวเทียม (Satellite Polygon & Auto Area) */}
+              {submissionStep === 3 && (
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-govblue-900 uppercase flex items-center gap-1.5">
+                      <Layers size={15} className="text-emerald-600" />
+                      วาดพื้นที่บนแผนที่ภาพถ่ายดาวเทียม Google Satellite (คำนวณขนาดพื้นที่อัตโนมัติ)
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      คลิกปักจุดบนแผนที่ภาพถ่ายดาวเทียมเพื่อตีเส้นล้อมกรอบแนวเขตแปลงที่ดิน ระบบจะคำนวณขนาดเนื้อที่ (ไร่-งาน-วา และ ตารางเมตร) พร้อมลงข้อมูลในแบบฟอร์มให้อัตโนมัติ
+                    </p>
+                  </div>
+
+                  {/* Satellite Polygon Map Component */}
+                  <SurveyPolygonMap
+                    initialLat={submittingTask.lat}
+                    initialLng={submittingTask.lng}
+                    initialPoints={submissionPolygon}
+                    onChange={handlePolygonChange}
+                    height="380px"
+                  />
+
+                  {/* Auto-filled area confirmation */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="font-bold text-emerald-950 block">
+                          {submissionArea && submissionArea.sqm > 0
+                            ? `คำนวณขนาดพื้นที่อัตโนมัติ: ${submissionArea.formattedThai} (${submissionArea.sqm.toLocaleString()} ตร.ม.)`
+                            : "ยังไม่ได้ตีเส้นแนวเขต (คลิกบนแผนที่อย่างน้อย 3 จุด)"}
+                        </span>
+                        <span className="text-[11px] text-emerald-800">
+                          {submissionArea && submissionArea.sqm > 0
+                            ? "✓ ระบบได้บันทึกค่าขนาดพื้นที่เข้าสู่แบบฟอร์มข้อมูลทรัพย์สินรายการแรกให้โดยอัตโนมัติแล้ว"
+                            : "ท่านสามารถคลิกตามขอบเขตแปลงจริงในภาพถ่ายดาวเทียมเพื่อคำนวณพื้นที่ได้ทันที"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: ตรวจเช็คข้อมูลก่อนส่ง (Review & Summary) */}
+              {submissionStep === 4 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <FileCheck2 size={18} className="text-govblue-800" />
+                    <div>
+                      <h4 className="text-xs font-bold text-govblue-900 uppercase">
+                        ตรวจเช็ครายละเอียดความถูกต้องก่อนส่งมอบให้หัวหน้างาน
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        กรุณาตรวจสอบข้อมูล ผลการคำนวณ และภาพถ่ายสำรวจให้ครบถ้วนก่อนกดยืนยันส่ง
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Review Cards Grid */}
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {/* General Summary Card */}
+                    <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1.5">
+                      <span className="text-[11px] text-gray-400 font-bold uppercase block">
+                        ข้อมูลงานและหมายเหตุ
+                      </span>
+                      <div className="font-bold text-gray-800 text-xs">{submittingTask.title}</div>
+                      <div className="text-[11px] text-govblue-700 font-semibold">
+                        ประเภท: {submittingTask.target_type === "building" ? "สิ่งปลูกสร้าง (Buildings)" : "แปลงที่ดิน (Land Parcels)"}
+                      </div>
+                      {submissionSummary ? (
+                        <div className="pt-1 text-gray-600 italic">"{submissionSummary}"</div>
+                      ) : (
+                        <div className="text-gray-400 italic text-[11px]">— ไม่ได้ระบุหมายเหตุ —</div>
+                      )}
+                    </div>
+
+                    {/* Calculated Area Card */}
+                    <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200 space-y-1.5">
+                      <span className="text-[11px] text-emerald-800 font-bold uppercase block flex items-center gap-1">
+                        <span>📐</span> ขนาดพื้นที่คำนวณจากดาวเทียม
+                      </span>
+                      {submissionArea && submissionArea.sqm > 0 ? (
+                        <div>
+                          <div className="text-sm font-extrabold text-emerald-950">
+                            {submissionArea.formattedThai}
+                          </div>
+                          <div className="text-xs text-emerald-800 font-medium">
+                            {submissionArea.sqm.toLocaleString()} ตารางเมตร ({submissionPolygon.length} จุดแนวเขต)
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-gray-400 text-xs italic">ไม่ได้วาดขอบเขตแนวเขตบนดาวเทียม</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Satellite Polygon Map Preview (Read-only) */}
+                  {submissionPolygon.length >= 3 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                        <Layers size={14} className="text-emerald-600" />
+                        แนวเขตแปลงบนภาพถ่ายดาวเทียมที่วาดไว้:
+                      </span>
+                      <div className="rounded-xl overflow-hidden border border-gray-300">
+                        <SurveyPolygonMap
+                          initialPoints={submissionPolygon}
+                          readOnly={true}
+                          height="200px"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Photos Preview Gallery */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                      <Camera size={14} className="text-govblue-600" />
+                      ภาพถ่ายลงพื้นที่สำรวจ ({submissionPhotos.length} ภาพ):
+                    </span>
+                    {submissionPhotos.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {submissionPhotos.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => setPreviewPhoto({ url: p.url, name: p.name, caption: p.caption })}
+                            className="aspect-video bg-black rounded-xl overflow-hidden border border-gray-200 relative cursor-pointer group shadow-2xs"
+                          >
+                            <img src={p.url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <ZoomIn size={16} />
+                            </div>
+                            {p.caption && (
+                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1 text-[10px] text-white truncate">
+                                {p.caption}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-50 border rounded-xl text-gray-400 text-center text-xs italic">
+                        ไม่ได้แนบรูปภาพสำรวจ
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Asset Items Summary Table */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold text-gray-700">
+                      รายการทรัพย์สินที่จะบันทึกเข้าระบบ ({batchItems.length} รายการ):
+                    </span>
+                    <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-gray-100 text-gray-700 font-semibold border-b">
+                          {submittingTask.target_type === "building" ? (
+                            <tr>
+                              <th className="p-2">รหัสอาคาร</th>
+                              <th className="p-2">ชื่ออาคาร</th>
+                              <th className="p-2">แปลงที่ดิน</th>
+                              <th className="p-2">โครงสร้าง</th>
+                              <th className="p-2">ชั้น</th>
+                              <th className="p-2">สภาพ</th>
+                            </tr>
+                          ) : (
+                            <tr>
+                              <th className="p-2">รหัสที่ดิน</th>
+                              <th className="p-2">โฉนด</th>
+                              <th className="p-2">ประเภท รฟท.</th>
+                              <th className="p-2">การใช้ประโยชน์</th>
+                              <th className="p-2">เนื้อที่ (ไร่-งาน-วา)</th>
+                              <th className="p-2">ที่ตั้ง</th>
+                            </tr>
+                          )}
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {batchItems.map((it, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              {submittingTask.target_type === "building" ? (
+                                <>
+                                  <td className="p-2 font-bold text-govblue-800">{it.bldg_code || "-"}</td>
+                                  <td className="p-2 font-medium">{it.name || "-"}</td>
+                                  <td className="p-2 text-gray-600">{it.land_code || "-"}</td>
+                                  <td className="p-2 text-gray-600">{it.material_type || "-"}</td>
+                                  <td className="p-2">{it.num_fl || 1} ชั้น</td>
+                                  <td className="p-2">{it.bld_condition_type || "ดี"}</td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-2 font-bold text-govblue-800">{it.land_code || "-"}</td>
+                                  <td className="p-2 text-gray-700">{it.deed_no || "-"}</td>
+                                  <td className="p-2 text-gray-600">{it.srt_land_type || "-"}</td>
+                                  <td className="p-2 text-gray-600">{it.land_use || "-"}</td>
+                                  <td className="p-2 font-semibold text-emerald-800">
+                                    {it.rai || 0} ไร่ {it.ngan || 0} งาน {it.wa || 0} วา
+                                  </td>
+                                  <td className="p-2 text-gray-500 max-w-[150px] truncate">
+                                    {[it.address_no, it.subdistrict, it.district, it.province].filter(Boolean).join(" ") || "-"}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs">
+                    ℹ️ <strong>การดำเนินการส่งมอบ:</strong> เมื่อกด "ยืนยันส่งให้หัวหน้าตรวจสอบ" สถานะจะเปลี่ยนเป็น "ส่งตรวจแล้ว" เพื่อรอหัวหน้างานเข้าตรวจประเมินและอนุมัติเข้าฐานข้อมูลจริง
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Footer (Navigation Controls) */}
+            <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
+              {/* Left Back / Cancel Button */}
+              {submissionStep === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setSubmissionModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                >
+                  ยกเลิก
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSubmissionStep((prev) => (prev - 1) as any)}
+                  className="px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <ChevronLeft size={14} />
+                  <span>ย้อนกลับ</span>
+                </button>
+              )}
+
+              {/* Right Next / Submit Button */}
+              <div className="flex items-center gap-2">
+                {submissionStep < 4 ? (
                   <button
                     type="button"
-                    onClick={() => setSubmissionModalOpen(false)}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                    onClick={() => setSubmissionStep((prev) => (prev + 1) as any)}
+                    className="px-5 py-2 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
                   >
-                    ยกเลิก
+                    <span>
+                      {submissionStep === 1
+                        ? "ถัดไป: ใส่รูปภาพสำรวจ"
+                        : submissionStep === 2
+                        ? "ถัดไป: วาดพื้นที่บน Google Map"
+                        : "ถัดไป: ตรวจเช็คข้อมูลก่อนส่ง"}
+                    </span>
+                    <ChevronRight size={14} />
                   </button>
+                ) : (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={() => handleSubmitTaskData()}
                     disabled={submittingData}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition disabled:opacity-50"
+                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-md transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                   >
-                    {submittingData ? "กำลังส่งข้อมูล..." : "ส่งให้หัวหน้าตรวจสอบ"}
+                    <CheckCircle2 size={15} />
+                    <span>{submittingData ? "กำลังส่งข้อมูล..." : "✓ ยืนยันส่งให้หัวหน้าตรวจสอบ"}</span>
                   </button>
-                </div>
+                )}
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -3888,6 +4673,14 @@ export default function TasksPage() {
               }
               const summary = subData?.summary;
               const items = subData?.items || subData?.lands || subData?.buildings || [];
+              const photos: any[] = Array.isArray(subData?.photos) ? subData.photos : [];
+              const polygon: LatLngPoint[] = Array.isArray(subData?.polygon) ? subData.polygon : [];
+              const areaThai =
+                subData?.area_thai ||
+                (subData?.rai != null
+                  ? `${subData.rai} ไร่ ${subData.ngan || 0} งาน ${subData.wa || 0} ตร.ว.`
+                  : null);
+              const areaSqm = subData?.area_sqm;
 
               return (
                 <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
@@ -3909,6 +4702,84 @@ export default function TasksPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Calculated Area Badge if available */}
+                  {(areaThai || areaSqm) && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">📐</span>
+                        <div>
+                          <span className="text-[11px] text-emerald-800 font-semibold block">
+                            ขนาดพื้นที่สำรวจ (คำนวณจากแผนที่ดาวเทียม):
+                          </span>
+                          <span className="text-emerald-950 font-extrabold text-xs sm:text-sm">
+                            {areaThai} {areaSqm ? `(${Number(areaSqm).toLocaleString()} ตร.ม.)` : ""}
+                          </span>
+                        </div>
+                      </div>
+                      {polygon.length > 0 && (
+                        <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                          {polygon.length} จุดแนวเขต
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Satellite Polygon Map Preview */}
+                  {polygon.length >= 3 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                        <Layers size={14} className="text-emerald-600" />
+                        แนวเขตแปลงบนภาพถ่ายดาวเทียม:
+                      </span>
+                      <div className="rounded-xl overflow-hidden border border-gray-300">
+                        <SurveyPolygonMap
+                          initialPoints={polygon}
+                          readOnly={true}
+                          height="200px"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Survey Photos Gallery */}
+                  {photos.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                        <Camera size={14} className="text-govblue-600" />
+                        ภาพถ่ายสำรวจภาคสนาม ({photos.length} ภาพ):
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {photos.map((p: any, idx: number) => (
+                          <div
+                            key={p.id || idx}
+                            onClick={() =>
+                              setPreviewPhoto({
+                                url: p.url,
+                                name: p.name || `ภาพที่ ${idx + 1}`,
+                                caption: p.caption,
+                              })
+                            }
+                            className="aspect-video bg-black rounded-xl overflow-hidden border border-gray-200 relative cursor-pointer group shadow-2xs hover:border-purple-400 transition"
+                          >
+                            <img
+                              src={p.url}
+                              alt={p.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <ZoomIn size={16} />
+                            </div>
+                            {p.caption && (
+                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1 text-[10px] text-white truncate">
+                                {p.caption}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Submitted Data Table */}
                   <div>
@@ -4261,7 +5132,39 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* 5. Custom Confirmation & Alert Dialog */}
+      {/* 5. Photo Lightbox Modal */}
+      {previewPhoto && (
+        <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-700 flex flex-col max-h-[92vh]">
+            <div className="px-4 py-3 bg-slate-800 text-white flex items-center justify-between">
+              <span className="text-xs font-bold truncate flex items-center gap-1.5">
+                <Camera size={14} className="text-govgold-400" />
+                <span>{previewPhoto.caption || previewPhoto.name}</span>
+              </span>
+              <button
+                onClick={() => setPreviewPhoto(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-700 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-2 flex-1 flex items-center justify-center overflow-hidden bg-black/90">
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.name}
+                className="max-h-[75vh] max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
+            {previewPhoto.caption && (
+              <div className="px-4 py-2.5 bg-slate-800 text-xs text-slate-200 text-center border-t border-slate-700">
+                {previewPhoto.caption}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Custom Confirmation & Alert Dialog */}
       <ConfirmModal
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
