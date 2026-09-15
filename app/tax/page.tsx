@@ -387,33 +387,25 @@ export default function TaxPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-1.5">
                   <Calculator size={16} className="text-govblue-700" />
-                  1. เลือกทรัพย์สินสำหรับการคำนวณภาษีรายแห่ง
+                  1. เลือกประเภททรัพย์สิน
                 </h3>
-                <span className="text-xs text-gray-500">
-                  คำนวณแยกตามประเภททรัพย์สิน (ที่ดิน หรือ สิ่งปลูกสร้าง)
-                </span>
-              </div>
 
-              {/* Property Type Selector: ที่ดิน หรือ สิ่งปลูกสร้าง/สถานที่ */}
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-gray-700 mb-2">
-                  เลือกประเภททรัพย์สินที่ต้องการประเมินภาษี:
-                </label>
-                <div className="grid grid-cols-2 gap-3 max-w-md">
+                {/* Property Type Toggle Buttons on same row */}
+                <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200/60 self-start sm:self-auto">
                   <button
                     type="button"
                     onClick={() => {
                       setIndividualTargetType("land");
                       if (currentSelectedLand) applyLand(currentSelectedLand);
                     }}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition border ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                       individualTargetType === "land"
-                        ? "bg-emerald-700 text-white border-emerald-800 shadow-sm"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-emerald-50/50 hover:border-emerald-200"
+                        ? "bg-emerald-700 text-white shadow-xs"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/70"
                     }`}
                   >
-                    <TreePine size={16} />
-                    <span>🌱 แปลงที่ดิน (Land)</span>
+                    <TreePine size={14} />
+                    <span>🌱 แปลงที่ดิน</span>
                   </button>
 
                   <button
@@ -422,14 +414,14 @@ export default function TaxPage() {
                       setIndividualTargetType("building");
                       if (currentSelectedBuilding) applyBuilding(currentSelectedBuilding);
                     }}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition border ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                       individualTargetType === "building"
-                        ? "bg-blue-700 text-white border-blue-800 shadow-sm"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-blue-50/50 hover:border-blue-200"
+                        ? "bg-blue-700 text-white shadow-xs"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/70"
                     }`}
                   >
-                    <Building2 size={16} />
-                    <span>🏢 สิ่งปลูกสร้าง / สถานที่ (Building)</span>
+                    <Building2 size={14} />
+                    <span>🏢 สิ่งปลูกสร้าง / สถานที่</span>
                   </button>
                 </div>
               </div>
