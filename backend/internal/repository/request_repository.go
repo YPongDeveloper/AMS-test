@@ -81,7 +81,7 @@ func (r *RequestRepository) List(ctx context.Context, status *string) ([]model.R
 	}
 	defer rows.Close()
 
-	var list []model.RevisionRequest
+	list := make([]model.RevisionRequest, 0)
 	for rows.Next() {
 		req, err := scanRequest(rows)
 		if err != nil {

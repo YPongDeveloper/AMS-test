@@ -451,27 +451,27 @@ export default function TasksPage() {
   const loadTeam = useCallback(async () => {
     try {
       const data = await fetchMyTeam();
-      setMyTeam(data);
+      setMyTeam(Array.isArray(data) ? data : []);
     } catch {
-      /* ignore */
+      setMyTeam([]);
     }
   }, []);
 
   const loadInvitations = useCallback(async () => {
     try {
       const data = await fetchMyInvitations();
-      setMyInvitations(data);
+      setMyInvitations(Array.isArray(data) ? data : []);
     } catch {
-      /* ignore */
+      setMyInvitations([]);
     }
   }, []);
 
   const loadRevisionRequests = useCallback(async () => {
     try {
       const data = await fetchRevisionRequests();
-      setRevisionRequests(data);
+      setRevisionRequests(Array.isArray(data) ? data : []);
     } catch {
-      /* ignore */
+      setRevisionRequests([]);
     }
   }, []);
 
@@ -734,7 +734,8 @@ export default function TasksPage() {
 
   const loadUsers = useCallback(async () => {
     try {
-      setUsers(await api<AppUser[]>("/api/users"));
+      const res = await api<AppUser[]>("/api/users");
+      setUsers(Array.isArray(res) ? res : []);
     } catch {
       // Mock users fallback
       setUsers([
@@ -1078,42 +1079,45 @@ export default function TasksPage() {
           </div>
 
           {/* Subordinate Team Invitation Banner */}
-          {!isSup && myInvitations.length > 0 && (
+          {!isSup && (Array.isArray(myInvitations) ? myInvitations : []).length > 0 && (
             <div className="space-y-2 mb-2 animate-in fade-in">
-              {myInvitations.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-govblue-700 text-white flex items-center justify-center shrink-0 shadow-xs">
-                      <Users size={20} />
+              {(Array.isArray(myInvitations) ? myInvitations : []).map((inv) => {
+                if (!inv) return null;
+                return (
+                  <div
+                    key={inv.id || inv.supervisor_public_id}
+                    className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-govblue-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Users size={20} />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-govblue-900">
+                          คำเชิญเข้าร่วมทีมสำรวจ (Team Invitation)
+                        </div>
+                        <div className="text-xs text-govblue-700 mt-0.5">
+                          หัวหน้างาน <span className="font-semibold text-gray-900">{inv.supervisor_name}</span> ได้ส่งคำเชิญให้ท่านเข้าร่วมทีม
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-bold text-govblue-900">
-                        คำเชิญเข้าร่วมทีมสำรวจ (Team Invitation)
-                      </div>
-                      <div className="text-xs text-govblue-700 mt-0.5">
-                        หัวหน้างาน <span className="font-semibold text-gray-900">{inv.supervisor_name}</span> ได้ส่งคำเชิญให้ท่านเข้าร่วมทีม
-                      </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <button
+                        onClick={() => handleRespondInvitation(inv.supervisor_public_id, "accepted")}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 transition"
+                      >
+                        <Check size={14} /> ยอมรับเข้าร่วมทีม
+                      </button>
+                      <button
+                        onClick={() => handleRespondInvitation(inv.supervisor_public_id, "declined")}
+                        className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-xs font-medium transition"
+                      >
+                        ปฏิเสธ
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      onClick={() => handleRespondInvitation(inv.supervisor_public_id, "accepted")}
-                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 transition"
-                    >
-                      <Check size={14} /> ยอมรับเข้าร่วมทีม
-                    </button>
-                    <button
-                      onClick={() => handleRespondInvitation(inv.supervisor_public_id, "declined")}
-                      className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-xs font-medium transition"
-                    >
-                      ปฏิเสธ
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1315,7 +1319,7 @@ export default function TasksPage() {
                     <ClipboardList size={15} />
                     {t("งานที่ฉันสั่ง", "Tasks I Assigned")}
                     <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-white/20">
-                      {tasks.filter((t) => t.assigner_public_id === me.public_id || isSup).length}
+                      {(Array.isArray(tasks) ? tasks : []).filter((t) => t && (t.assigner_public_id === me?.public_id || isSup)).length}
                     </span>
                   </button>
 
@@ -1541,7 +1545,7 @@ export default function TasksPage() {
                   </select>
                 </div>
               ))}
-              {users.length === 0 && (
+              {(Array.isArray(users) ? users : []).length === 0 && (
                 <div className="px-4 py-8 text-center text-sm text-gray-400">
                   {t("ยังไม่มีสมาชิกในระบบ", "No members yet")}
                 </div>
@@ -2105,60 +2109,68 @@ export default function TasksPage() {
             </form>
 
             {/* Team Members List */}
-            <div>
-              <div className="text-xs font-bold text-gray-800 mb-2 flex items-center justify-between">
-                <span>รายชื่อสมาชิกในทีมของคุณ</span>
-                <span className="text-gray-400 font-normal">({myTeam.length} คน)</span>
-              </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-2">
-                {myTeam.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-gray-400 border border-dashed rounded-xl">
-                    ยังไม่มีสมาชิกในทีม เชิญพนักงานสำรวจโดยกรอกชื่อผู้ใช้งานด้านบน
+            {(() => {
+              const safeTeam = Array.isArray(myTeam) ? myTeam : [];
+              return (
+                <div>
+                  <div className="text-xs font-bold text-gray-800 mb-2 flex items-center justify-between">
+                    <span>รายชื่อสมาชิกในทีมของคุณ</span>
+                    <span className="text-gray-400 font-normal">({safeTeam.length} คน)</span>
                   </div>
-                ) : (
-                  myTeam.map((m) => (
-                    <div
-                      key={m.id}
-                      className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-semibold text-gray-900 truncate">
-                          {m.subordinate_name || m.subordinate_username}
-                        </div>
-                        <div className="text-[11px] text-gray-500">@{m.subordinate_username}</div>
-                      </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            m.status === "accepted"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : m.status === "declined"
-                              ? "bg-rose-100 text-rose-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {m.status === "accepted"
-                            ? "✓ เข้าร่วมแล้ว"
-                            : m.status === "declined"
-                            ? "✕ ปฏิเสธ"
-                            : "⏳ รอการตอบรับ"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "")}
-                          className="text-gray-400 hover:text-rose-600 p-1"
-                          title="นำออกจากทีม"
-                        >
-                          <X size={14} />
-                        </button>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {safeTeam.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-gray-400 border border-dashed rounded-xl">
+                        ยังไม่มีสมาชิกในทีม เชิญพนักงานสำรวจโดยกรอกชื่อผู้ใช้งานด้านบน
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+                    ) : (
+                      safeTeam.map((m) => {
+                        if (!m) return null;
+                        return (
+                          <div
+                            key={m.id || m.subordinate_public_id}
+                            className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold text-gray-900 truncate">
+                                {m.subordinate_name || m.subordinate_username}
+                              </div>
+                              <div className="text-[11px] text-gray-500">@{m.subordinate_username}</div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                  m.status === "accepted"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : m.status === "declined"
+                                    ? "bg-rose-100 text-rose-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {m.status === "accepted"
+                                  ? "✓ เข้าร่วมแล้ว"
+                                  : m.status === "declined"
+                                  ? "✕ ปฏิเสธ"
+                                  : "⏳ รอการตอบรับ"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "")}
+                                className="text-gray-400 hover:text-rose-600 p-1"
+                                title="นำออกจากทีม"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="pt-2 border-t border-gray-100 flex justify-end">
               <button
@@ -2239,8 +2251,8 @@ export default function TasksPage() {
                       <span className="opacity-75">
                         (
                         {st.id === "all"
-                          ? revisionRequests.length
-                          : revisionRequests.filter((r) => r.status === st.id).length}
+                          ? (Array.isArray(revisionRequests) ? revisionRequests : []).length
+                          : (Array.isArray(revisionRequests) ? revisionRequests : []).filter((r) => r && r.status === st.id).length}
                         )
                       </span>
                     </button>
@@ -2288,7 +2300,9 @@ export default function TasksPage() {
 
             {/* Request Items List */}
             {(() => {
-              const filteredRequests = revisionRequests.filter((req) => {
+              const safeRequests = Array.isArray(revisionRequests) ? revisionRequests : [];
+              const filteredRequests = safeRequests.filter((req) => {
+                if (!req) return false;
                 if (reqStatusFilter !== "all" && req.status !== reqStatusFilter) return false;
                 if (reqTypeFilter !== "all" && req.target_type !== reqTypeFilter) return false;
                 if (reqSearch.trim()) {
