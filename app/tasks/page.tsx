@@ -156,7 +156,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       title: "สำรวจรังวัดแนวเขตแปลงที่ดิน ย่านสถานีรถไฟอยุธยา",
       task_type: "survey",
       description:
-        "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน รฟท. และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา เพื่อนำข้อมูลเข้าสู่ระบบบริหารจัดการทรัพย์สิน รฟท. ตามมาตรฐานปี 2569 พร้อมทั้งตรวจสอบหลักหมุดคอนกรีตว่ามีสภาพสมบูรณ์หรือไม่",
+        "ตรวจสอบแนวเขตกรรมสิทธิ์ที่ดิน และบันทึกพิกัด GPS พร้อมขนาด ไร่-งาน-ตารางวา เพื่อนำข้อมูลเข้าสู่ระบบจัดการคำนวนภาษี ตามมาตรฐานปี 2569 พร้อมทั้งตรวจสอบหลักหมุดคอนกรีตว่ามีสภาพสมบูรณ์หรือไม่",
       status: "in_progress",
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -165,7 +165,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       due_at: `${today}T16:30:00`,
       lat: 14.3532,
       lng: 100.5828,
-      place_name: "สถานีรถไฟอยุธยา (ย่านสินค้า รฟท.)",
+      place_name: "สถานีอยุธยา (ย่านคลังสินค้า)",
       created_at: `${today}T08:30:00`,
       updated_at: `${today}T09:15:00`,
     },
@@ -175,7 +175,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       title: "ตรวจสอบสภาพอาคารสิ่งปลูกสร้าง ย่านกลางบางซื่อ",
       task_type: "inspect",
       description:
-        "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบ AMS รฟท. รวมถึงประเมินสภาพความมั่นคงแข็งแรงของตัวโครงสร้าง และตรวจสอบการขอใช้พื้นที่ของผู้เช่า",
+        "ถ่ายรูป 4 ทิศ และตรวจนับจำนวนชั้น ขนาดพื้นที่ เพื่อบันทึกเข้าสู่ระบบจัดการคำนวนภาษี รวมถึงประเมินสภาพความมั่นคงแข็งแรงของตัวโครงสร้าง และตรวจสอบการขอใช้พื้นที่ของผู้เช่า",
       status: "pending",
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -288,7 +288,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       title: "ตรวจสอบสัญญาเช่าที่ดินแปลงย่อย ย่านตลาดพลู",
       task_type: "inspect",
       description:
-        "ตรวจวัดขนาดพื้นที่เช่าแผงค้าและร้านอาหารริมทางรถไฟ เปรียบเทียบกับแบบแปลนสัญญาเช่า รฟท. บันทึกผลตรวจเรียบร้อย",
+        "ตรวจวัดขนาดพื้นที่เช่าแผงค้าและร้านอาหารริมทาง เปรียบเทียบกับแบบแปลนสัญญาเช่า บันทึกผลตรวจเรียบร้อย",
       status: "done",
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -326,7 +326,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       title: "รังวัดแนวเขตที่ดินสถานีรถไฟธนบุรี (ศิริราช)",
       task_type: "survey",
       description:
-        "สำรวจรังวัดแนวเขตที่ดินติดริมคลองบางกอกน้อย ตรวจสอบหลักเขตและแนวเขื่อนกันดินของ รฟท. พร้อมบันทึกภาพถ่ายสภาพพื้นที่",
+        "สำรวจรังวัดแนวเขตที่ดินติดริมคลองบางกอกน้อย ตรวจสอบหลักเขตและแนวเขื่อนกันดิน พร้อมบันทึกภาพถ่ายสภาพพื้นที่",
       status: "in_progress",
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -385,7 +385,7 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       title: "ตรวจสอบอาคารที่พักอาศัยพนักงาน ย่านสถานีศาลายา",
       task_type: "inspect",
       description:
-        "ตรวจเช็กสภาพอาคารบ้านพักสวัสดิการพนักงาน รฟท. สำรวจความชำรุดเสียหายเพื่อเสนอของบประมาณซ่อมบำรุงประจำปี",
+        "ตรวจเช็กสภาพอาคารบ้านพักสวัสดิการพนักงาน สำรวจความชำรุดเสียหายเพื่อเสนอของบประมาณซ่อมบำรุงประจำปี",
       status: "done",
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
@@ -4139,7 +4139,7 @@ export default function TasksPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-gray-500 block">ประเภท รฟท.</label>
+                                  <label className="text-[10px] text-gray-500 block">ประเภทที่ดิน</label>
                                   <input
                                     value={item.srt_land_type}
                                     onChange={(e) => handleBatchFieldChange(idx, "srt_land_type", e.target.value)}
@@ -4538,7 +4538,7 @@ export default function TasksPage() {
                             <tr>
                               <th className="p-2">รหัสที่ดิน</th>
                               <th className="p-2">โฉนด</th>
-                              <th className="p-2">ประเภท รฟท.</th>
+                              <th className="p-2">ประเภทที่ดิน</th>
                               <th className="p-2">การใช้ประโยชน์</th>
                               <th className="p-2">เนื้อที่ (ไร่-งาน-วา)</th>
                               <th className="p-2">ที่ตั้ง</th>
@@ -4805,7 +4805,7 @@ export default function TasksPage() {
                                 <th className="p-2.5">รหัสที่ดิน</th>
                                 <th className="p-2.5">เลขที่โฉนด</th>
                                 <th className="p-2.5">ที่ตั้ง / สถานที่</th>
-                                <th className="p-2.5">ประเภท รฟท.</th>
+                                <th className="p-2.5">ประเภทที่ดิน</th>
                                 <th className="p-2.5">การใช้ประโยชน์</th>
                                 <th className="p-2.5">เนื้อที่ (ไร่-งาน-วา)</th>
                                 <th className="p-2.5">ขนาด กว้าง×ยาว</th>

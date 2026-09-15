@@ -533,7 +533,7 @@ export default function BuildingPage() {
                 <option value="">— ทุกแปลงที่ดิน —</option>
                 {lands.map((l) => (
                   <option key={l.public_id} value={l.land_code}>
-                    {l.land_code} ({l.srt_land_type || "รฟท."})
+                    {l.land_code} ({l.srt_land_type || "แปลงที่ดิน"})
                   </option>
                 ))}
               </select>
@@ -576,7 +576,7 @@ export default function BuildingPage() {
                 ฿{bldgTaxStats.formattedBaseValue}
               </span>
               <span className="text-[11px] text-gray-400 block mt-0.5">
-                คิดจากราคาประเมินทุนทรัพย์สิ่งปลูกสร้าง รฟท.
+                คิดจากราคาประเมินทุนทรัพย์สิ่งปลูกสร้าง
               </span>
             </div>
             <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl shadow-2xs">
@@ -948,7 +948,7 @@ export default function BuildingPage() {
                         <option value="">— เลือกแปลงที่ดิน —</option>
                         {lands.map((l) => (
                           <option key={l.public_id} value={l.land_code}>
-                            {l.land_code} ({l.srt_land_type || "รฟท."})
+                            {l.land_code} ({l.srt_land_type || "แปลงที่ดิน"})
                           </option>
                         ))}
                       </Select>
@@ -1022,11 +1022,11 @@ export default function BuildingPage() {
                       </div>
                       <div className="grid sm:grid-cols-2 gap-3">
                         <div className="sm:col-span-2">
-                          <Field label="เลขที่ / อาคาร / ห้อง / ถนน / ซอย" hint="เช่น 1 อาคารบริหาร รฟท. หรือ 234/12 อาคารเอ">
+                          <Field label="เลขที่ / อาคาร / ห้อง / ถนน / ซอย" hint="เช่น 1 อาคารสำนักงานบริหาร หรือ 234/12 อาคารเอ">
                             <Input
                               value={addressNo}
                               onChange={(e) => setAddressNo(e.target.value)}
-                              placeholder="เช่น 1 อาคารบริหาร รฟท."
+                              placeholder="เช่น 1 อาคารสำนักงานบริหาร"
                             />
                           </Field>
                         </div>
@@ -1216,7 +1216,7 @@ export default function BuildingPage() {
                   คุณลักษณะสิ่งปลูกสร้าง 51 Attribute
                 </h4>
                 <p className="text-xs text-blue-100 leading-relaxed">
-                  ตรงตามมาตรฐานข้อมูลสำรวจ รฟท. ประกอบด้วยข้อมูลพื้นฐาน, โครงสร้าง 69 แบบ, รายละเอียดแต่ละชั้น 1-10 และรูปถ่าย 4 ทิศ
+                  ตรงตามมาตรฐานข้อมูลสำรวจ ประกอบด้วยข้อมูลพื้นฐาน, โครงสร้าง 69 แบบ, รายละเอียดแต่ละชั้น 1-10 และรูปถ่าย 4 ทิศ
                 </p>
               </Card>
 

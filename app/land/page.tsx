@@ -186,7 +186,7 @@ export default function LandPage() {
     const headers = [
       "รหัสที่ดิน (Land_Code)",
       "เลขที่โฉนด",
-      "ประเภท รฟท.",
+      "ประเภทที่ดิน",
       "การใช้ประโยชน์",
       "สถานที่ตั้ง/เลขที่",
       "ตำบล/แขวง",
@@ -503,7 +503,7 @@ export default function LandPage() {
                 ฿{landTaxStats.formattedBaseValue}
               </span>
               <span className="text-[11px] text-gray-400 block mt-0.5">
-                คิดจากราคาประเมินทุนทรัพย์ที่ดิน รฟท.
+                คิดจากราคาประเมินทุนทรัพย์ที่ดิน
               </span>
             </div>
             <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl shadow-2xs">
@@ -526,7 +526,7 @@ export default function LandPage() {
                     <th className="p-3 text-center w-12">ลำดับ</th>
                     <th className="p-3">รหัสที่ดิน</th>
                     <th className="p-3">เลขที่โฉนด</th>
-                    <th className="p-3">ประเภท รฟท.</th>
+                    <th className="p-3">ประเภทที่ดิน</th>
                     <th className="p-3">การใช้ประโยชน์</th>
                     <th className="p-3 text-right">เนื้อที่ (ไร่-งาน-วา)</th>
                     <th className="p-3 text-right">เนื้อที่รวม (ตร.ว.)</th>
@@ -570,7 +570,7 @@ export default function LandPage() {
                           <td className="p-3 text-gray-700">{l.deed_no || "-"}</td>
                           <td className="p-3">
                             <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]">
-                              {l.srt_land_type || "รฟท."}
+                              {l.srt_land_type || "แปลงที่ดิน"}
                             </span>
                           </td>
                           <td className="p-3 text-gray-700">{tx.useType}</td>
@@ -718,7 +718,7 @@ export default function LandPage() {
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs font-medium">
-                        {l.srt_land_type || "รฟท."}
+                        {l.srt_land_type || "แปลงที่ดิน"}
                       </span>
                     </div>
 
@@ -890,12 +890,12 @@ export default function LandPage() {
                     placeholder="เช่น 12345/2540"
                   />
                 </Field>
-                <Field label="ประเภทการใช้ประโยชน์ (SRT_Land_Type)" hint="Text 50">
+                <Field label="ประเภทการใช้ประโยชน์ (Land_Type)" hint="Text 50">
                   <Select value={srtLandType} onChange={(e) => setSrtLandType(e.target.value)}>
                     <option value="">— เลือกประเภท —</option>
                     <option value="ที่ดินเชิงพาณิชย์">ที่ดินเชิงพาณิชย์</option>
                     <option value="ที่ดินสถานี">ที่ดินสถานี</option>
-                    <option value="ที่ดินทางรถไฟ">ที่ดินทางรถไฟ</option>
+                    <option value="ที่ดินเขตทางสัญจร">ที่ดินเขตทางสัญจร</option>
                     <option value="ที่ดินสาธารณูปโภค">ที่ดินสาธารณูปโภค</option>
                     <option value="ที่ดินว่างเปล่า">ที่ดินว่างเปล่า</option>
                   </Select>
@@ -917,7 +917,7 @@ export default function LandPage() {
                     <option value="น.ส.3">น.ส.3</option>
                     <option value="น.ส.3 ก.">น.ส.3 ก.</option>
                     <option value="ส.ป.ก.">ส.ป.ก.</option>
-                    <option value="ที่ดินกรรมสิทธิ์ รฟท.">ที่ดินกรรมสิทธิ์ รฟท.</option>
+                    <option value="ที่ดินกรรมสิทธิ์รัฐ">ที่ดินกรรมสิทธิ์รัฐ</option>
                   </Select>
                 </Field>
                 <div className="sm:col-span-2 bg-govblue-50/50 p-3 rounded-lg border border-govblue-100">
@@ -1084,7 +1084,7 @@ export default function LandPage() {
                 คุณลักษณะชั้นข้อมูลที่ดิน
               </h4>
               <p className="text-xs text-blue-100 leading-relaxed">
-                ตามข้อกำหนดระบบสารสนเทศภูมิศาสตร์และการคำนวณภาษี รฟท. รหัสและขนาดพื้นที่ที่บันทึกจะถูกนำไปเชื่อมโยงกับสิ่งปลูกสร้างและคำนวณภาษีประจำปีอัตโนมัติ
+                ตามข้อกำหนดระบบสารสนเทศภูมิศาสตร์และการคำนวณภาษี รหัสและขนาดพื้นที่ที่บันทึกจะถูกนำไปเชื่อมโยงกับสิ่งปลูกสร้างและคำนวณภาษีประจำปีอัตโนมัติ
               </p>
             </Card>
 

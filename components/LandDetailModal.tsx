@@ -54,7 +54,7 @@ export default function LandDetailModal({
               <h2 className="text-sm sm:text-base font-bold flex items-center gap-2 flex-wrap">
                 <span className="truncate">แปลงที่ดิน: {land.land_code}</span>
                 <span className="text-[10px] sm:text-[11px] font-normal px-2 py-0.5 rounded-full bg-govblue-800 text-govgold-300 border border-govgold-500/30 whitespace-nowrap shrink-0">
-                  {land.srt_land_type || "ที่ดิน รฟท."}
+                  {land.srt_land_type || "แปลงที่ดิน"}
                 </span>
               </h2>
               <p className="text-[11px] sm:text-xs text-govblue-200 truncate">

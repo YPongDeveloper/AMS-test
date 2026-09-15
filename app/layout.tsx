@@ -4,13 +4,13 @@ import { I18nProvider } from "@/lib/i18n";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "SRT Asset Management",
-  description: "ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง การรถไฟแห่งประเทศไทย",
+  title: "ระบบจัดการคำนวนภาษี",
+  description: "ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง ระบบจัดการคำนวนภาษี",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SRT Asset",
+    title: "ระบบจัดการคำนวนภาษี",
   },
   icons: {
     icon: [{ url: "/icon-192.png" }, { url: "/icon-512.png" }],

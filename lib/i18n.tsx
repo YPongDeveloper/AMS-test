@@ -7,8 +7,8 @@ type Lang = "th" | "en";
 const dict: Record<string, { th: string; en: string }> = {
   // App / brand
   appTitle: { th: "ระบบบริหารจัดการทรัพย์สิน", en: "Land & Building Asset Management" },
-  orgName: { th: "การรถไฟแห่งประเทศไทย", en: "State Railway of Thailand" },
-  orgSub: { th: "กระทรวงคมนาคม", en: "Ministry of Transport" },
+  orgName: { th: "ระบบจัดการคำนวนภาษี", en: "Tax Management System" },
+  orgSub: { th: "ระบบคำนวณและบริหารภาษีที่ดินและสิ่งปลูกสร้าง", en: "Land & Building Tax Management System" },
   // Nav
   navDashboard: { th: "แดชบอร์ด", en: "Dashboard" },
   navLand: { th: "สำรวจแปลงที่ดิน", en: "Land Survey" },
@@ -29,7 +29,7 @@ const dict: Record<string, { th: string; en: string }> = {
   loginUsername: { th: "ชื่อผู้ใช้ / รหัสพนักงาน", en: "Username / Employee ID" },
   loginPassword: { th: "รหัสผ่าน", en: "Password" },
   loginSignIn: { th: "เข้าสู่ระบบ", en: "Sign in" },
-  loginHint: { th: "ใช้บัญชี SSO ของ การรถไฟฯ", en: "Use your SRT SSO account" },
+  loginHint: { th: "ใช้บัญชีเข้าสู่ระบบ", en: "Use your system account" },
   // Dashboard
   dashTitle: { th: "ภาพรวมทรัพย์สิน", en: "Asset Overview" },
   dashSub: { th: "ข้อมูล ณ วันที่ 10 กันยายน 2569", en: "As of 10 September 2026" },
@@ -51,7 +51,7 @@ const dict: Record<string, { th: string; en: string }> = {
   // Land
   landTitle: { th: "บันทึกข้อมูลแปลงที่ดิน", en: "Land Parcel Record" },
   landCode: { th: "รหัสประจำที่ดิน", en: "Land Code" },
-  landSrtType: { th: "ประเภทการใช้ประโยชน์ที่ดิน", en: "SRT Land Use Type" },
+  landSrtType: { th: "ประเภทการใช้ประโยชน์ที่ดิน", en: "Land Use Type" },
   landUse: { th: "ลักษณะการใช้ประโยชน์", en: "Land Use" },
   landType: { th: "ประเภทที่ดิน", en: "Land Type" },
   landDeed: { th: "เลขที่โฉนดที่ดิน", en: "Deed No." },

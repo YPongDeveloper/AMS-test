@@ -214,7 +214,7 @@ export default function TaxPage() {
         type: "land",
         code: l.land_code,
         name: l.land_type ? `${l.srt_land_type || ""} (${l.land_type})` : (l.srt_land_type || l.land_code),
-        srtType: l.srt_land_type || "ที่ดิน รฟท.",
+        srtType: l.srt_land_type || "แปลงที่ดิน",
         useType: taxRes.useType,
         refInfo: l.deed_no ? `โฉนด ${l.deed_no}` : "-",
         address: formatShortAddress(l),
@@ -240,7 +240,7 @@ export default function TaxPage() {
         type: "building",
         code: b.bldg_code,
         name: b.name || b.bldg_code,
-        srtType: b.bld_condition_type || b.material_type || "สิ่งปลูกสร้าง รฟท.",
+        srtType: b.bld_condition_type || b.material_type || "สิ่งปลูกสร้าง",
         useType: taxRes.useType,
         refInfo: b.land_code ? `แปลง ${b.land_code}` : "-",
         address: formatShortAddress(b),
@@ -358,7 +358,7 @@ export default function TaxPage() {
     setReqTargetType("land");
     setReqTargetId(l.public_id);
     setReqTargetCode(l.land_code);
-    setReqTargetName(l.deed_no ? `โฉนด: ${l.deed_no}` : (l.srt_land_type || "แปลงที่ดิน รฟท."));
+    setReqTargetName(l.deed_no ? `โฉนด: ${l.deed_no}` : (l.srt_land_type || "แปลงที่ดิน"));
     setReqType("revision");
     setReqRemarks("");
     setRequestModalOpen(true);
@@ -500,7 +500,7 @@ export default function TaxPage() {
                         <option value="">— เลือกแปลงที่ดิน —</option>
                         {lands.map((l) => (
                           <option key={l.public_id} value={l.land_code}>
-                            {l.land_code} (โฉนด: {l.deed_no || "-"} • {l.srt_land_type || "ที่ดิน รฟท."})
+                            {l.land_code} (โฉนด: {l.deed_no || "-"} • {l.srt_land_type || "แปลงที่ดิน"})
                           </option>
                         ))}
                       </Select>
@@ -761,9 +761,9 @@ export default function TaxPage() {
 
             <Card className="p-3 text-[11px] text-gray-500">
               <div className="flex items-center gap-1 font-semibold text-govblue-700 mb-1">
-                <FileText size={12} /> อ้างอิงข้อกำหนด รฟท.
+                <FileText size={12} /> อ้างอิงข้อกำหนดการประเมินภาษี
               </div>
-              ข้อมูล{isLandTarget ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}เชื่อมโยงจากฐานข้อมูลสำรวจ รฟท.
+              ข้อมูล{isLandTarget ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}เชื่อมโยงจากฐานข้อมูลสำรวจ
               สามารถนำไปใช้ในกระบวนการจัดเก็บรายได้และการยื่นแบบประเมินภาษีต่อไป
             </Card>
           </div>
