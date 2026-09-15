@@ -100,13 +100,13 @@ export default function TaxInvoiceModal({
               </div>
               <div>
                 <h1 className="text-lg sm:text-xl font-black tracking-tight text-govblue-950">
-                  การรถไฟแห่งประเทศไทย (รฟท.)
+                  ระบบจัดการคำนวนภาษี
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                  สำนักงานบริหารทรัพย์สิน ฝ่ายการเงินและบัญชี
+                  สำนักงานบริหารจัดการภาษีและทรัพย์สิน
                 </p>
                 <p className="text-[11px] text-gray-500">
-                  เลขที่ 1 ถนนรองเมือง แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330
+                  ฝ่ายการเงินและบัญชี
                 </p>
               </div>
             </div>
@@ -141,13 +141,13 @@ export default function TaxInvoiceModal({
               </div>
               <div>
                 <span className="text-gray-500 font-medium">หน่วยงานผู้ประเมิน:</span>{" "}
-                <span className="font-semibold text-gray-800">กองบริหารจัดการทรัพย์สิน รฟท.</span>
+                <span className="font-semibold text-gray-800">สำนักงานบริหารจัดการภาษีและทรัพย์สิน</span>
               </div>
             </div>
             <div>
               <div className="mb-1.5">
                 <span className="text-gray-500 font-medium">ผู้มีหน้าที่เสียภาษี/ผู้เช่า:</span>{" "}
-                <span className="font-bold text-gray-900">ผู้ครอบครอง/ผู้เช่าพื้นที่รถไฟ</span>
+                <span className="font-bold text-gray-900">ผู้ครอบครอง/ผู้เช่าพื้นที่</span>
               </div>
               <div className="mb-1.5">
                 <span className="text-gray-500 font-medium">เลขประจำตัวผู้เสียภาษี:</span>{" "}
@@ -192,7 +192,7 @@ export default function TaxInvoiceModal({
                       <td className="p-2.5 border-r border-gray-200">
                         <div className="font-bold text-govblue-900">{land.land_code}</div>
                         <div className="text-[11px] text-gray-500">
-                          โฉนดเลขที่: {land.deed_no || "-"} • ประเภท: {land.srt_land_type || "ที่ดิน รฟท."}
+                          โฉนดเลขที่: {land.deed_no || "-"} • ประเภท: {land.srt_land_type || "แปลงที่ดิน"}
                         </div>
                         {formatFullAddress(land) !== "-" && (
                           <div className="text-[10px] text-gray-600 mt-0.5">
@@ -289,7 +289,7 @@ export default function TaxInvoiceModal({
                 <CheckCircle2 size={14} className="text-emerald-600" /> วิธีการชำระเงินและเงื่อนไข
               </h4>
               <p className="text-gray-600 leading-relaxed">
-                1. สามารถชำระเงินได้ที่ <strong>ฝ่ายการเงินและบัญชี สำนักงานบริหารทรัพย์สิน รฟท.</strong> ทุกวันทำการ
+                1. สามารถชำระเงินได้ที่ <strong>ฝ่ายการเงินและบัญชี สำนักงานบริหารจัดการภาษีและทรัพย์สิน</strong> ทุกวันทำการ
               </p>
               <p className="text-gray-600 leading-relaxed">
                 2. ชำระผ่านเคาน์เตอร์ธนาคารกรุงไทย ทุกสาขา หรือ สแกนชำระผ่านระบบ PromptPay Cross-Bank Bill Payment
@@ -319,7 +319,7 @@ export default function TaxInvoiceModal({
               <div className="h-10"></div>
               <p className="border-b border-gray-400 w-44 mx-auto mb-1"></p>
               <p className="font-bold text-gray-800">(........................................................)</p>
-              <p className="text-[11px] text-gray-500">ผู้อำนวยการฝ่ายบริหารทรัพย์สิน รฟท.</p>
+              <p className="text-[11px] text-gray-500">ผู้อำนวยการฝ่ายบริหารจัดการภาษีและทรัพย์สิน</p>
             </div>
           </div>
         </div>
@@ -327,7 +327,7 @@ export default function TaxInvoiceModal({
         {/* Modal Footer (Hidden during print) */}
         <div className="px-6 py-3.5 bg-gray-100 border-t border-gray-200 flex items-center justify-between print:hidden">
           <span className="text-xs text-gray-500">
-            เอกสารนี้จัดพิมพ์โดยระบบบริหารทรัพย์สิน รฟท. (AMS System)
+            เอกสารนี้จัดพิมพ์โดยระบบจัดการคำนวนภาษี (Tax Management System)
           </span>
           <div className="flex items-center gap-2">
             <button

@@ -10,7 +10,7 @@
 
 ## ภาพรวมโปรเจค
 
-ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง การรถไฟแห่งประเทศไทย (SRT) — ระบบเว็บแอปพลิเคชัน & PWA เต็มรูปแบบ (สำรวจที่ดิน 9 Attribute, สิ่งปลูกสร้าง 51 Attribute, คำนวณภาษีตาม พ.ร.บ. 2562, งานสั่งงาน Realtime) + Go backend + Postgres (Supabase) + สถาปัตยกรรมแบบ Standalone Web App (Username/Password JWT Auth พร้อม Quick Sign-in + WebSocket Hub)
+ระบบบริหารจัดการทรัพย์สินที่ดินและสิ่งปลูกสร้าง ระบบจัดการคำนวนภาษี (Tax Management System) — ระบบเว็บแอปพลิเคชัน & PWA เต็มรูปแบบ (สำรวจที่ดิน 9 Attribute, สิ่งปลูกสร้าง 51 Attribute, คำนวณภาษีตาม พ.ร.บ. 2562, งานสั่งงาน Realtime) + Go backend + Postgres (Supabase) + สถาปัตยกรรมแบบ Standalone Web App (Username/Password JWT Auth พร้อม Quick Sign-in + WebSocket Hub)
 
 - **Repo**: https://github.com/YPongDeveloper/AMS-test (public, branch `main`, push = auto-deploy ทั้ง Vercel และ Render)
 - **ภาษาผู้ใช้**: ไทยเป็นหลัก (i18n TH/EN ผ่าน `lib/i18n.tsx`)

@@ -636,7 +636,7 @@ const MOCK_BUILDINGS: Building[] = [
     picture_b: "",
     picture_r: "",
     picture_l: "",
-    address_no: "1 อาคารบริหาร รฟท.",
+    address_no: "1 อาคารสำนักงานบริหาร",
     subdistrict: "รองเมือง",
     district: "ปทุมวัน",
     province: "กรุงเทพมหานคร",

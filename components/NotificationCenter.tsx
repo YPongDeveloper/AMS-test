@@ -173,7 +173,7 @@ export function NotificationCenter({ currentUser }: { currentUser?: AppUser | nu
                 type: "invitation",
                 title: th ? "คำเชิญเข้าร่วมทีมสำรวจ (Team Invitation)" : "Team Invitation",
                 message: th
-                  ? `หัวหน้างาน ${inv.supervisor_name} ได้ส่งคำเชิญให้ท่านเข้าร่วมทีมสำรวจ รฟท.`
+                  ? `หัวหน้างาน ${inv.supervisor_name} ได้ส่งคำเชิญให้ท่านเข้าร่วมทีมสำรวจ`
                   : `Supervisor ${inv.supervisor_name} invited you to join the survey team.`,
                 time: inv.invited_at || new Date().toISOString(),
                 link: "/tasks?open=team",
