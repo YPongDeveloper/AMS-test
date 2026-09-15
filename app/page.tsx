@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
-import { Languages, ChevronRight, AlertCircle, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { Languages, ChevronRight, AlertCircle, ShieldCheck, UserCheck, Users, Calculator, ShieldAlert } from "lucide-react";
 import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, loginDemo, type AppUser } from "@/lib/api";
 import Logo from "@/components/Logo";
 
@@ -15,16 +15,42 @@ export default function LoginPage() {
   const [err, setErr] = useState("");
   const [isFetchError, setIsFetchError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reasonMsg, setReasonMsg] = useState<string | null>(null);
 
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
 
   function routeByRole(u: AppUser) {
-    if (u.role === "supervisor") router.replace("/tasks");
-    else if (u.role === "admin") router.replace("/admin");
+    if (u.role === "admin") router.replace("/admin");
+    else if (u.role === "supervisor") router.replace("/tasks");
+    else if (u.role === "accountant") router.replace("/tax");
     else router.replace("/dashboard");
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const r = sp.get("reason");
+      if (r === "unauthenticated") {
+        setReasonMsg(
+          lang === "th"
+            ? "กรุณาเข้าสู่ระบบก่อนทำรายการ (ตรวจไม่พบ Access Token / Refresh Token)"
+            : "Please sign in first (Access Token / Refresh Token missing)"
+        );
+      } else if (r === "session_expired") {
+        setReasonMsg(
+          lang === "th"
+            ? "เซสชันการใช้งานของคุณหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่เพื่อความปลอดภัย"
+            : "Your session has expired. Please sign in again for security."
+        );
+      } else if (r === "unauthorized") {
+        setReasonMsg(
+          lang === "th"
+            ? "บัญชีของคุณไม่มีสิทธิ์เข้าถึงหน้านั้น (Broken Access Control Protected)"
+            : "Access denied: your role does not have permission for that resource."
+        );
+      }
+    }
+
     if (getAccessToken()) {
       const u = getCurrentUser();
       if (u) {
@@ -107,6 +133,13 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
           <h1 className="text-lg font-semibold text-govblue-800 mb-5">{t("loginTitle")}</h1>
 
+          {reasonMsg && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 p-3 text-xs flex items-start gap-2 shadow-xs">
+              <ShieldAlert size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <span>{reasonMsg}</span>
+            </div>
+          )}
+
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="text-xs font-medium text-gray-700 mb-1.5 block">
@@ -116,7 +149,7 @@ export default function LoginPage() {
                 className={inputCls}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="ชื่อผู้ใช้งาน (admin / leader / normal)"
+                placeholder="ชื่อผู้ใช้งาน (admin / leader / normal / accountant)"
                 autoComplete="username"
                 required
               />
@@ -147,7 +180,14 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const targetRole = username === "admin" ? "admin" : username === "normal" ? "subordinate" : "supervisor";
+                        const targetRole =
+                          username === "admin"
+                            ? "admin"
+                            : username === "normal"
+                            ? "subordinate"
+                            : username === "accountant"
+                            ? "accountant"
+                            : "supervisor";
                         const u = loginDemo(targetRole);
                         routeByRole(u);
                       }}
@@ -182,7 +222,7 @@ export default function LoginPage() {
             <div className="text-[11px] font-medium text-gray-500 mb-2.5 text-center">
               เข้าสู่ระบบด่วนสำหรับการทดสอบ (Quick Sign-in)
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => quickLogin("admin", "admin")}
@@ -214,6 +254,17 @@ export default function LoginPage() {
                 <Users size={16} className="text-emerald-600 mb-1" />
                 <span className="text-[11px] font-semibold">เจ้าหน้าที่</span>
                 <span className="text-[9px] text-emerald-600/80">Field Officer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => quickLogin("accountant", "accountant")}
+                disabled={busy}
+                className="flex flex-col items-center p-2 rounded-lg border border-teal-200 bg-teal-50/50 hover:bg-teal-100/70 text-teal-800 transition text-center"
+              >
+                <Calculator size={16} className="text-teal-600 mb-1" />
+                <span className="text-[11px] font-semibold">พนักงานบัญชี</span>
+                <span className="text-[9px] text-teal-600/80">Accountant</span>
               </button>
             </div>
           </div>

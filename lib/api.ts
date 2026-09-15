@@ -5,7 +5,7 @@
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 export const API_CONFIGURED = API_URL.length > 0;
 
-export type Role = "admin" | "supervisor" | "subordinate";
+export type Role = "admin" | "supervisor" | "subordinate" | "accountant";
 
 export interface AppUser {
   public_id: string;
@@ -13,6 +13,7 @@ export interface AppUser {
   display_name: string;
   picture_url: string | null;
   role: Role;
+  status?: "active" | "resigned";
   created_at: string;
 }
 
@@ -59,6 +60,34 @@ export function getRefreshToken(): string | null {
   return window.localStorage.getItem(REFRESH_KEY);
 }
 
+export function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    // เผื่อเวลา 15 วินาทีก่อนหมดอายุจริง
+    return Date.now() >= (payload.exp - 15) * 1000;
+  } catch {
+    return true;
+  }
+}
+
+export function hasValidSession(): boolean {
+  if (typeof window === "undefined") return false;
+  const at = getAccessToken();
+  const rt = getRefreshToken();
+  const u = getCurrentUser();
+  if (u) {
+    if (!API_CONFIGURED) return true;
+    if (at && !isTokenExpired(at)) return true;
+    if (rt) return true;
+    if (u.public_id?.startsWith("mock-")) return true;
+  }
+  return false;
+}
+
 function saveTokens(access: string, refresh: string) {
   window.localStorage.setItem(ACCESS_KEY, access);
   window.localStorage.setItem(REFRESH_KEY, refresh);
@@ -88,7 +117,7 @@ interface Envelope<T> {
 let refreshing: Promise<boolean> | null = null;
 
 // ต่ออายุ access token ด้วย refresh token (single-flight)
-async function refreshTokens(): Promise<boolean> {
+export async function refreshTokens(): Promise<boolean> {
   if (refreshing) return refreshing;
   refreshing = (async () => {
     const rt = getRefreshToken();
@@ -99,10 +128,17 @@ async function refreshTokens(): Promise<boolean> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: rt }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        clearTokens();
+        return false;
+      }
       const env = (await res.json()) as Envelope<{ token: TokenPair; user: AppUser }>;
-      if (!env.data?.token) return false;
+      if (!env.data?.token) {
+        clearTokens();
+        return false;
+      }
       saveTokens(env.data.token.access_token, env.data.token.refresh_token);
+      if (env.data.user) saveCurrentUser(env.data.user);
       return true;
     } catch {
       return false;
@@ -113,8 +149,34 @@ async function refreshTokens(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit & { json?: unknown; skipAuthCheck?: boolean }): Promise<T> {
   if (!API_CONFIGURED) throw new ApiError("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_API_URL", 0);
+
+  const isAuthEndpoint = path.startsWith("/api/auth/login") || path.startsWith("/api/auth/refresh") || path === "/health";
+
+  // Broken Access Control Guard: ทุก Action ต้องมี at หรือ rt ที่ยังไม่หมดอายุ
+  if (!isAuthEndpoint && !init?.skipAuthCheck && typeof window !== "undefined") {
+    const at = getAccessToken();
+    const rt = getRefreshToken();
+    const u = getCurrentUser();
+
+    // ถ้าไม่มี at และ rt เลย แต่เป็น demo mock user ให้ผ่านได้
+    if (!at && !rt) {
+      if (!u || !u.public_id?.startsWith("mock-")) {
+        clearTokens();
+        window.location.href = "/?reason=unauthenticated";
+        throw new ApiError("กรุณาเข้าสู่ระบบก่อนทำรายการ", 401);
+      }
+    } else if (isTokenExpired(at) && rt) {
+      // Proactive refresh ก่อนส่ง Action เสมอ
+      const ok = await refreshTokens();
+      if (!ok) {
+        clearTokens();
+        window.location.href = "/?reason=session_expired";
+        throw new ApiError("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", 401);
+      }
+    }
+  }
 
   const doFetch = async (): Promise<Response> => {
     const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) };
@@ -135,7 +197,12 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const ok = await refreshTokens();
     if (ok) res = await doFetch();
   }
-  if (res.status === 401) clearTokens();
+  if (res.status === 401) {
+    clearTokens();
+    if (typeof window !== "undefined" && !isAuthEndpoint) {
+      window.location.href = "/?reason=session_expired";
+    }
+  }
 
   const env = (await res.json().catch(() => null)) as Envelope<T> | null;
   if (!res.ok) {
@@ -144,7 +211,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
   return env?.data as T;
 }
 
-// เข้าสู่ระบบด้วย username/password (บัญชีที่ admin จัดการ: admin/leader/normal)
+// เข้าสู่ระบบด้วย username/password (บัญชีที่ admin จัดการ: admin/leader/normal/accountant)
 export async function loginWithPassword(username: string, password: string): Promise<AppUser> {
   const data = await api<{ user: AppUser; token: TokenPair }>("/api/auth/login", {
     method: "POST",
@@ -166,15 +233,123 @@ export function saveCurrentUser(u: AppUser) {
 // เข้าสู่ระบบโหมดทดสอบ (Offline / Demo Fallback เมื่อเซิร์ฟเวอร์ยังไม่พร้อมหรือติด CORS)
 export function loginDemo(role: Role = "supervisor"): AppUser {
   const mockUser: AppUser = {
-    public_id: role === "admin" ? "mock-admin" : role === "supervisor" ? "mock-leader" : "mock-officer",
-    username: role === "admin" ? "admin" : role === "supervisor" ? "leader" : "normal",
-    display_name: role === "admin" ? "ผู้ดูแลระบบ (Demo)" : role === "supervisor" ? "หัวหน้างานสำรวจ (Demo)" : "เจ้าหน้าที่สำรวจ (Demo)",
+    public_id:
+      role === "admin"
+        ? "mock-admin"
+        : role === "supervisor"
+        ? "mock-leader"
+        : role === "accountant"
+        ? "mock-accountant"
+        : "mock-officer",
+    username:
+      role === "admin"
+        ? "admin"
+        : role === "supervisor"
+        ? "leader"
+        : role === "accountant"
+        ? "accountant"
+        : "normal",
+    display_name:
+      role === "admin"
+        ? "ผู้ดูแลระบบ (Demo)"
+        : role === "supervisor"
+        ? "หัวหน้างานสำรวจ (Demo)"
+        : role === "accountant"
+        ? "พนักงานบัญชีและการเงิน (Demo)"
+        : "เจ้าหน้าที่สำรวจ (Demo)",
     picture_url: null,
     role,
+    status: "active",
     created_at: new Date().toISOString(),
   };
   saveCurrentUser(mockUser);
   return mockUser;
+}
+
+// ---- Admin User Management APIs ----
+
+const USERS_CACHE_KEY = "ams_mock_users_list";
+
+function getLocalUsers(): AppUser[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(USERS_CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [
+    { public_id: "u-admin", username: "admin", display_name: "ผู้ดูแลระบบสูงสุด", picture_url: null, role: "admin", status: "active", created_at: new Date().toISOString() },
+    { public_id: "u-sup", username: "leader", display_name: "หัวหน้างานสำรวจ", picture_url: null, role: "supervisor", status: "active", created_at: new Date().toISOString() },
+    { public_id: "u-sub", username: "normal", display_name: "เจ้าหน้าที่สำรวจภาคสนาม", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+    { public_id: "u-acc", username: "accountant", display_name: "พนักงานบัญชีและการเงิน", picture_url: null, role: "accountant", status: "active", created_at: new Date().toISOString() },
+  ];
+}
+
+function saveLocalUsers(us: AppUser[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(us));
+}
+
+export async function fetchUsers(role?: string): Promise<AppUser[]> {
+  if (!API_CONFIGURED) {
+    const all = getLocalUsers();
+    return role ? all.filter((u) => u.role === role) : all;
+  }
+  try {
+    return await api<AppUser[]>(role ? `/api/users?role=${encodeURIComponent(role)}` : "/api/users");
+  } catch {
+    const all = getLocalUsers();
+    return role ? all.filter((u) => u.role === role) : all;
+  }
+}
+
+export async function createUser(data: { username: string; password: string; display_name: string; role: Role }): Promise<AppUser> {
+  if (!API_CONFIGURED) {
+    const all = getLocalUsers();
+    const newUser: AppUser = {
+      public_id: "u-" + Date.now(),
+      username: data.username,
+      display_name: data.display_name,
+      picture_url: null,
+      role: data.role,
+      status: "active",
+      created_at: new Date().toISOString(),
+    };
+    all.unshift(newUser);
+    saveLocalUsers(all);
+    return newUser;
+  }
+  return api<AppUser>("/api/users", { method: "POST", json: data });
+}
+
+export async function updateUser(public_id: string, data: { display_name: string; role: Role; status: "active" | "resigned" }): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalUsers();
+    const idx = all.findIndex((u) => u.public_id === public_id);
+    if (idx >= 0) {
+      all[idx] = { ...all[idx], ...data };
+      saveLocalUsers(all);
+    }
+    return;
+  }
+  await api(`/api/users/${encodeURIComponent(public_id)}`, { method: "PUT", json: data });
+}
+
+export async function resetUserPassword(public_id: string, password: string): Promise<void> {
+  if (!API_CONFIGURED) return;
+  await api(`/api/users/${encodeURIComponent(public_id)}/password`, { method: "POST", json: { password } });
+}
+
+export async function setUserStatus(public_id: string, status: "active" | "resigned"): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalUsers();
+    const idx = all.findIndex((u) => u.public_id === public_id);
+    if (idx >= 0) {
+      all[idx].status = status;
+      saveLocalUsers(all);
+    }
+    return;
+  }
+  await api(`/api/users/${encodeURIComponent(public_id)}/status`, { method: "PATCH", json: { status } });
 }
 
 export function getCurrentUser(): AppUser | null {

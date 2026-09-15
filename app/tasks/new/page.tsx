@@ -30,7 +30,7 @@ export default function NewTaskPage() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    if (me?.role === "supervisor") {
+    if (me?.role === "supervisor" || me?.role === "admin") {
       api<AppUser[]>("/api/users?role=subordinate")
         .then((us) => {
           setUsers(us);
@@ -80,10 +80,10 @@ export default function NewTaskPage() {
       return <div className="py-16 text-center text-gray-400 animate-pulse">...</div>;
     }
 
-    if (me.role !== "supervisor") {
+    if (me.role !== "supervisor" && me.role !== "admin") {
       return (
         <div className="py-16 text-center">
-          <p className="text-sm text-gray-600">{t("เฉพาะหัวหน้างานเท่านั้นที่สั่งงานได้", "Only supervisors can assign tasks")}</p>
+          <p className="text-sm text-gray-600">{t("เฉพาะผู้ดูแลระบบและหัวหน้างานเท่านั้นที่สั่งงานได้", "Only admins and supervisors can assign tasks")}</p>
         </div>
       );
     }
@@ -204,7 +204,7 @@ export default function NewTaskPage() {
   }
 
   return (
-    <Page>
+    <Page allowedRoles={["admin", "supervisor"]}>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-xl sm:text-2xl font-bold text-govblue-800 mb-1">{t("สั่งงานใหม่", "New task")}</h1>
         <p className="text-xs text-gray-500 mb-5">

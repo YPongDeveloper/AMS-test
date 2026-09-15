@@ -181,6 +181,10 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*model.
 	if err != nil {
 		return nil, nil, ErrInvalidToken
 	}
+	if u.Status == model.UserStatusResigned {
+		_ = s.refreshTokens.Revoke(ctx, hashToken(refreshToken))
+		return nil, nil, errors.New("บัญชีนี้พ้นสภาพการเป็นพนักงานแล้ว ไม่สามารถใช้งานระบบได้")
+	}
 	if err := s.refreshTokens.Revoke(ctx, hashToken(refreshToken)); err != nil {
 		return nil, nil, err
 	}
@@ -202,10 +206,17 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 
 // Me — โปรไฟล์ผู้ใช้จาก internal id (มาจาก claims ของ token เสมอ)
 func (s *AuthService) Me(ctx context.Context, userID int64) (*model.User, error) {
-	return s.users.FindByID(ctx, userID)
+	u, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u.Status == model.UserStatusResigned {
+		return nil, errors.New("บัญชีนี้พ้นสภาพการเป็นพนักงานแล้ว")
+	}
+	return u, nil
 }
 
-// LoginWithPassword — เข้าสู่ระบบด้วย username/password (บัญชีที่ seed: admin/leader/normal)
+// LoginWithPassword — เข้าสู่ระบบด้วย username/password (บัญชีที่ seed: admin/leader/normal/accountant)
 func (s *AuthService) LoginWithPassword(ctx context.Context, username, password string) (*model.User, *TokenPair, error) {
 	if username == "" || password == "" {
 		return nil, nil, errors.New("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน")
@@ -213,6 +224,9 @@ func (s *AuthService) LoginWithPassword(ctx context.Context, username, password 
 	u, err := s.users.FindByUsername(ctx, username)
 	if err != nil {
 		return nil, nil, errors.New("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+	}
+	if u.Status == model.UserStatusResigned {
+		return nil, nil, errors.New("บัญชีนี้พ้นสภาพการเป็นพนักงานแล้ว ไม่สามารถเข้าสู่ระบบได้")
 	}
 	if u.PasswordHash == "" || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return nil, nil, errors.New("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")

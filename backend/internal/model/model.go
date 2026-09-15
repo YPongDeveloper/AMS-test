@@ -8,7 +8,25 @@ const (
 	RoleAdmin       Role = "admin"
 	RoleSupervisor  Role = "supervisor"
 	RoleSubordinate Role = "subordinate"
+	RoleAccountant  Role = "accountant"
 )
+
+const (
+	UserStatusActive   = "active"
+	UserStatusResigned = "resigned"
+)
+
+func ValidRole(r string) bool {
+	switch Role(r) {
+	case RoleAdmin, RoleSupervisor, RoleSubordinate, RoleAccountant:
+		return true
+	}
+	return false
+}
+
+func ValidUserStatus(s string) bool {
+	return s == UserStatusActive || s == UserStatusResigned
+}
 
 const (
 	TaskStatusPending    = "pending"
@@ -55,6 +73,7 @@ type User struct {
 	DisplayName  string    `json:"display_name"`
 	PictureURL   *string   `json:"picture_url"`
 	Role         string    `json:"role"`
+	Status       string    `json:"status"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
