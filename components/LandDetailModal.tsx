@@ -12,6 +12,7 @@ import {
   Calendar,
   Compass,
   DollarSign,
+  ExternalLink,
 } from "lucide-react";
 import { LandParcel } from "@/lib/api";
 import { calculateLandTax, formatCurrency, formatFullAddress } from "@/lib/tax";
@@ -205,17 +206,27 @@ export default function LandDetailModal({
                     showInputs={false}
                   />
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-gray-500 px-1 gap-1">
-                  <span>
-                    พิกัด GPS: <strong className="font-mono text-gray-700">{land.lat.toFixed(6)}, {land.lng.toFixed(6)}</strong>
-                  </span>
+                <div className="flex items-center justify-between text-xs text-gray-500 px-1 gap-2 pt-0.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-gray-400 shrink-0">พิกัด GPS:</span>
+                    <strong className="font-mono text-gray-800 text-[11px] sm:text-xs truncate">
+                      {land.lat.toFixed(6)}, {land.lng.toFixed(6)}
+                    </strong>
+                  </div>
                   <a
                     href={`https://www.google.com/maps?q=${land.lat},${land.lng}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-govblue-600 hover:underline flex items-center gap-1"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg shadow-2xs font-semibold text-[11px] transition shrink-0 hover:border-slate-400 hover:text-govblue-900 group"
+                    title="เปิดตำแหน่งนี้บน Google Maps"
                   >
-                    เปิดใน Google Maps ↗
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform">
+                      <path fill="#EA4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                      <circle cx="12" cy="9" r="2.8" fill="#FFFFFF"/>
+                      <circle cx="12" cy="9" r="1.5" fill="#4285F4"/>
+                    </svg>
+                    <span>Google Maps</span>
+                    <ExternalLink size={11} className="text-slate-400" />
                   </a>
                 </div>
               </div>
