@@ -12,6 +12,7 @@ import {
   deleteLand,
   type LandParcel,
   getCurrentUser,
+  createRevisionRequest,
 } from "@/lib/api";
 import {
   Camera,
@@ -57,6 +58,57 @@ export default function LandPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentUser = getCurrentUser();
+
+  // Request Modal State (สำหรับพนักงานบัญชีสร้างคำร้องขอแก้ไข / สำรวจใหม่)
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [reqLandId, setReqLandId] = useState("");
+  const [reqLandCode, setReqLandCode] = useState("");
+  const [reqType, setReqType] = useState<"revision" | "survey_new">("revision");
+  const [reqRemarks, setReqRemarks] = useState("");
+  const [reqSending, setReqSending] = useState(false);
+
+  const openRequestModal = (l?: LandParcel) => {
+    if (l) {
+      setReqLandId(l.public_id);
+      setReqLandCode(l.land_code);
+    } else if (lands.length > 0) {
+      setReqLandId(lands[0].public_id);
+      setReqLandCode(lands[0].land_code);
+    } else {
+      setReqLandId("");
+      setReqLandCode("");
+    }
+    setReqType("revision");
+    setReqRemarks("");
+    setRequestModalOpen(true);
+  };
+
+  const handleSendRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reqRemarks.trim()) {
+      alert("กรุณาระบุรายละเอียดหรือหมายเหตุคำร้อง");
+      return;
+    }
+    setReqSending(true);
+    try {
+      await createRevisionRequest({
+        target_type: "land",
+        target_id: reqLandId || undefined,
+        target_code: reqLandCode || undefined,
+        request_type: reqType,
+        remarks: reqRemarks.trim(),
+      });
+      setRequestModalOpen(false);
+      setMsg({
+        text: `สร้างคำร้องขอแก้ไข/ตรวจสอบแปลงที่ดิน "${reqLandCode || "ทั่วไป"}" สำเร็จ (ส่งไปยังหัวหน้างานในหน้าสั่งงานแล้ว)`,
+        tone: "green",
+      });
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งคำร้อง");
+    } finally {
+      setReqSending(false);
+    }
+  };
 
   const loadData = async (q?: string) => {
     setLoading(true);
@@ -226,14 +278,21 @@ export default function LandPage() {
   };
 
   return (
-    <Page allowedRoles={["admin", "supervisor", "subordinate", "accountant"]}>
+    <Page allowedRoles={["admin", "accountant"]}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <SectionHeader title={t("landTitle")} />
         <div className="flex items-center gap-2">
           {view === "list" ? (
-            <Btn onClick={openCreate} className="!bg-govgold-500 !text-govblue-900 hover:!bg-govgold-400">
-              <Plus size={16} /> บันทึกแปลงที่ดินใหม่
-            </Btn>
+            <div className="flex items-center gap-2">
+              <Btn onClick={() => openRequestModal()} className="!bg-govblue-800 !text-white hover:!bg-govblue-900 shadow-sm">
+                <AlertCircle size={16} /> สร้างคำร้องขอแก้ไข / ตรวจสอบ
+              </Btn>
+              {currentUser?.role === "admin" && (
+                <Btn onClick={openCreate} className="!bg-govgold-500 !text-govblue-900 hover:!bg-govgold-400">
+                  <Plus size={16} /> บันทึกแปลงที่ดินใหม่ (Admin)
+                </Btn>
+              )}
+            </div>
           ) : (
             <Btn variant="secondary" onClick={() => setView("list")}>
               <ArrowLeft size={16} /> กลับหน้ารายการ
@@ -336,21 +395,40 @@ export default function LandPage() {
                         <td className="p-3 font-mono text-[11px] text-gray-500">
                           {l.lat && l.lng ? `${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}` : "-"}
                         </td>
-                        <td className="p-3 text-right space-x-1">
-                          <button
-                            onClick={() => openEdit(l)}
-                            className="p-1 text-govblue-600 hover:text-govblue-800 hover:bg-govblue-50 rounded"
-                            title="แก้ไข"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(l.public_id, l.land_code)}
-                            className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
-                            title="ลบ"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                          {currentUser?.role === "accountant" ? (
+                            <button
+                              onClick={() => openRequestModal(l)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md border border-amber-200 transition"
+                              title="สร้างคำร้องขอแก้ไขแปลงนี้"
+                            >
+                              <AlertCircle size={13} /> ขอแก้ไข
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openRequestModal(l)}
+                                className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded"
+                                title="สร้างคำร้องขอแก้ไข"
+                              >
+                                <AlertCircle size={14} />
+                              </button>
+                              <button
+                                onClick={() => openEdit(l)}
+                                className="p-1 text-govblue-600 hover:text-govblue-800 hover:bg-govblue-50 rounded"
+                                title="แก้ไข"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(l.public_id, l.land_code)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
+                                title="ลบ"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -572,6 +650,117 @@ export default function LandPage() {
             </Card>
           </div>
         </form>
+      )}
+
+      {/* Modal: สร้างคำร้องขอแก้ไข/ตรวจสอบสำหรับฝ่ายบัญชี */}
+      {requestModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-govblue-800 font-bold text-base">
+                <AlertCircle size={20} className="text-amber-500" />
+                <span>สร้างคำร้องขอแก้ไข / ตรวจสอบแปลงที่ดิน</span>
+              </div>
+              <button
+                onClick={() => setRequestModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendRequest} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  แปลงที่ดินที่ต้องการให้ตรวจสอบ
+                </label>
+                <select
+                  value={reqLandId}
+                  onChange={(e) => {
+                    const sel = lands.find((x) => x.public_id === e.target.value);
+                    setReqLandId(e.target.value);
+                    setReqLandCode(sel ? sel.land_code : "");
+                  }}
+                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                >
+                  <option value="">— ไม่ระบุแปลงเฉพาะเจาะจง (งานทั่วไป) —</option>
+                  {lands.map((l) => (
+                    <option key={l.public_id} value={l.public_id}>
+                      {l.land_code} {l.deed_no ? `(โฉนด ${l.deed_no})` : ""} - {l.srt_land_type || "แปลงที่ดิน"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  ประเภทคำร้อง
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReqType("revision")}
+                    className={`p-2.5 rounded-lg border text-xs font-medium text-left transition ${
+                      reqType === "revision"
+                        ? "border-govblue-600 bg-blue-50/60 text-govblue-900 ring-2 ring-govblue-500/20"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-semibold">ขอแก้ไขข้อมูลเดิม</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">ข้อมูลผิดพลาด, ขนาดไม่ตรง</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReqType("survey_new")}
+                    className={`p-2.5 rounded-lg border text-xs font-medium text-left transition ${
+                      reqType === "survey_new"
+                        ? "border-govblue-600 bg-blue-50/60 text-govblue-900 ring-2 ring-govblue-500/20"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-semibold">ขอให้ลงสำรวจใหม่</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">วัดแนวเขตใหม่, สำรวจภาคสนาม</div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  รายละเอียด / หมายเหตุคำร้อง <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={reqRemarks}
+                  onChange={(e) => setReqRemarks(e.target.value)}
+                  placeholder="ระบุสิ่งที่พบ เช่น เนื้อที่ดินในระบบไม่ตรงกับเอกสารสิทธิ์โฉนด หรือขอให้วัดพิกัดแนวเขตใหม่..."
+                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                  required
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  คำร้องนี้จะถูกส่งไปยังหน้าสั่งงานของหัวหน้างาน เพื่อให้หัวหน้าพิจารณาสั่งงานลูกน้องต่อไป
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setRequestModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={reqSending}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-900 rounded-lg shadow-sm transition disabled:opacity-50"
+                >
+                  {reqSending ? "กำลังส่งคำร้อง..." : "ส่งคำร้องไปยังหัวหน้างาน"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </Page>
   );

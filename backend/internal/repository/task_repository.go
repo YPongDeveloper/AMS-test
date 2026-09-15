@@ -22,7 +22,9 @@ const taskCols = `
 t.id, t.public_id, t.code, t.title, t.task_type, t.description, t.status,
 t.assigned_to, ua.public_id, ua.display_name,
 t.assigned_by, ub.public_id, ub.display_name,
-t.due_at, t.lat, t.lng, t.place_name, t.created_at, t.updated_at`
+t.due_at, t.lat, t.lng, t.place_name,
+t.submission_data::text, t.supervisor_feedback, t.target_type,
+t.created_at, t.updated_at`
 
 const taskFrom = `
 FROM tasks t
@@ -36,7 +38,9 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	err := row.Scan(&t.ID, &t.PublicID, &t.Code, &t.Title, &t.TaskType, &t.Description, &t.Status,
 		&assigneeID, &t.AssigneePublicID, &t.AssigneeName,
 		&assignerID, &t.AssignerPublicID, &t.AssignerName,
-		&t.DueAt, &t.Lat, &t.Lng, &t.PlaceName, &t.CreatedAt, &t.UpdatedAt)
+		&t.DueAt, &t.Lat, &t.Lng, &t.PlaceName,
+		&t.SubmissionData, &t.SupervisorFeedback, &t.TargetType,
+		&t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +105,12 @@ func (r *TaskRepository) FindByPublicID(ctx context.Context, publicID string) (*
 
 // Create — insert แล้วโหลดกลับมาเต็มรูป (รวมชื่อ/uuid ของสองฝั่ง)
 func (r *TaskRepository) Create(ctx context.Context, title, taskType, description string,
-	assigneeID, assignerID int64, dueAt *time.Time, lat, lng *float64, placeName *string) (*model.Task, error) {
+	assigneeID, assignerID int64, dueAt *time.Time, lat, lng *float64, placeName *string, targetType *string) (*model.Task, error) {
 	var id int64
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO tasks (title, task_type, description, assigned_to, assigned_by, due_at, lat, lng, place_name)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		title, taskType, description, assigneeID, assignerID, dueAt, lat, lng, placeName).Scan(&id)
+		INSERT INTO tasks (title, task_type, description, assigned_to, assigned_by, due_at, lat, lng, place_name, target_type)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		title, taskType, description, assigneeID, assignerID, dueAt, lat, lng, placeName, targetType).Scan(&id)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +123,16 @@ func (r *TaskRepository) FindByID(ctx context.Context, id int64) (*model.Task, e
 
 func (r *TaskRepository) UpdateStatus(ctx context.Context, id int64, status string) error {
 	_, err := r.db.Exec(ctx, `UPDATE tasks SET status=$1, updated_at=now() WHERE id=$2`, status, id)
+	return err
+}
+
+func (r *TaskRepository) SubmitData(ctx context.Context, id int64, submissionJSON string) error {
+	_, err := r.db.Exec(ctx, `UPDATE tasks SET submission_data=$1::jsonb, status='submitted', updated_at=now() WHERE id=$2`, submissionJSON, id)
+	return err
+}
+
+func (r *TaskRepository) ReviewTask(ctx context.Context, id int64, status string, feedback *string) error {
+	_, err := r.db.Exec(ctx, `UPDATE tasks SET status=$1, supervisor_feedback=$2, updated_at=now() WHERE id=$3`, status, feedback, id)
 	return err
 }
 

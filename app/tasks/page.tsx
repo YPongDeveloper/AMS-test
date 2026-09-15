@@ -13,6 +13,16 @@ import {
   type AppUser,
   type Task,
   type TaskStatus,
+  type TeamMember,
+  type RevisionRequest,
+  inviteToTeam,
+  fetchMyTeam,
+  fetchMyInvitations,
+  respondToInvitation,
+  removeTeamMember,
+  fetchRevisionRequests,
+  submitTaskData,
+  reviewTask,
 } from "@/lib/api";
 import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
@@ -46,12 +56,13 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-// 4 ขั้นตอนหลักของ Workflow ภารกิจสำรวจ
+// 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน
 const PIPELINE_STEPS: { status: TaskStatus; label: string; sub: string }[] = [
   { status: "pending", label: "รอรับงาน", sub: "มอบหมายแล้ว" },
   { status: "accepted", label: "รับงานแล้ว", sub: "ยืนยันการรับ" },
   { status: "in_progress", label: "กำลังปฏิบัติงาน", sub: "ลงพื้นที่สำรวจ" },
-  { status: "done", label: "เสร็จสิ้น", sub: "ส่งมอบงานสมบูรณ์" },
+  { status: "submitted", label: "ส่งตรวจแล้ว", sub: "รอหัวหน้าอนุมัติ" },
+  { status: "done", label: "เสร็จสิ้น", sub: "อนุมัติเข้าระบบแล้ว" },
 ];
 
 const getTodayStr = () => {
@@ -406,6 +417,231 @@ export default function TasksPage() {
   const [err, setErr] = useState("");
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 1. Team Management State (Supervisor)
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [myTeam, setMyTeam] = useState<TeamMember[]>([]);
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviting, setInviting] = useState(false);
+
+  // 2. Subordinate Invitation Alerts
+  const [myInvitations, setMyInvitations] = useState<TeamMember[]>([]);
+
+  // 3. Accountant Requests State (Supervisor)
+  const [requestsModalOpen, setRequestsModalOpen] = useState(false);
+  const [revisionRequests, setRevisionRequests] = useState<RevisionRequest[]>([]);
+
+  // 4. Subordinate Data Submission Modal
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
+  const [submittingTask, setSubmittingTask] = useState<Task | null>(null);
+  const [batchItems, setBatchItems] = useState<any[]>([]);
+  const [submissionSummary, setSubmissionSummary] = useState("");
+  const [submittingData, setSubmittingData] = useState(false);
+
+  // 5. Supervisor Review Modal
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [isReviewing, setIsReviewing] = useState(false);
+
+  const loadTeam = useCallback(async () => {
+    try {
+      const data = await fetchMyTeam();
+      setMyTeam(data);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const loadInvitations = useCallback(async () => {
+    try {
+      const data = await fetchMyInvitations();
+      setMyInvitations(data);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const loadRevisionRequests = useCallback(async () => {
+    try {
+      const data = await fetchRevisionRequests();
+      setRevisionRequests(data);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteUsername.trim()) return;
+    setInviting(true);
+    try {
+      await inviteToTeam(inviteUsername.trim());
+      setInviteUsername("");
+      setNotice(`ส่งคำเชิญให้ @${inviteUsername.trim()} เข้าร่วมทีมเรียบร้อยแล้ว`);
+      await loadTeam();
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งคำเชิญ");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemoveMember = async (id: string, name: string) => {
+    if (!confirm(`ยืนยันการนำคุณ "${name}" ออกจากทีมใช่หรือไม่?`)) return;
+    try {
+      await removeTeamMember(id);
+      setNotice(`นำสมาชิกออกจากทีมเรียบร้อย`);
+      await loadTeam();
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาด");
+    }
+  };
+
+  const handleRespondInvitation = async (id: string, action: "accepted" | "declined") => {
+    try {
+      await respondToInvitation(id, action);
+      setNotice(action === "accepted" ? "ยินดีต้อนรับ! ท่านได้เข้าร่วมทีมสำรวจแล้ว" : "ปฏิเสธคำเชิญเข้าร่วมทีมแล้ว");
+      await loadInvitations();
+      await loadTasks();
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาด");
+    }
+  };
+
+  const openSubmissionModal = (task: Task) => {
+    setSubmittingTask(task);
+    setSubmissionSummary("");
+    if (task.target_type === "building") {
+      setBatchItems([
+        {
+          bldg_code: `BL-${new Date().getFullYear() + 543}-${String(Math.floor(Math.random() * 900) + 100)}`,
+          name: "",
+          land_code: "",
+          material_type: "คอนกรีตเสริมเหล็ก",
+          num_fl: 2,
+          bld_condition_type: "ดี",
+        },
+      ]);
+    } else {
+      setBatchItems([
+        {
+          land_code: `LP-${new Date().getFullYear() + 543}-${String(Math.floor(Math.random() * 900) + 100)}`,
+          deed_no: "",
+          srt_land_type: "ที่ดินสถานี",
+          land_use: "ใช้เพื่อการขนส่ง",
+          rai: 1,
+          ngan: 0,
+          wa: 0,
+          width: 20,
+          length: 40,
+        },
+      ]);
+    }
+    setSubmissionModalOpen(true);
+  };
+
+  const handleAddBatchItem = () => {
+    if (submittingTask?.target_type === "building") {
+      setBatchItems((prev) => [
+        ...prev,
+        {
+          bldg_code: `BL-${new Date().getFullYear() + 543}-${String(Math.floor(Math.random() * 900) + 100)}`,
+          name: "",
+          land_code: "",
+          material_type: "คอนกรีตเสริมเหล็ก",
+          num_fl: 1,
+          bld_condition_type: "ดี",
+        },
+      ]);
+    } else {
+      setBatchItems((prev) => [
+        ...prev,
+        {
+          land_code: `LP-${new Date().getFullYear() + 543}-${String(Math.floor(Math.random() * 900) + 100)}`,
+          deed_no: "",
+          srt_land_type: "ที่ดินสถานี",
+          land_use: "ใช้เพื่อการขนส่ง",
+          rai: 0,
+          ngan: 2,
+          wa: 0,
+          width: 15,
+          length: 30,
+        },
+      ]);
+    }
+  };
+
+  const handleRemoveBatchItem = (index: number) => {
+    setBatchItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBatchFieldChange = (index: number, field: string, value: any) => {
+    setBatchItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleSubmitTaskData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!submittingTask) return;
+    setSubmittingData(true);
+    try {
+      const isBldg = submittingTask.target_type === "building";
+      await submitTaskData(submittingTask.public_id, {
+        summary: submissionSummary.trim() || undefined,
+        items: batchItems,
+        lands: !isBldg ? (batchItems as any) : undefined,
+        buildings: isBldg ? (batchItems as any) : undefined,
+      });
+      setSubmissionModalOpen(false);
+      setNotice(`ส่งข้อมูลงาน "${submittingTask.title}" ให้หัวหน้างานตรวจสอบเรียบร้อยแล้ว`);
+      await loadTasks();
+      if (selectedTask?.public_id === submittingTask.public_id) {
+        setSelectedTask(null);
+      }
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาดในการส่งข้อมูล");
+    } finally {
+      setSubmittingData(false);
+    }
+  };
+
+  const openReviewModal = (task: Task) => {
+    setReviewingTask(task);
+    setReviewFeedback("");
+    setReviewModalOpen(true);
+  };
+
+  const handleReviewAction = async (decision: "approve" | "reject") => {
+    if (!reviewingTask) return;
+    if (decision === "reject" && !reviewFeedback.trim()) {
+      alert("กรุณาระบุข้อเสนอแนะหรือสิ่งที่ต้องการให้ลูกน้องแก้ไข");
+      return;
+    }
+    setIsReviewing(true);
+    try {
+      await reviewTask(
+        reviewingTask.public_id,
+        decision,
+        decision === "reject" ? reviewFeedback.trim() : undefined
+      );
+      setReviewModalOpen(false);
+      if (decision === "approve") {
+        setNotice(`อนุมัติงาน "${reviewingTask.title}" เรียบร้อยแล้ว ข้อมูลถูกบันทึกลงระบบจริงแล้ว`);
+      } else {
+        setNotice(`ส่งงาน "${reviewingTask.title}" กลับให้ลูกน้องแก้ไขเรียบร้อยแล้ว`);
+      }
+      await loadTasks();
+      if (selectedTask?.public_id === reviewingTask.public_id) {
+        setSelectedTask(null);
+      }
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาดในการตรวจสอบงาน");
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
   // อัปเดตแท็บเริ่มต้นตามบทบาทเมื่อ me โหลดเสร็จ
   useEffect(() => {
     if (me?.role === "subordinate") {
@@ -498,7 +734,13 @@ export default function TasksPage() {
     if (!me) return;
     let mounted = true;
     loadTasks();
-    if (isSup) loadUsers();
+    if (isSup) {
+      loadUsers();
+      loadTeam();
+      loadRevisionRequests();
+    } else {
+      loadInvitations();
+    }
 
     const off = connectTaskWS(
       (e) => {
@@ -643,9 +885,12 @@ export default function TasksPage() {
       case "accepted":
         return 1;
       case "in_progress":
+      case "revision_requested":
         return 2;
-      case "done":
+      case "submitted":
         return 3;
+      case "done":
+        return 4;
       default:
         return -1;
     }
@@ -762,14 +1007,84 @@ export default function TasksPage() {
             </div>
 
             {isSup && (
-              <Link
-                href="/tasks/new"
-                className="inline-flex items-center justify-center gap-2 bg-govblue-700 hover:bg-govblue-800 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm transition self-start sm:self-auto"
-              >
-                <Plus size={18} /> {t("สั่งงานใหม่", "New Task")}
-              </Link>
+              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setRequestsModalOpen(true)}
+                  className="relative inline-flex items-center justify-center gap-1.5 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg shadow-xs transition"
+                >
+                  <AlertCircle size={16} className="text-amber-600" />
+                  <span>คำร้องจากบัญชี</span>
+                  {revisionRequests.filter((r) => r.status === "pending").length > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+                      {revisionRequests.filter((r) => r.status === "pending").length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTeamModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-govblue-50 text-govblue-800 border border-gray-300 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg shadow-xs transition"
+                >
+                  <Users size={16} className="text-govblue-600" />
+                  <span>จัดการทีม</span>
+                  {myTeam.filter((m) => m.status === "accepted").length > 0 && (
+                    <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
+                      {myTeam.filter((m) => m.status === "accepted").length}
+                    </span>
+                  )}
+                </button>
+
+                <Link
+                  href="/tasks/new"
+                  className="inline-flex items-center justify-center gap-2 bg-govblue-700 hover:bg-govblue-800 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg shadow-sm transition"
+                >
+                  <Plus size={18} /> {t("สั่งงานใหม่", "New Task")}
+                </Link>
+              </div>
             )}
           </div>
+
+          {/* Subordinate Team Invitation Banner */}
+          {!isSup && myInvitations.length > 0 && (
+            <div className="space-y-2 mb-2 animate-in fade-in">
+              {myInvitations.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-govblue-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Users size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-govblue-900">
+                        คำเชิญเข้าร่วมทีมสำรวจ (Team Invitation)
+                      </div>
+                      <div className="text-xs text-govblue-700 mt-0.5">
+                        หัวหน้างาน <span className="font-semibold text-gray-900">{inv.supervisor_name}</span> ได้ส่งคำเชิญให้ท่านเข้าร่วมทีม
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleRespondInvitation(inv.supervisor_public_id, "accepted")}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 transition"
+                    >
+                      <Check size={14} /> ยอมรับเข้าร่วมทีม
+                    </button>
+                    <button
+                      onClick={() => handleRespondInvitation(inv.supervisor_public_id, "declined")}
+                      className="px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-xs font-medium transition"
+                    >
+                      ปฏิเสธ
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Alert Notice Banner */}
           {notice && (
@@ -1332,6 +1647,10 @@ export default function TasksPage() {
                                     className={`text-xs font-semibold pl-6 pr-7 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-govblue-500/20 transition ${
                                       task.status === "done"
                                         ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/70"
+                                        : task.status === "submitted"
+                                        ? "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100/70"
+                                        : task.status === "revision_requested"
+                                        ? "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100/70"
                                         : task.status === "in_progress"
                                         ? "bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100/70"
                                         : task.status === "accepted"
@@ -1344,6 +1663,8 @@ export default function TasksPage() {
                                     <option value="pending">รอรับงาน</option>
                                     <option value="accepted">รับงานแล้ว</option>
                                     <option value="in_progress">กำลังปฏิบัติงาน</option>
+                                    <option value="submitted">ส่งตรวจแล้ว</option>
+                                    <option value="revision_requested">ส่งกลับแก้ไข</option>
                                     <option value="done">เสร็จสิ้น</option>
                                     <option value="cancelled">ยกเลิก</option>
                                   </select>
@@ -1351,15 +1672,37 @@ export default function TasksPage() {
                                 </div>
                               </div>
 
-                              {/* View Details button */}
-                              <button
-                                type="button"
-                                onClick={() => setSelectedTask(task)}
-                                className="text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3 py-1.5 rounded-lg transition"
-                              >
-                                <span>ดูรายละเอียด</span>
-                                <ArrowRight size={13} />
-                              </button>
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-1.5">
+                                {isSup && task.status === "submitted" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openReviewModal(task)}
+                                    className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    <span>ตรวจงาน</span>
+                                  </button>
+                                )}
+                                {!isSup && (task.status === "accepted" || task.status === "in_progress" || task.status === "revision_requested") && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSubmissionModal(task)}
+                                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
+                                  >
+                                    <Plus size={13} />
+                                    <span>ส่งผลงาน</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTask(task)}
+                                  className="text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3 py-1.5 rounded-lg transition"
+                                >
+                                  <span>ดูรายละเอียด</span>
+                                  <ArrowRight size={13} />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1520,6 +1863,54 @@ export default function TasksPage() {
                 </div>
               </div>
 
+              {/* Supervisor Feedback Banner (เมื่อถูกส่งกลับให้แก้ไข) */}
+              {selectedTask.supervisor_feedback && (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-1 text-xs text-orange-900 animate-in fade-in">
+                  <div className="font-bold flex items-center gap-1.5 text-orange-800">
+                    <AlertCircle size={16} className="text-orange-600" />
+                    <span>ข้อเสนอแนะให้แก้ไขจากหัวหน้างาน:</span>
+                  </div>
+                  <p className="leading-relaxed pl-5 whitespace-pre-wrap">
+                    {selectedTask.supervisor_feedback}
+                  </p>
+                </div>
+              )}
+
+              {/* Status Note when Submitted */}
+              {selectedTask.status === "submitted" && (
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-1 text-xs text-purple-900 animate-in fade-in">
+                  <div className="font-bold flex items-center gap-1.5 text-purple-800">
+                    <Clock size={16} className="text-purple-600" />
+                    <span>งานนี้ส่งผลงานแล้ว — อยู่ระหว่างรอหัวหน้างานตรวจสอบและอนุมัติ</span>
+                  </div>
+                  <p className="leading-relaxed pl-5 text-purple-700">
+                    เมื่อหัวหน้างานอนุมัติ ข้อมูลทรัพย์สินจะถูกบันทึกเข้าสู่ระบบจริงทันที
+                  </p>
+                </div>
+              )}
+
+              {/* Submitted Data Preview (ถ้ามี) */}
+              {selectedTask.submission_data && (
+                <div className="p-4 bg-slate-50 border border-gray-200 rounded-xl space-y-2 text-xs">
+                  <div className="font-bold text-gray-800 flex items-center justify-between">
+                    <span>ข้อมูลที่บันทึกส่งมอบ (Submission Data):</span>
+                    {selectedTask.target_type && (
+                      <span className="text-[11px] font-medium text-govblue-700 bg-govblue-50 px-2 py-0.5 rounded">
+                        {selectedTask.target_type === "land" ? "ข้อมูลแปลงที่ดิน" : "ข้อมูลสิ่งปลูกสร้าง"}
+                      </span>
+                    )}
+                  </div>
+                  {selectedTask.submission_data.summary && (
+                    <p className="text-gray-600 italic">"{selectedTask.submission_data.summary}"</p>
+                  )}
+                  {Array.isArray(selectedTask.submission_data.items) && selectedTask.submission_data.items.length > 0 && (
+                    <div className="text-[11px] text-gray-500 font-medium">
+                      รวมทั้งหมด {selectedTask.submission_data.items.length} รายการ
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Full Description Section */}
               <div>
                 <h4 className="text-xs font-bold text-govblue-900 mb-1.5 uppercase tracking-wide">
@@ -1594,15 +1985,691 @@ export default function TasksPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-end shrink-0">
+            <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                {isSup && selectedTask.status === "submitted" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = selectedTask;
+                      setSelectedTask(null);
+                      openReviewModal(t);
+                    }}
+                    className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>ตรวจสอบและอนุมัติงานนี้</span>
+                  </button>
+                )}
+
+                {!isSup && (selectedTask.status === "accepted" || selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = selectedTask;
+                      setSelectedTask(null);
+                      openSubmissionModal(t);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>กรอกข้อมูล / ส่งผลงานให้หัวหน้าตรวจ</span>
+                  </button>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedTask(null)}
-                className="px-5 py-2 bg-govblue-800 hover:bg-govblue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition"
+                className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold rounded-lg transition"
               >
                 ปิดหน้าต่าง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Modal จัดการทีม (Supervisor Team Management Modal) */}
+      {teamModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-govblue-800 font-bold text-base">
+                <Users size={20} className="text-govblue-600" />
+                <span>จัดการทีมสำรวจ (Team Management)</span>
+              </div>
+              <button
+                onClick={() => setTeamModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Invite Form */}
+            <form onSubmit={handleInvite} className="p-3.5 bg-govblue-50/60 rounded-xl border border-govblue-100 space-y-2">
+              <label className="block text-xs font-bold text-govblue-900">
+                เชิญลูกน้องเข้าทีม (ส่งคำเชิญผ่าน Username)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={inviteUsername}
+                  onChange={(e) => setInviteUsername(e.target.value)}
+                  placeholder="ระบุ username เช่น normal"
+                  className="flex-1 text-xs px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={inviting}
+                  className="px-4 py-2 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition disabled:opacity-50"
+                >
+                  {inviting ? "กำลังส่ง..." : "ส่งคำเชิญ"}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-500">
+                เมื่อส่งคำเชิญ พนักงานสำรวจจะได้รับการแจ้งเตือนบนระบบของเขา และสามารถกด "ยอมรับ" เพื่อเข้าร่วมทีมได้
+              </p>
+            </form>
+
+            {/* Team Members List */}
+            <div>
+              <div className="text-xs font-bold text-gray-800 mb-2 flex items-center justify-between">
+                <span>รายชื่อสมาชิกในทีมของคุณ</span>
+                <span className="text-gray-400 font-normal">({myTeam.length} คน)</span>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {myTeam.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-400 border border-dashed rounded-xl">
+                    ยังไม่มีสมาชิกในทีม เชิญพนักงานสำรวจโดยกรอกชื่อผู้ใช้งานด้านบน
+                  </div>
+                ) : (
+                  myTeam.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">
+                          {m.subordinate_name || m.subordinate_username}
+                        </div>
+                        <div className="text-[11px] text-gray-500">@{m.subordinate_username}</div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            m.status === "accepted"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : m.status === "declined"
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {m.status === "accepted"
+                            ? "✓ เข้าร่วมแล้ว"
+                            : m.status === "declined"
+                            ? "✕ ปฏิเสธ"
+                            : "⏳ รอการตอบรับ"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "")}
+                          className="text-gray-400 hover:text-rose-600 p-1"
+                          title="นำออกจากทีม"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setTeamModalOpen(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal คำร้องจากฝ่ายบัญชี (Supervisor Revision Requests Modal) */}
+      {requestsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-govblue-800 font-bold text-base">
+                <AlertCircle size={20} className="text-amber-500" />
+                <span>คำร้องขอแก้ไข / ตรวจสอบ จากฝ่ายบัญชี</span>
+              </div>
+              <button
+                onClick={() => setRequestsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              ฝ่ายบัญชีได้สร้างคำร้องขอให้ตรวจสอบหรือแก้ไขข้อมูล ท่านสามารถสั่งงานต่อให้ลูกน้องในทีมลงพื้นที่หรือแก้ไขข้อมูลได้ทันที
+            </p>
+
+            <div className="max-h-96 overflow-y-auto space-y-3">
+              {revisionRequests.length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-400 border border-dashed rounded-xl">
+                  ยังไม่มีคำร้องจากฝ่ายบัญชีในขณะนี้
+                </div>
+              ) : (
+                revisionRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-govblue-900">
+                          {req.target_type === "land" ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}: {req.target_code || "ทั่วไป"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
+                          {req.request_type === "survey_new" ? "ขอสำรวจใหม่" : "ขอแก้ไขข้อมูล"}
+                        </span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          req.status === "assigned"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : req.status === "resolved"
+                            ? "bg-gray-100 text-gray-700"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {req.status === "assigned" ? "✓ สั่งงานแล้ว" : req.status === "resolved" ? "เสร็จสิ้น" : "⏳ รอสั่งงาน"}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white rounded-lg border border-gray-200 text-gray-700 whitespace-pre-wrap">
+                      "{req.remarks}"
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+                      <span>ผู้สร้างคำร้อง: {req.creator_name || "พนักงานบัญชี"} • {fmtDateTime(req.created_at)}</span>
+                      {req.status === "pending" && (
+                        <Link
+                          href={`/tasks/new?request_id=${req.id || ""}&target_type=${req.target_type}&target_code=${req.target_code || ""}&request_type=${req.request_type || "revision"}&remarks=${encodeURIComponent(req.remarks || "")}`}
+                          onClick={() => setRequestsModalOpen(false)}
+                          className="px-3 py-1 bg-govblue-800 hover:bg-govblue-900 text-white rounded-md font-semibold text-[11px] transition shadow-xs"
+                        >
+                          สั่งงานแก้ไขตามคำร้องนี้ →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setRequestsModalOpen(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal กรอกและส่งข้อมูลผลงาน (Subordinate Data Submission Modal) */}
+      {submissionModalOpen && submittingTask && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-gray-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-govblue-800 to-govblue-700 text-white flex items-center justify-between shrink-0">
+              <div>
+                <div className="text-xs text-blue-200">แบบฟอร์มส่งมอบผลงาน</div>
+                <h3 className="text-base font-bold truncate">{submittingTask.title}</h3>
+              </div>
+              <button
+                onClick={() => setSubmissionModalOpen(false)}
+                className="text-blue-200 hover:text-white p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitTaskData} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {submittingTask.status === "revision_requested" && submittingTask.supervisor_feedback && (
+                <div className="p-3.5 bg-orange-50 border border-orange-200 rounded-xl space-y-1 text-xs">
+                  <div className="font-bold text-orange-900 flex items-center gap-1.5">
+                    <AlertCircle size={15} className="text-orange-600" />
+                    <span>หัวหน้างานส่งกลับให้แก้ไข:</span>
+                  </div>
+                  <p className="text-orange-800 whitespace-pre-wrap">{submittingTask.supervisor_feedback}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  สรุปผลการปฏิบัติงาน / หมายเหตุรายงานหัวหน้า
+                </label>
+                <textarea
+                  rows={2}
+                  value={submissionSummary}
+                  onChange={(e) => setSubmissionSummary(e.target.value)}
+                  placeholder="เช่น ลงพื้นที่สำรวจรังวัดแนวเขตเรียบร้อย หรือ ตรวจนับและจัดทำแบบฟอร์มบันทึกข้อมูลเรียบร้อย..."
+                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                />
+              </div>
+
+              {/* Dynamic Batch Data Items Form */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-govblue-900 uppercase">
+                      รายการข้อมูลทรัพย์สินที่จะส่งให้หัวหน้าอนุมัติ ({batchItems.length} รายการ)
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      ประเภท: {submittingTask.target_type === "building" ? "สิ่งปลูกสร้าง (Buildings)" : "แปลงที่ดิน (Land Parcels)"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddBatchItem}
+                    className="px-2.5 py-1 text-xs font-semibold text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded-lg border border-govblue-200 flex items-center gap-1"
+                  >
+                    <Plus size={13} /> เพิ่มรายการอีก
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-80 overflow-y-auto p-1">
+                  {submittingTask.target_type === "building"
+                    ? batchItems.map((item, idx) => (
+                        <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-gray-600">อาคารรายการที่ {idx + 1}</span>
+                            {batchItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBatchItem(idx)}
+                                className="text-xs text-rose-500 hover:text-rose-700"
+                              >
+                                ลบรายการนี้
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">รหัสอาคาร *</label>
+                              <input
+                                value={item.bldg_code}
+                                onChange={(e) => handleBatchFieldChange(idx, "bldg_code", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ชื่ออาคาร *</label>
+                              <input
+                                value={item.name}
+                                onChange={(e) => handleBatchFieldChange(idx, "name", e.target.value)}
+                                placeholder="เช่น อาคารสถานี"
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">รหัสแปลงที่ดินตั้งอยู่</label>
+                              <input
+                                value={item.land_code}
+                                onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
+                                placeholder="เช่น LP-2569-001"
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">โครงสร้างวัสดุ</label>
+                              <input
+                                value={item.material_type}
+                                onChange={(e) => handleBatchFieldChange(idx, "material_type", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">จำนวนชั้น</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.num_fl}
+                                onChange={(e) => handleBatchFieldChange(idx, "num_fl", Number(e.target.value))}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">สภาพอาคาร</label>
+                              <select
+                                value={item.bld_condition_type}
+                                onChange={(e) => handleBatchFieldChange(idx, "bld_condition_type", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              >
+                                <option value="ดี">ดี</option>
+                                <option value="พอใช้">พอใช้</option>
+                                <option value="ทรุดโทรม">ทรุดโทรม</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    : batchItems.map((item, idx) => (
+                        <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2 relative">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-gray-600">แปลงที่ดินรายการที่ {idx + 1}</span>
+                            {batchItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBatchItem(idx)}
+                                className="text-xs text-rose-500 hover:text-rose-700"
+                              >
+                                ลบรายการนี้
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">รหัสที่ดิน *</label>
+                              <input
+                                value={item.land_code}
+                                onChange={(e) => handleBatchFieldChange(idx, "land_code", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">เลขที่โฉนด</label>
+                              <input
+                                value={item.deed_no}
+                                onChange={(e) => handleBatchFieldChange(idx, "deed_no", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ประเภท รฟท.</label>
+                              <input
+                                value={item.srt_land_type}
+                                onChange={(e) => handleBatchFieldChange(idx, "srt_land_type", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">การใช้ประโยชน์</label>
+                              <input
+                                value={item.land_use}
+                                onChange={(e) => handleBatchFieldChange(idx, "land_use", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ไร่</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.rai}
+                                onChange={(e) => handleBatchFieldChange(idx, "rai", Number(e.target.value))}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">งาน</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="3"
+                                value={item.ngan}
+                                onChange={(e) => handleBatchFieldChange(idx, "ngan", Number(e.target.value))}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ตารางวา</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.wa}
+                                onChange={(e) => handleBatchFieldChange(idx, "wa", Number(e.target.value))}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">กว้าง × ยาว (ม.)</label>
+                              <div className="flex gap-1">
+                                <input
+                                  type="number"
+                                  placeholder="กว้าง"
+                                  value={item.width}
+                                  onChange={(e) => handleBatchFieldChange(idx, "width", Number(e.target.value))}
+                                  className="w-1/2 text-xs p-1.5 border rounded bg-white"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="ยาว"
+                                  value={item.length}
+                                  onChange={(e) => handleBatchFieldChange(idx, "length", Number(e.target.value))}
+                                  className="w-1/2 text-xs p-1.5 border rounded bg-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-[11px] text-gray-500">
+                  เมื่อกดส่ง ข้อมูลจะไปแสดงที่หัวหน้างานในสถานะ "ส่งตรวจแล้ว"
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionModalOpen(false)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingData}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition disabled:opacity-50"
+                  >
+                    {submittingData ? "กำลังส่งข้อมูล..." : "ส่งให้หัวหน้าตรวจสอบ"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal ตรวจสอบผลงานสำหรับหัวหน้างาน (Supervisor Review & Approval Modal) */}
+      {reviewModalOpen && reviewingTask && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-gray-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-800 text-white flex items-center justify-between shrink-0">
+              <div>
+                <div className="text-xs text-purple-200">ตรวจสอบและอนุมัติผลงานสำรวจ</div>
+                <h3 className="text-base font-bold truncate">{reviewingTask.title}</h3>
+              </div>
+              <button
+                onClick={() => setReviewModalOpen(false)}
+                className="text-purple-200 hover:text-white p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {(() => {
+              let subData: any = null;
+              if (reviewingTask.submission_data) {
+                if (typeof reviewingTask.submission_data === "string") {
+                  try {
+                    subData = JSON.parse(reviewingTask.submission_data);
+                  } catch {
+                    subData = null;
+                  }
+                } else {
+                  subData = reviewingTask.submission_data;
+                }
+              }
+              const summary = subData?.summary;
+              const items = subData?.items || subData?.lands || subData?.buildings || [];
+
+              return (
+                <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+                  <div className="grid sm:grid-cols-2 gap-3 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
+                    <div>
+                      <span className="text-gray-400 block text-[11px]">ผู้ส่งมอบงาน (ลูกน้อง)</span>
+                      <span className="font-bold text-gray-800">{reviewingTask.assignee_name || "เจ้าหน้าที่"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[11px]">ประเภททรัพย์สิน</span>
+                      <span className="font-bold text-govblue-800">
+                        {reviewingTask.target_type === "building" ? "สิ่งปลูกสร้าง (Buildings)" : "แปลงที่ดิน (Land Parcels)"}
+                      </span>
+                    </div>
+                    {summary && (
+                      <div className="sm:col-span-2 pt-1 border-t border-gray-200">
+                        <span className="text-gray-400 block text-[11px]">หมายเหตุสรุปจากลูกน้อง:</span>
+                        <p className="text-gray-700 italic font-medium">"{summary}"</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submitted Data Table */}
+                  <div>
+                    <h4 className="font-bold text-gray-800 mb-2">
+                      ข้อมูลที่ลูกน้องกรอกเข้ามาเพื่อขออนุมัติ:
+                    </h4>
+                    {items && items.length > 0 ? (
+                      <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-gray-100 text-gray-700 font-semibold border-b">
+                            {reviewingTask.target_type === "building" ? (
+                              <tr>
+                                <th className="p-2.5">รหัสอาคาร</th>
+                                <th className="p-2.5">ชื่ออาคาร</th>
+                                <th className="p-2.5">แปลงที่ดิน</th>
+                                <th className="p-2.5">โครงสร้าง</th>
+                                <th className="p-2.5">ชั้น</th>
+                                <th className="p-2.5">สภาพ</th>
+                              </tr>
+                            ) : (
+                              <tr>
+                                <th className="p-2.5">รหัสที่ดิน</th>
+                                <th className="p-2.5">เลขที่โฉนด</th>
+                                <th className="p-2.5">ประเภท รฟท.</th>
+                                <th className="p-2.5">การใช้ประโยชน์</th>
+                                <th className="p-2.5">เนื้อที่ (ไร่-งาน-วา)</th>
+                                <th className="p-2.5">ขนาด กว้าง×ยาว</th>
+                              </tr>
+                            )}
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {items.map((it: any, i: number) => (
+                              <tr key={i} className="hover:bg-purple-50/40">
+                                {reviewingTask.target_type === "building" ? (
+                                  <>
+                                    <td className="p-2.5 font-bold text-govblue-800">{it.bldg_code || "-"}</td>
+                                    <td className="p-2.5 font-medium">{it.name || "-"}</td>
+                                    <td className="p-2.5 text-gray-600">{it.land_code || "-"}</td>
+                                    <td className="p-2.5 text-gray-600">{it.material_type || "-"}</td>
+                                    <td className="p-2.5">{it.num_fl || 1} ชั้น</td>
+                                    <td className="p-2.5">{it.bld_condition_type || "ดี"}</td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="p-2.5 font-bold text-govblue-800">{it.land_code || "-"}</td>
+                                    <td className="p-2.5 text-gray-700">{it.deed_no || "-"}</td>
+                                    <td className="p-2.5 text-govblue-700">{it.srt_land_type || "-"}</td>
+                                    <td className="p-2.5 text-gray-600">{it.land_use || "-"}</td>
+                                    <td className="p-2.5 font-semibold text-gray-800">
+                                      {it.rai || 0} ไร่ {it.ngan || 0} งาน {it.wa || 0} วา
+                                    </td>
+                                    <td className="p-2.5 text-gray-600">
+                                      {it.width && it.length ? `${it.width} × ${it.length} ม.` : "-"}
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 border rounded-xl text-gray-500 text-center">
+                        ไม่มีรายการ Batch เฉพาะเจาะจง (ส่งรายงานผลทั่วไป)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Feedback Field for Rejection */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      ข้อเสนอแนะให้แก้ไข (กรณีส่งกลับให้ลูกน้องแก้ไข)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={reviewFeedback}
+                      onChange={(e) => setReviewFeedback(e.target.value)}
+                      placeholder="ระบุจุดที่ต้องแก้ไข เช่น ขนาดพื้นที่ไม่ตรง หรือ ขอให้ถ่ายรูปใหม่อีกครั้ง..."
+                      className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 leading-relaxed">
+                    ℹ️ <strong>เงื่อนไขการอนุมัติ:</strong> เมื่อท่านกด "อนุมัติ" ข้อมูลทรัพย์สินทั้งหมดด้านบนจะถูกบันทึกลงสู่ฐานข้อมูลจริงของระบบ AMS ทันที และจะไปปรากฏที่หน้าจอของพนักงานบัญชีโดยอัตโนมัติ
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setReviewModalOpen(false)}
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                    >
+                      ปิดหน้าต่าง
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={isReviewing}
+                        onClick={() => handleReviewAction("reject")}
+                        className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition disabled:opacity-50"
+                      >
+                        ✕ ส่งกลับให้แก้ไข
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isReviewing}
+                        onClick={() => handleReviewAction("approve")}
+                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>✓ อนุมัติข้อมูล (Commit DB)</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

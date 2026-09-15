@@ -29,16 +29,28 @@ func ValidUserStatus(s string) bool {
 }
 
 const (
-	TaskStatusPending    = "pending"
-	TaskStatusAccepted   = "accepted"
-	TaskStatusInProgress = "in_progress"
-	TaskStatusDone       = "done"
-	TaskStatusCancelled  = "cancelled"
+	TaskStatusPending           = "pending"
+	TaskStatusAccepted          = "accepted"
+	TaskStatusInProgress        = "in_progress"
+	TaskStatusSubmitted         = "submitted"
+	TaskStatusRevisionRequested = "revision_requested"
+	TaskStatusDone              = "done"
+	TaskStatusCancelled         = "cancelled"
+)
+
+const (
+	TaskTypeSurveyNew  = "survey_new"
+	TaskTypeRevision   = "revision"
+	TaskTypeBatchEntry = "batch_entry"
+	TaskTypeSurvey     = "survey"
+	TaskTypeInspect    = "inspect"
+	TaskTypeOther      = "other"
 )
 
 func ValidStatus(s string) bool {
 	switch s {
-	case TaskStatusPending, TaskStatusAccepted, TaskStatusInProgress, TaskStatusDone, TaskStatusCancelled:
+	case TaskStatusPending, TaskStatusAccepted, TaskStatusInProgress,
+		TaskStatusSubmitted, TaskStatusRevisionRequested, TaskStatusDone, TaskStatusCancelled:
 		return true
 	}
 	return false
@@ -46,7 +58,8 @@ func ValidStatus(s string) bool {
 
 func ValidTaskType(s string) bool {
 	switch s {
-	case "survey", "inspect", "other":
+	case TaskTypeSurveyNew, TaskTypeRevision, TaskTypeBatchEntry,
+		TaskTypeSurvey, TaskTypeInspect, TaskTypeOther:
 		return true
 	}
 	return false
@@ -54,6 +67,12 @@ func ValidTaskType(s string) bool {
 
 func TaskTypeLabel(t string) string {
 	switch t {
+	case TaskTypeSurveyNew:
+		return "สำรวจใหม่"
+	case TaskTypeRevision:
+		return "แก้ไขงาน"
+	case TaskTypeBatchEntry:
+		return "ลงข้อมูลใหม่"
 	case "survey":
 		return "งานเก็บข้อมูล"
 	case "inspect":
@@ -79,23 +98,58 @@ type User struct {
 
 // Task — เช่นเดียวกับ User ใช้ PublicID แทน id ตัวเลข
 type Task struct {
-	ID               int64      `json:"-"`
-	PublicID         string     `json:"public_id"`
-	Code             *string    `json:"code"`
-	Title            string     `json:"title"`
-	TaskType         string     `json:"task_type"`
-	Description      string     `json:"description"`
-	Status           string     `json:"status"`
-	AssigneePublicID string     `json:"assignee_public_id"`
-	AssigneeName     string     `json:"assignee_name"`
-	AssignerPublicID string     `json:"assigner_public_id"`
-	AssignerName     string     `json:"assigner_name"`
-	DueAt            *time.Time `json:"due_at"`
-	Lat              *float64   `json:"lat"`
-	Lng              *float64   `json:"lng"`
-	PlaceName        *string    `json:"place_name"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	ID                 int64      `json:"-"`
+	PublicID           string     `json:"public_id"`
+	Code               *string    `json:"code"`
+	Title              string     `json:"title"`
+	TaskType           string     `json:"task_type"`
+	Description        string     `json:"description"`
+	Status             string     `json:"status"`
+	AssigneePublicID   string     `json:"assignee_public_id"`
+	AssigneeName       string     `json:"assignee_name"`
+	AssignerPublicID   string     `json:"assigner_public_id"`
+	AssignerName       string     `json:"assigner_name"`
+	DueAt              *time.Time `json:"due_at"`
+	Lat                *float64   `json:"lat"`
+	Lng                *float64   `json:"lng"`
+	PlaceName          *string    `json:"place_name"`
+	SubmissionData     *string    `json:"submission_data,omitempty"`
+	SupervisorFeedback *string    `json:"supervisor_feedback,omitempty"`
+	TargetType         *string    `json:"target_type,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+// TeamMember — สมาชิกในทีมของหัวหน้างาน
+type TeamMember struct {
+	ID                  int64      `json:"-"`
+	SupervisorID        int64      `json:"-"`
+	SupervisorPublicID  string     `json:"supervisor_public_id"`
+	SupervisorName      string     `json:"supervisor_name"`
+	SubordinateID       int64      `json:"-"`
+	SubordinatePublicID string     `json:"subordinate_public_id"`
+	SubordinateName     string     `json:"subordinate_name"`
+	SubordinateUsername string     `json:"subordinate_username"`
+	Status              string     `json:"status"` // pending, accepted, declined
+	InvitedAt           time.Time  `json:"invited_at"`
+	RespondedAt         *time.Time `json:"responded_at,omitempty"`
+}
+
+// RevisionRequest — คำร้องขอแก้ไข/ตรวจสอบจากฝ่ายบัญชี
+type RevisionRequest struct {
+	ID                 int64      `json:"-"`
+	PublicID           string     `json:"public_id"`
+	RequestedBy        int64      `json:"-"`
+	RequesterPublicID  string     `json:"requester_public_id"`
+	RequesterName      string     `json:"requester_name"`
+	TargetType         string     `json:"target_type"` // land, building, general
+	TargetCode         *string    `json:"target_code,omitempty"`
+	Remark             string     `json:"remark"`
+	Status             string     `json:"status"` // pending, assigned, resolved
+	AssignedTaskID     *int64     `json:"-"`
+	AssignedTaskPublic *string    `json:"assigned_task_public_id,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // LandParcel — ชั้นข้อมูลแปลงที่ดิน (Data Layer ที่ดิน) ตรงตามสเปก 9 Attribute

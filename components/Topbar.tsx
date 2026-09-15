@@ -48,14 +48,21 @@ export function Topbar() {
   const isOfficer = user?.role === "subordinate";
   const tasksLabel = isOfficer ? t("navMyTasks") : t("navTasks");
 
+  const homeHref =
+    user?.role === "accountant"
+      ? "/land"
+      : user?.role === "subordinate"
+        ? "/tasks"
+        : "/dashboard";
+
   const navItems = [
-    { href: "/dashboard", label: t("navDashboard") },
+    { href: "/dashboard", label: t("navDashboard"), roles: ["admin", "supervisor"] },
     { href: "/tasks", label: tasksLabel, roles: ["admin", "supervisor", "subordinate"] },
-    { href: "/land", label: t("navLand"), roles: ["admin", "supervisor", "subordinate", "accountant"] },
-    { href: "/building", label: t("navBuilding"), roles: ["admin", "supervisor", "subordinate", "accountant"] },
-    { href: "/tax", label: t("navTax"), roles: ["admin", "supervisor", "accountant"] },
+    { href: "/land", label: t("navLand"), roles: ["admin", "accountant"] },
+    { href: "/building", label: t("navBuilding"), roles: ["admin", "accountant"] },
+    { href: "/tax", label: t("navTax"), roles: ["admin", "accountant"] },
     { href: "/admin", label: t("navAdmin"), roles: ["admin"] },
-  ].filter((it) => !it.roles || (user && it.roles.includes(user.role)));
+  ].filter((it) => user && it.roles.includes(user.role));
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -112,7 +119,7 @@ export function Topbar() {
 
       {/* Row 2: logo + search + user */}
       <div className="mx-auto max-w-7xl px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-6">
-        <Link href="/dashboard" className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <Link href={homeHref} className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-govblue-700 to-govblue-600 flex items-center justify-center shadow-sm">
             <Logo className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
           </div>

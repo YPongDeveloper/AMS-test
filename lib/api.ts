@@ -17,13 +17,28 @@ export interface AppUser {
   created_at: string;
 }
 
-export type TaskStatus = "pending" | "accepted" | "in_progress" | "done" | "cancelled";
+export type TaskStatus =
+  | "pending"
+  | "accepted"
+  | "in_progress"
+  | "submitted"
+  | "revision_requested"
+  | "done"
+  | "cancelled";
+
+export type TaskType =
+  | "survey_new"
+  | "revision"
+  | "batch_entry"
+  | "survey"
+  | "inspect"
+  | "other";
 
 export interface Task {
   public_id: string;
   code: string | null;
   title: string;
-  task_type: "survey" | "inspect" | "other";
+  task_type: TaskType;
   description: string;
   status: TaskStatus;
   assignee_public_id: string;
@@ -34,8 +49,18 @@ export interface Task {
   lat: number | null;
   lng: number | null;
   place_name: string | null;
+  submission_data?: string | any | null;
+  supervisor_feedback?: string | null;
+  target_type?: "land" | "building" | "both" | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TaskSubmissionPayload {
+  summary?: string;
+  items?: any[];
+  lands?: Partial<LandParcel>[];
+  buildings?: Partial<Building>[];
 }
 
 export class ApiError extends Error {
@@ -395,7 +420,9 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   pending: "รอรับงาน",
   accepted: "รับงานแล้ว",
   in_progress: "กำลังปฏิบัติงาน",
-  done: "เสร็จสิ้น",
+  submitted: "ส่งมอบแล้ว (รอตรวจ)",
+  revision_requested: "ส่งกลับให้แก้ไข",
+  done: "อนุมัติแล้ว (เสร็จสิ้น)",
   cancelled: "ยกเลิก",
 };
 
@@ -403,11 +430,16 @@ export const STATUS_COLOR: Record<TaskStatus, string> = {
   pending: "bg-amber-100 text-amber-800",
   accepted: "bg-sky-100 text-sky-800",
   in_progress: "bg-indigo-100 text-indigo-800",
+  submitted: "bg-purple-100 text-purple-800",
+  revision_requested: "bg-rose-100 text-rose-800",
   done: "bg-emerald-100 text-emerald-800",
-  cancelled: "bg-rose-100 text-rose-800",
+  cancelled: "bg-gray-100 text-gray-800",
 };
 
-export const TYPE_LABEL: Record<string, string> = {
+export const TYPE_LABEL: Record<TaskType, string> = {
+  survey_new: "สำรวจใหม่ (ชี้เป้า)",
+  revision: "แก้ไขงาน",
+  batch_entry: "ลงข้อมูลใหม่ (หลายรายการ)",
   survey: "งานเก็บข้อมูล",
   inspect: "งานตรวจสอบ",
   other: "งานอื่น ๆ",
@@ -681,5 +713,339 @@ export async function deleteBuilding(publicId: string): Promise<void> {
     return;
   }
   await api(`/api/buildings/${publicId}`, { method: "DELETE" });
+}
+
+// ---- Team Management Types & APIs ----
+
+export interface TeamMember {
+  id?: number;
+  supervisor_public_id: string;
+  supervisor_name: string;
+  supervisor_username?: string;
+  subordinate_public_id: string;
+  subordinate_name: string;
+  subordinate_username: string;
+  status: "pending" | "accepted" | "declined";
+  invited_at: string;
+  responded_at?: string | null;
+}
+
+const TEAM_STORAGE_KEY = "ams_mock_team_members";
+
+function getLocalTeam(): TeamMember[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(TEAM_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [
+    {
+      supervisor_public_id: "mock-leader",
+      supervisor_name: "หัวหน้างานสำรวจ (Demo)",
+      subordinate_public_id: "mock-officer",
+      subordinate_name: "เจ้าหน้าที่สำรวจ (Demo)",
+      subordinate_username: "normal",
+      status: "accepted",
+      invited_at: new Date(Date.now() - 86400000).toISOString(),
+      responded_at: new Date(Date.now() - 80000000).toISOString(),
+    },
+  ];
+}
+
+function saveLocalTeam(list: TeamMember[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(list));
+}
+
+export async function inviteToTeam(username: string): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalTeam();
+    const cur = getCurrentUser();
+    const existing = all.find((m) => m.subordinate_username === username);
+    if (existing) {
+      existing.status = "pending";
+      existing.invited_at = new Date().toISOString();
+    } else {
+      all.unshift({
+        supervisor_public_id: cur?.public_id || "mock-leader",
+        supervisor_name: cur?.display_name || "หัวหน้างานสำรวจ",
+        subordinate_public_id: "mock-" + username,
+        subordinate_name: username === "normal" ? "เจ้าหน้าที่สำรวจ (Demo)" : username,
+        subordinate_username: username,
+        status: "pending",
+        invited_at: new Date().toISOString(),
+      });
+    }
+    saveLocalTeam(all);
+    return;
+  }
+  await api("/api/team/invite", { method: "POST", json: { username } });
+}
+
+export async function fetchMyTeam(): Promise<TeamMember[]> {
+  if (!API_CONFIGURED) {
+    return getLocalTeam();
+  }
+  try {
+    return await api<TeamMember[]>("/api/team/members");
+  } catch {
+    return getLocalTeam();
+  }
+}
+
+export async function fetchMyInvitations(): Promise<TeamMember[]> {
+  if (!API_CONFIGURED) {
+    const cur = getCurrentUser();
+    return getLocalTeam().filter(
+      (m) =>
+        m.status === "pending" &&
+        (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
+    );
+  }
+  try {
+    return await api<TeamMember[]>("/api/team/invitations");
+  } catch {
+    return [];
+  }
+}
+
+export async function respondToInvitation(supervisorPublicId: string, action: "accepted" | "declined"): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalTeam();
+    const cur = getCurrentUser();
+    const item = all.find(
+      (m) =>
+        m.supervisor_public_id === supervisorPublicId &&
+        (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
+    );
+    if (item) {
+      item.status = action;
+      item.responded_at = new Date().toISOString();
+      saveLocalTeam(all);
+    }
+    return;
+  }
+  await api("/api/team/respond", {
+    method: "POST",
+    json: { supervisor_public_id: supervisorPublicId, action },
+  });
+}
+
+export async function removeTeamMember(subordinatePublicId: string): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalTeam().filter((m) => m.subordinate_public_id !== subordinatePublicId);
+    saveLocalTeam(all);
+    return;
+  }
+  await api(`/api/team/${subordinatePublicId}`, { method: "DELETE" });
+}
+
+// ---- Accountant Revision Requests Types & APIs ----
+
+export interface RevisionRequest {
+  id?: string;
+  public_id: string;
+  requester_public_id: string;
+  requester_name?: string;
+  creator_name?: string;
+  target_type: "land" | "building" | "general";
+  target_id?: string | null;
+  target_code?: string | null;
+  request_type?: "revision" | "survey_new";
+  remark?: string;
+  remarks?: string;
+  status: "pending" | "assigned" | "resolved";
+  assigned_task_public_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const REQUESTS_STORAGE_KEY = "ams_mock_revision_requests";
+
+function getLocalRequests(): RevisionRequest[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(REQUESTS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [
+    {
+      id: "req-01",
+      public_id: "req-01",
+      requester_public_id: "mock-accountant",
+      requester_name: "พนักงานบัญชีและการเงิน (Demo)",
+      creator_name: "พนักงานบัญชีและการเงิน (Demo)",
+      target_type: "land",
+      target_code: "LP-2569-0042",
+      request_type: "revision",
+      remark: "ตรวจสอบขนาดพื้นที่ดินและอัตราภาษีเพิ่มเติม พบความคลาดเคลื่อนในการคำนวณภาษีปี 2569",
+      remarks: "ตรวจสอบขนาดพื้นที่ดินและอัตราภาษีเพิ่มเติม พบความคลาดเคลื่อนในการคำนวณภาษีปี 2569",
+      status: "pending",
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      updated_at: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ];
+}
+
+function saveLocalRequests(list: RevisionRequest[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(list));
+}
+
+export async function createRevisionRequest(data: {
+  target_type: "land" | "building" | "general";
+  target_id?: string;
+  target_code?: string;
+  request_type?: "revision" | "survey_new";
+  remark?: string;
+  remarks?: string;
+}): Promise<RevisionRequest> {
+  const remarkText = data.remarks || data.remark || "";
+  if (!API_CONFIGURED) {
+    const cur = getCurrentUser();
+    const all = getLocalRequests();
+    const newReq: RevisionRequest = {
+      id: "req-" + Date.now(),
+      public_id: "req-" + Date.now(),
+      requester_public_id: cur?.public_id || "mock-accountant",
+      requester_name: cur?.display_name || "พนักงานบัญชี",
+      creator_name: cur?.display_name || "พนักงานบัญชี",
+      target_type: data.target_type,
+      target_id: data.target_id || null,
+      target_code: data.target_code || null,
+      request_type: data.request_type || "revision",
+      remark: remarkText,
+      remarks: remarkText,
+      status: "pending",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    all.unshift(newReq);
+    saveLocalRequests(all);
+    return newReq;
+  }
+  return api<RevisionRequest>("/api/requests", {
+    method: "POST",
+    json: {
+      target_type: data.target_type,
+      target_id: data.target_id,
+      target_code: data.target_code,
+      request_type: data.request_type || "revision",
+      remarks: remarkText,
+      remark: remarkText,
+    },
+  });
+}
+
+export async function fetchRevisionRequests(status?: string): Promise<RevisionRequest[]> {
+  if (!API_CONFIGURED) {
+    const all = getLocalRequests();
+    return status ? all.filter((r) => r.status === status) : all;
+  }
+  try {
+    const q = status ? `?status=${encodeURIComponent(status)}` : "";
+    return await api<RevisionRequest[]>(`/api/requests${q}`);
+  } catch {
+    return getLocalRequests();
+  }
+}
+
+export async function assignRevisionRequest(requestPublicId: string, taskPublicId: string): Promise<void> {
+  if (!API_CONFIGURED) {
+    const all = getLocalRequests();
+    const it = all.find((r) => r.public_id === requestPublicId);
+    if (it) {
+      it.status = "assigned";
+      it.assigned_task_public_id = taskPublicId;
+      saveLocalRequests(all);
+    }
+    return;
+  }
+  await api(`/api/requests/${requestPublicId}/assign`, {
+    method: "POST",
+    json: { task_public_id: taskPublicId },
+  });
+}
+
+// ---- Task Data Submit & Review APIs ----
+
+export async function submitTaskData(
+  taskPublicId: string,
+  data: TaskSubmissionPayload
+): Promise<Task> {
+  if (!API_CONFIGURED) {
+    // Local mock update
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("ams_saved_tasks_v5") : null;
+    let list: Task[] = saved ? JSON.parse(saved) : [];
+    const idx = list.findIndex((t) => t.public_id === taskPublicId);
+    if (idx >= 0) {
+      list[idx].status = "submitted";
+      list[idx].submission_data = data;
+      list[idx].updated_at = new Date().toISOString();
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
+      }
+      return list[idx];
+    }
+    throw new Error("ไม่พบงาน");
+  }
+  return api<Task>(`/api/tasks/${taskPublicId}/submit`, {
+    method: "POST",
+    json: { data },
+  });
+}
+
+export async function reviewTask(
+  taskPublicId: string,
+  action: "approve" | "reject",
+  feedback?: string
+): Promise<Task> {
+  if (!API_CONFIGURED) {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("ams_saved_tasks_v5") : null;
+    let list: Task[] = saved ? JSON.parse(saved) : [];
+    const idx = list.findIndex((t) => t.public_id === taskPublicId);
+    if (idx >= 0) {
+      const task = list[idx];
+      if (action === "approve") {
+        task.status = "done";
+        // Commit lands and buildings to mock
+        if (task.submission_data) {
+          try {
+            const parsed = typeof task.submission_data === "string" ? JSON.parse(task.submission_data) : task.submission_data;
+            if (Array.isArray(parsed.lands)) {
+              for (const l of parsed.lands) {
+                if (l.land_code) createLand(l);
+              }
+            }
+            if (Array.isArray(parsed.buildings)) {
+              for (const b of parsed.buildings) {
+                if (b.bldg_code) createBuilding(b);
+              }
+            }
+            if (Array.isArray(parsed.items)) {
+              if (task.target_type === "building") {
+                for (const b of parsed.items) if (b.bldg_code) createBuilding(b);
+              } else {
+                for (const l of parsed.items) if (l.land_code) createLand(l);
+              }
+            }
+          } catch {}
+        }
+      } else {
+        task.status = "revision_requested";
+        task.supervisor_feedback = feedback || null;
+      }
+      task.updated_at = new Date().toISOString();
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
+      }
+      return task;
+    }
+    throw new Error("ไม่พบงาน");
+  }
+  return api<Task>(`/api/tasks/${taskPublicId}/review`, {
+    method: "POST",
+    json: { action, feedback },
+  });
 }
 

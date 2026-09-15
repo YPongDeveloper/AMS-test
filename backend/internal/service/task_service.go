@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -15,11 +16,13 @@ var ErrNotFound = errors.New("ไม่พบรายการ")
 type TaskService struct {
 	tasks *repository.TaskRepository
 	users *repository.UserRepository
+	lands *repository.LandRepository
+	bldgs *repository.BuildingRepository
 	hub   *ws.Hub
 }
 
-func NewTaskService(tasks *repository.TaskRepository, users *repository.UserRepository, hub *ws.Hub) *TaskService {
-	return &TaskService{tasks: tasks, users: users, hub: hub}
+func NewTaskService(tasks *repository.TaskRepository, users *repository.UserRepository, lands *repository.LandRepository, bldgs *repository.BuildingRepository, hub *ws.Hub) *TaskService {
+	return &TaskService{tasks: tasks, users: users, lands: lands, bldgs: bldgs, hub: hub}
 }
 
 type CreateTaskInput struct {
@@ -31,22 +34,23 @@ type CreateTaskInput struct {
 	Lat              *float64   `json:"lat"`
 	Lng              *float64   `json:"lng"`
 	PlaceName        *string    `json:"place_name"`
+	TargetType       *string    `json:"target_type"`
 }
 
 func (s *TaskService) ListFor(ctx context.Context, c *Claims, status *string) ([]model.Task, error) {
-	if c.Role == string(model.RoleSupervisor) {
+	if c.Role == string(model.RoleSupervisor) || c.Role == string(model.RoleAdmin) {
 		return s.tasks.ListAll(ctx, status)
 	}
 	return s.tasks.ListMine(ctx, c.UserID, status)
 }
 
-// Create — หัวหน้าสั่งงาน → บันทึก → WS realtime → LINE Flex push
+// Create — หัวหน้าสั่งงาน → บันทึก → WS realtime
 func (s *TaskService) Create(ctx context.Context, actor *Claims, in CreateTaskInput) (*model.Task, error) {
 	if in.Title == "" {
 		return nil, errors.New("ต้องระบุชื่องาน")
 	}
 	if !model.ValidTaskType(in.TaskType) {
-		in.TaskType = "survey"
+		in.TaskType = model.TaskTypeSurveyNew
 	}
 	assignee, err := s.users.FindByPublicID(ctx, in.AssigneePublicID)
 	if err != nil {
@@ -54,7 +58,7 @@ func (s *TaskService) Create(ctx context.Context, actor *Claims, in CreateTaskIn
 	}
 
 	task, err := s.tasks.Create(ctx, in.Title, in.TaskType, in.Description,
-		assignee.ID, actor.UserID, in.DueAt, in.Lat, in.Lng, in.PlaceName)
+		assignee.ID, actor.UserID, in.DueAt, in.Lat, in.Lng, in.PlaceName, in.TargetType)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +81,7 @@ func (s *TaskService) UpdateStatus(ctx context.Context, actor *Claims, publicID,
 	if err != nil {
 		return nil, err
 	}
-	if actor.UserID != assigneeID && actor.UserID != assignerID && actor.Role != string(model.RoleSupervisor) {
+	if actor.UserID != assigneeID && actor.UserID != assignerID && actor.Role != string(model.RoleSupervisor) && actor.Role != string(model.RoleAdmin) {
 		return nil, ErrForbidden
 	}
 
@@ -91,5 +95,93 @@ func (s *TaskService) UpdateStatus(ctx context.Context, actor *Claims, publicID,
 
 	s.hub.SendToUser(assigneeID, ws.WSMessage{Type: "task.update", Task: updated})
 	s.hub.SendToUser(assignerID, ws.WSMessage{Type: "task.update", Task: updated})
+	return updated, nil
+}
+
+// SubmitData — ลูกน้องกรอกข้อมูลสำรวจ/ลงข้อมูลเสร็จ ส่งให้หัวหน้าตรวจสอบ
+func (s *TaskService) SubmitData(ctx context.Context, actor *Claims, publicID string, submissionJSON string) (*model.Task, error) {
+	task, err := s.tasks.FindByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	assigneeID, assignerID, err := s.tasks.AssigneeAndAssigner(ctx, task.ID)
+	if err != nil {
+		return nil, err
+	}
+	if actor.UserID != assigneeID && actor.Role != string(model.RoleAdmin) {
+		return nil, ErrForbidden
+	}
+
+	if err := s.tasks.SubmitData(ctx, task.ID, submissionJSON); err != nil {
+		return nil, err
+	}
+	updated, err := s.tasks.FindByID(ctx, task.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.hub.SendToUser(assignerID, ws.WSMessage{Type: "task.submitted", Task: updated})
+	return updated, nil
+}
+
+type ReviewInput struct {
+	Action   string  `json:"action"` // approve | reject
+	Feedback *string `json:"feedback,omitempty"`
+}
+
+type SubmittedPayload struct {
+	Lands     []model.LandParcel `json:"lands"`
+	Buildings []model.Building   `json:"buildings"`
+}
+
+// Review — หัวหน้างานตรวจสอบงาน (อนุมัติเพื่อ commit ข้อมูลจริง หรือ ส่งกลับให้แก้ไข)
+func (s *TaskService) Review(ctx context.Context, actor *Claims, publicID string, in ReviewInput) (*model.Task, error) {
+	if actor.Role != string(model.RoleSupervisor) && actor.Role != string(model.RoleAdmin) {
+		return nil, ErrForbidden
+	}
+	task, err := s.tasks.FindByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	assigneeID, _, err := s.tasks.AssigneeAndAssigner(ctx, task.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var newStatus string
+	if in.Action == "approve" {
+		newStatus = model.TaskStatusDone
+
+		// Commit ข้อมูลที่ลูกน้องกรอกลงในตาราง land_parcels และ buildings จริง
+		if task.SubmissionData != nil && *task.SubmissionData != "" {
+			var payload SubmittedPayload
+			if err := json.Unmarshal([]byte(*task.SubmissionData), &payload); err == nil {
+				for _, l := range payload.Lands {
+					if l.LandCode != "" {
+						_, _ = s.lands.Create(ctx, &l, &assigneeID)
+					}
+				}
+				for _, b := range payload.Buildings {
+					if b.BldgCode != "" {
+						_, _ = s.bldgs.Create(ctx, &b, &assigneeID)
+					}
+				}
+			}
+		}
+	} else if in.Action == "reject" {
+		newStatus = model.TaskStatusRevisionRequested
+	} else {
+		return nil, errors.New("action ต้องเป็น approve หรือ reject")
+	}
+
+	if err := s.tasks.ReviewTask(ctx, task.ID, newStatus, in.Feedback); err != nil {
+		return nil, err
+	}
+	updated, err := s.tasks.FindByID(ctx, task.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.hub.SendToUser(assigneeID, ws.WSMessage{Type: "task.reviewed", Task: updated})
 	return updated, nil
 }
