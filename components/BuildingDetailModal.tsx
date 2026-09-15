@@ -292,7 +292,6 @@ export default function BuildingDetailModal({
           {onOpenRevisionRequest ? (
             <button
               onClick={() => {
-                onClose();
                 onOpenRevisionRequest(building);
               }}
               className="w-full sm:w-auto px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5"

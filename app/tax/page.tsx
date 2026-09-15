@@ -390,6 +390,8 @@ export default function TaxPage() {
         remarks: reqRemarks.trim(),
       });
       setRequestModalOpen(false);
+      setDetailLand(null);
+      setDetailBuilding(null);
       setToastMsg({
         text: `สร้างคำร้องขอแก้ไข/สำรวจใหม่สำหรับ "${reqTargetCode}" สำเร็จ (ส่งไปยังหัวหน้างานแล้ว)`,
         tone: "green",
@@ -1195,7 +1197,7 @@ export default function TaxPage() {
       {/* Toast Notification */}
       {toastMsg && (
         <div
-          className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-xl border flex items-center gap-2.5 text-xs animate-in slide-in-from-bottom duration-200 ${
+          className={`fixed bottom-6 right-6 z-[70] p-4 rounded-xl shadow-xl border flex items-center gap-2.5 text-xs animate-in slide-in-from-bottom duration-200 ${
             toastMsg.tone === "green"
               ? "bg-emerald-50 text-emerald-900 border-emerald-300"
               : "bg-rose-50 text-rose-900 border-rose-300"
@@ -1215,7 +1217,7 @@ export default function TaxPage() {
 
       {/* Revision Request Modal (หน้าต่างทำเรื่องขอแก้ไข / สำรวจใหม่) */}
       {requestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-gray-200 relative">
             <button
               onClick={() => setRequestModalOpen(false)}
