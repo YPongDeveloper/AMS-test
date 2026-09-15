@@ -56,15 +56,18 @@ import {
   Navigation,
   RotateCcw,
   Search,
+  Lock,
+  FileCheck2,
+  Award,
 } from "lucide-react";
 
-// 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน
-const PIPELINE_STEPS: { status: TaskStatus; label: string; sub: string }[] = [
-  { status: "pending", label: "รอรับงาน", sub: "มอบหมายแล้ว" },
-  { status: "accepted", label: "รับงานแล้ว", sub: "ยืนยันการรับ" },
-  { status: "in_progress", label: "กำลังปฏิบัติงาน", sub: "ลงพื้นที่สำรวจ" },
-  { status: "submitted", label: "ส่งตรวจแล้ว", sub: "รอหัวหน้าอนุมัติ" },
-  { status: "done", label: "เสร็จสิ้น", sub: "อนุมัติเข้าระบบแล้ว" },
+// 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน (ออกแบบตาม Delivery Tracker Pipeline)
+const PIPELINE_STEPS = [
+  { status: "pending" as TaskStatus, label: "รอรับงาน", sub: "มอบหมายแล้ว", icon: ClipboardList },
+  { status: "accepted" as TaskStatus, label: "รับงานแล้ว", sub: "ยืนยันการรับ", icon: CheckCircle2 },
+  { status: "in_progress" as TaskStatus, label: "กำลังปฏิบัติงาน", sub: "ลงพื้นที่สำรวจ", icon: MapPin },
+  { status: "submitted" as TaskStatus, label: "ส่งตรวจแล้ว", sub: "รอหัวหน้าอนุมัติ", icon: FileCheck2 },
+  { status: "done" as TaskStatus, label: "เสร็จสิ้น", sub: "อนุมัติเข้าระบบแล้ว", icon: Award },
 ];
 
 const getTodayStr = () => {
@@ -1250,6 +1253,135 @@ export default function TasksPage() {
     }
   };
 
+  // การเลื่อนขั้นตอนทีละสเต็ปตามลำดับ (Sequential Progression: ค่อยๆ ไป ไม่กดข้าม ยกเว้น ยกเลิก)
+  const handleAdvancePipeline = (targetIdx: number) => {
+    if (!selectedTask) return;
+    const targetStep = PIPELINE_STEPS[targetIdx];
+    if (!targetStep) return;
+
+    // หากงานถูกยกเลิกแล้ว
+    if (selectedTask.status === "cancelled") {
+      setConfirmDialog({
+        isOpen: true,
+        title: "งานนี้ถูกยกเลิกแล้ว",
+        message: "งานนี้อยู่ในสถานะยกเลิก หากต้องการดำเนินการต่อ กรุณากดปุ่ม 'กู้คืนสถานะกลับมา'",
+        tone: "primary",
+        confirmLabel: "เข้าใจแล้ว",
+        cancelLabel: "ปิด",
+        onCancel: closeConfirmDialog,
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    const curIdx = getStepIndex(selectedTask.status);
+
+    // 1. ถ้าคลิกขั้นตอนเดิม
+    if (targetIdx === curIdx) {
+      if (selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") {
+        const t = selectedTask;
+        handleCloseTaskModal();
+        openSubmissionModal(t);
+      } else if (selectedTask.status === "submitted" && isSup) {
+        const t = selectedTask;
+        handleCloseTaskModal();
+        openReviewModal(t);
+      }
+      return;
+    }
+
+    // 2. ถ้าคลิกขั้นตอนที่ผ่านมาแล้ว (targetIdx < curIdx)
+    if (targetIdx < curIdx) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "ขั้นตอนนี้ดำเนินการผ่านไปแล้ว",
+        message: `ขั้นตอน "${targetStep.label}" (${targetStep.sub}) ได้ดำเนินการเสร็จเรียบร้อยแล้ว`,
+        tone: "primary",
+        confirmLabel: "รับทราบ",
+        cancelLabel: "ปิด",
+        onCancel: closeConfirmDialog,
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    // 3. ถ้าพยายามกระโดดข้ามขั้นตอน (targetIdx > curIdx + 1)
+    if (targetIdx > curIdx + 1) {
+      const nextStep = PIPELINE_STEPS[curIdx + 1];
+      setConfirmDialog({
+        isOpen: true,
+        title: "ไม่สามารถข้ามขั้นตอนได้",
+        message: (
+          <div className="space-y-2 text-left">
+            <p className="text-gray-700 text-center">
+              ระบบกำหนดให้ดำเนินงานตามลำดับขั้นตอน ค่อยๆ ไปทีละขั้นตอน ไม่สามารถกดข้ามขั้นตอนได้
+            </p>
+            {nextStep && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                <span>
+                  ขั้นตอนถัดไปที่ต้องทำคือ: <strong>ขั้นตอนที่ {curIdx + 2} "{nextStep.label}"</strong> ({nextStep.sub})
+                </span>
+              </div>
+            )}
+          </div>
+        ),
+        tone: "warning",
+        confirmLabel: "รับทราบ",
+        cancelLabel: "ย้อนกลับ",
+        onCancel: closeConfirmDialog,
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    // 4. กรณีเป็นขั้นตอนถัดไปทันที (targetIdx === curIdx + 1)
+    if (targetIdx === curIdx + 1) {
+      // Step 0 -> Step 1: pending -> accepted
+      if (curIdx === 0 && targetIdx === 1) {
+        setStatus(selectedTask, "accepted");
+        setSelectedTask((prev) => (prev ? { ...prev, status: "accepted" } : null));
+        return;
+      }
+
+      // Step 1 -> Step 2: accepted -> in_progress
+      if (curIdx === 1 && targetIdx === 2) {
+        setStatus(selectedTask, "in_progress");
+        setSelectedTask((prev) => (prev ? { ...prev, status: "in_progress" } : null));
+        return;
+      }
+
+      // Step 2 -> Step 3: in_progress / revision_requested -> submitted
+      if (curIdx === 2 && targetIdx === 3) {
+        const t = selectedTask;
+        handleCloseTaskModal();
+        openSubmissionModal(t);
+        return;
+      }
+
+      // Step 3 -> Step 4: submitted -> done
+      if (curIdx === 3 && targetIdx === 4) {
+        if (isSup) {
+          const t = selectedTask;
+          handleCloseTaskModal();
+          openReviewModal(t);
+        } else {
+          setConfirmDialog({
+            isOpen: true,
+            title: "อยู่ระหว่างรอหัวหน้างานตรวจสอบ",
+            message: "งานนี้ได้ส่งผลงานแล้ว อยู่ระหว่างรอหัวหน้างานตรวจสอบและอนุมัติเข้าระบบ (พนักงานสำรวจไม่สามารถอนุมัติงานให้เสร็จสิ้นได้ด้วยตนเอง)",
+            tone: "primary",
+            confirmLabel: "รับทราบ",
+            cancelLabel: "ปิด",
+            onCancel: closeConfirmDialog,
+            onConfirm: closeConfirmDialog,
+          });
+        }
+        return;
+      }
+    }
+  };
+
   return (
     <Page allowedRoles={["admin", "supervisor", "subordinate"]}>
       {!API_CONFIGURED && !me && (
@@ -1999,6 +2131,94 @@ export default function TasksPage() {
                                     value={task.status}
                                     onChange={(e) => {
                                       const nextSt = e.target.value as TaskStatus;
+                                      if (nextSt === task.status) return;
+
+                                      // ข้อยกเว้น: ยกเลิกงานได้เสมอทุกขั้นตอน พร้อมกล่องยืนยัน
+                                      if (nextSt === "cancelled") {
+                                        setConfirmDialog({
+                                          isOpen: true,
+                                          title: "ยืนยันการยกเลิกงานสำรวจ",
+                                          message: (
+                                            <p className="text-gray-700">
+                                              ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{task.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
+                                            </p>
+                                          ),
+                                          tone: "warning",
+                                          confirmLabel: "ยืนยันยกเลิกงาน",
+                                          cancelLabel: "ย้อนกลับ",
+                                          onCancel: closeConfirmDialog,
+                                          onConfirm: () => {
+                                            setStatus(task, "cancelled");
+                                            closeConfirmDialog();
+                                          },
+                                        });
+                                        return;
+                                      }
+
+                                      // กรณีกู้คืนสถานะจาก cancelled กลับมา
+                                      if (task.status === "cancelled") {
+                                        setStatus(task, nextSt);
+                                        return;
+                                      }
+
+                                      const curIdx = getStepIndex(task.status);
+                                      const targetIdx = getStepIndex(nextSt);
+
+                                      // ตรวจสอบการกระโดดข้ามขั้นตอน (ห้ามข้าม)
+                                      if (targetIdx > curIdx + 1) {
+                                        const nextStep = PIPELINE_STEPS[curIdx + 1];
+                                        setConfirmDialog({
+                                          isOpen: true,
+                                          title: "ไม่สามารถข้ามขั้นตอนได้",
+                                          message: (
+                                            <div className="space-y-2 text-left">
+                                              <p className="text-gray-700 text-center">
+                                                ระบบกำหนดให้ดำเนินงานตามลำดับขั้นตอน ค่อยๆ ไปทีละขั้นตอน ไม่สามารถกดข้ามขั้นตอนได้
+                                              </p>
+                                              {nextStep && (
+                                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                                                  <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                                                  <span>
+                                                    ขั้นตอนถัดไปที่ต้องทำคือ: <strong>ขั้นตอนที่ {curIdx + 2} "{nextStep.label}"</strong> ({nextStep.sub})
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ),
+                                          tone: "warning",
+                                          confirmLabel: "รับทราบ",
+                                          cancelLabel: "ปิด",
+                                          onCancel: closeConfirmDialog,
+                                          onConfirm: closeConfirmDialog,
+                                        });
+                                        return;
+                                      }
+
+                                      // ถ้าถึงขั้นตอนส่งงาน
+                                      if (nextSt === "submitted") {
+                                        openSubmissionModal(task);
+                                        return;
+                                      }
+
+                                      // ถ้าถึงขั้นตอนอนุมัติเสร็จสิ้น
+                                      if (nextSt === "done") {
+                                        if (isSup) {
+                                          openReviewModal(task);
+                                        } else {
+                                          setConfirmDialog({
+                                            isOpen: true,
+                                            title: "อยู่ระหว่างรอหัวหน้างานตรวจสอบ",
+                                            message: "พนักงานสำรวจไม่สามารถอนุมัติงานให้เสร็จสิ้นได้ด้วยตนเอง (ต้องได้รับการตรวจและอนุมัติจากหัวหน้างาน)",
+                                            tone: "primary",
+                                            confirmLabel: "รับทราบ",
+                                            cancelLabel: "ปิด",
+                                            onCancel: closeConfirmDialog,
+                                            onConfirm: closeConfirmDialog,
+                                          });
+                                        }
+                                        return;
+                                      }
+
                                       setStatus(task, nextSt);
                                     }}
                                     className={`text-xs font-semibold pl-6 pr-7 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-govblue-500/20 transition ${
@@ -2111,132 +2331,332 @@ export default function TasksPage() {
 
             {/* Modal Body (Scrollable) */}
             <div className="p-6 space-y-5 overflow-y-auto flex-1 text-gray-800">
-              {/* Modern Workflow Pipeline Stepper */}
-              <div className="bg-gradient-to-r from-govblue-50/60 via-white to-govblue-50/60 p-4 rounded-xl border border-govblue-100 shadow-xs">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-govblue-900 tracking-wide uppercase flex items-center gap-1.5">
-                    <Activity size={14} className="text-govblue-700" />
-                    ขั้นตอนการดำเนินงาน (Workflow Pipeline)
-                  </span>
-                  {selectedTask.status === "cancelled" ? (
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                      ยกเลิกงานนี้แล้ว
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-govblue-600 font-medium">
-                      คลิกที่ขั้นตอนเพื่อเปลี่ยนสถานะ
-                    </span>
-                  )}
-                </div>
-
-                {/* 4 Pipeline Steps */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {PIPELINE_STEPS.map((step, idx) => {
-                    const isCurrent = selectedTask.status === step.status;
-                    const stepIdx = getStepIndex(selectedTask.status);
-                    const isPassed = stepIdx > idx && selectedTask.status !== "cancelled";
-
-                    return (
-                      <button
-                        key={step.status}
-                        type="button"
-                        onClick={() => {
-                          setStatus(selectedTask, step.status);
-                          setSelectedTask({ ...selectedTask, status: step.status });
-                        }}
-                        className={`relative flex flex-col items-center p-3 rounded-xl border transition-all text-center group ${
-                          isCurrent
-                            ? "bg-govblue-800 text-white border-govblue-800 shadow-md ring-2 ring-govblue-600/30 scale-[1.02]"
-                            : isPassed
-                            ? "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100/70"
-                            : "bg-white text-gray-600 border-gray-200 hover:border-govblue-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        {/* Step Number / Check Icon */}
-                        <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mb-1.5 transition ${
-                            isCurrent
-                              ? "bg-govgold-500 text-govblue-900 shadow-xs"
-                              : isPassed
-                              ? "bg-emerald-500 text-white"
-                              : "bg-gray-100 text-gray-500 group-hover:bg-govblue-50 group-hover:text-govblue-700"
-                          }`}
-                        >
-                          {isPassed ? <Check size={14} /> : idx + 1}
-                        </div>
-
-                        {/* Step Label */}
-                        <span className={`text-xs font-semibold leading-tight ${isCurrent ? "text-white" : ""}`}>
-                          {step.label}
-                        </span>
-                        <span
-                          className={`text-[10px] mt-0.5 ${
-                            isCurrent ? "text-blue-200" : isPassed ? "text-emerald-600" : "text-gray-400"
-                          }`}
-                        >
-                          {step.sub}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Status Bar & Cancel Option */}
-                <div className="mt-3.5 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-gray-500">สถานะปัจจุบัน:</span>
-                    <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[selectedTask.status] || "bg-gray-100 text-gray-800"}`}>
-                      {STATUS_LABEL[selectedTask.status] || selectedTask.status || "—"}
-                    </span>
+              {/* Modern Delivery Tracker Pipeline Stepper (สไตล์ Tracker ในรูปที่ 2) */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-sm space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-govblue-50 text-govblue-800 flex items-center justify-center font-bold text-xs">
+                      <Activity size={15} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-bold text-govblue-950 uppercase tracking-wide">
+                        ขั้นตอนการดำเนินงาน (Workflow Pipeline)
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        ดำเนินงานตามลำดับขั้นตอน (ค่อยๆ ไปทีละขั้นตอน ไม่กดข้าม)
+                      </p>
+                    </div>
                   </div>
 
                   <div>
-                    {selectedTask.status !== "cancelled" ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmDialog({
-                            isOpen: true,
-                            title: "ยืนยันการยกเลิกงานสำรวจ",
-                            message: (
-                              <div className="text-left space-y-2">
-                                <p className="text-center text-gray-700">
-                                  ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{selectedTask.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
-                                </p>
-                                <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                                  งานที่ถูกยกเลิกจะไม่ปรากฏในรายการปฏิบัติงานประจำวัน แต่ท่านสามารถกู้คืนสถานะกลับมาได้ในภายหลัง
-                                </p>
-                              </div>
-                            ),
-                            tone: "warning",
-                            confirmLabel: "ยืนยันยกเลิกงาน",
-                            cancelLabel: "ย้อนกลับ",
-                            onCancel: closeConfirmDialog,
-                            onConfirm: () => {
-                              setStatus(selectedTask, "cancelled");
-                              setSelectedTask({ ...selectedTask, status: "cancelled" });
-                              closeConfirmDialog();
-                            },
-                          });
-                        }}
-                        className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-medium"
-                      >
-                        ยกเลิกงานนี้
-                      </button>
+                    {selectedTask.status === "cancelled" ? (
+                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                        <X size={12} className="stroke-[3]" />
+                        ยกเลิกงานนี้แล้ว
+                      </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatus(selectedTask, "pending");
-                          setSelectedTask({ ...selectedTask, status: "pending" });
-                        }}
-                        className="text-xs text-govblue-700 hover:text-govblue-900 hover:underline font-medium"
-                      >
-                        กู้คืนสถานะกลับมา
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-gray-500 hidden sm:inline">สถานะปัจจุบัน:</span>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${STATUS_COLOR[selectedTask.status] || "bg-gray-100 text-gray-800"}`}>
+                          {STATUS_LABEL[selectedTask.status] || selectedTask.status}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
+
+                {/* Horizontal Progress Tracker (Image 2 style) */}
+                {(() => {
+                  const curIdx = getStepIndex(selectedTask.status);
+                  return (
+                    <div className="relative pt-2 pb-2">
+                      {/* Base connecting line across 5 columns (starts at center of col 0, ends at center of col 4) */}
+                      <div className="absolute top-4 sm:top-5 left-[10%] right-[10%] h-1.5 sm:h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0" />
+
+                      {/* Filled active progress bar */}
+                      {selectedTask.status !== "cancelled" && curIdx >= 0 && (
+                        <div
+                          className="absolute top-4 sm:top-5 left-[10%] h-1.5 sm:h-2 bg-gradient-to-r from-govblue-600 via-govblue-700 to-govblue-800 rounded-full -translate-y-1/2 z-0 transition-all duration-500"
+                          style={{ width: `${Math.max(0, Math.min(curIdx, 4)) * 20}%` }}
+                        />
+                      )}
+
+                      {/* 5 Step Nodes Grid */}
+                      <div className="grid grid-cols-5 relative z-10">
+                        {PIPELINE_STEPS.map((step, idx) => {
+                          const StepIcon = step.icon;
+                          const isCurrent = curIdx === idx && selectedTask.status !== "cancelled";
+                          const isPassed = curIdx > idx && selectedTask.status !== "cancelled";
+                          const isNextImmediate = curIdx + 1 === idx && selectedTask.status !== "cancelled";
+                          const isRevision = isCurrent && selectedTask.status === "revision_requested";
+
+                          return (
+                            <button
+                              key={step.status}
+                              type="button"
+                              onClick={() => handleAdvancePipeline(idx)}
+                              className={`flex flex-col items-center text-center transition-all group focus:outline-none ${
+                                isNextImmediate
+                                  ? "cursor-pointer"
+                                  : isCurrent
+                                  ? "cursor-default"
+                                  : isPassed
+                                  ? "cursor-pointer"
+                                  : "cursor-not-allowed opacity-70"
+                              }`}
+                              title={
+                                isPassed
+                                  ? `ขั้นตอนที่ ${idx + 1}: ${step.label} (เสร็จแล้ว)`
+                                  : isCurrent
+                                  ? `ขั้นตอนปัจจุบัน: ${step.label}`
+                                  : isNextImmediate
+                                  ? `คลิกเพื่อดำเนินการขั้นตอนถัดไป: ${step.label}`
+                                  : `ขั้นตอนที่ ${idx + 1}: ${step.label} (ต้องทำตามลำดับ)`
+                              }
+                            >
+                              {/* Circular Node */}
+                              <div
+                                className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
+                                  isRevision
+                                    ? "bg-orange-500 text-white ring-4 ring-orange-200 shadow-md animate-pulse"
+                                    : isPassed
+                                    ? "bg-govblue-800 text-white shadow-sm group-hover:scale-105"
+                                    : isCurrent
+                                    ? "bg-govblue-900 text-govgold-400 ring-4 ring-govblue-200 shadow-lg scale-110 font-bold"
+                                    : isNextImmediate
+                                    ? "bg-white text-govblue-700 border-2 border-dashed border-govblue-600 ring-2 ring-govblue-100 hover:ring-govblue-300 hover:bg-govblue-50/60 shadow-sm group-hover:scale-105"
+                                    : "bg-white text-gray-300 border-2 border-gray-300 shadow-2xs"
+                                }`}
+                              >
+                                {isRevision ? (
+                                  <AlertCircle size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
+                                ) : isPassed ? (
+                                  <Check size={16} className="sm:w-5 sm:h-5 stroke-[3] text-govgold-400" />
+                                ) : isCurrent ? (
+                                  <StepIcon size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
+                                ) : isNextImmediate ? (
+                                  <ArrowRight size={15} className="sm:w-4 sm:h-4 text-govblue-700 stroke-[2.5] group-hover:translate-x-0.5 transition" />
+                                ) : (
+                                  <Lock size={13} className="sm:w-3.5 sm:h-3.5 text-gray-400" />
+                                )}
+                              </div>
+
+                              {/* Step Content below Node (Image 2 style with icon and clean typography) */}
+                              <div className="mt-2 flex flex-col items-center max-w-[95px] sm:max-w-[110px]">
+                                {/* Step Icon & Title */}
+                                <div className="flex items-center justify-center gap-1">
+                                  <StepIcon
+                                    size={12}
+                                    className={`hidden sm:inline shrink-0 ${
+                                      isCurrent
+                                        ? "text-govblue-900 font-bold"
+                                        : isPassed
+                                        ? "text-govblue-700"
+                                        : isNextImmediate
+                                        ? "text-govblue-600"
+                                        : "text-gray-400"
+                                    }`}
+                                  />
+                                  <span
+                                    className={`text-[10px] sm:text-xs leading-tight ${
+                                      isCurrent
+                                        ? "font-bold text-govblue-950"
+                                        : isPassed
+                                        ? "font-semibold text-gray-800"
+                                        : isNextImmediate
+                                        ? "font-semibold text-govblue-700 underline decoration-govblue-300 decoration-1 underline-offset-2"
+                                        : "font-medium text-gray-400"
+                                    }`}
+                                  >
+                                    {step.label}
+                                  </span>
+                                </div>
+
+                                {/* Step Subtitle */}
+                                <span
+                                  className={`text-[8px] sm:text-[10px] mt-0.5 leading-tight hidden sm:block ${
+                                    isCurrent
+                                      ? "text-govblue-700 font-medium"
+                                      : isPassed
+                                      ? "text-gray-500"
+                                      : "text-gray-400"
+                                  }`}
+                                >
+                                  {step.sub}
+                                </span>
+
+                                {/* Status Indicator Pill */}
+                                <div className="mt-1">
+                                  {isRevision ? (
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                      ส่งกลับแก้ไข
+                                    </span>
+                                  ) : isPassed ? (
+                                    <span className="text-[8px] sm:text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5">
+                                      <Check size={9} className="stroke-[3]" /> เสร็จสิ้น
+                                    </span>
+                                  ) : isCurrent ? (
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-govblue-800 bg-govblue-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap ring-1 ring-govblue-200">
+                                      {idx === 4 ? "สมบูรณ์" : "กำลังทำ"}
+                                    </span>
+                                  ) : isNextImmediate ? (
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-govblue-200 transition">
+                                      ถัดไป ➔
+                                    </span>
+                                  ) : (
+                                    <span className="text-[8px] sm:text-[9px] text-gray-400 whitespace-nowrap flex items-center gap-0.5">
+                                      <Lock size={8} /> รอดำเนินการ
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Contextual Action Box (กล่องแนะนำและดำเนินการขั้นตอนถัดไป + ปุ่มยกเลิกงาน) */}
+                {(() => {
+                  const curIdx = getStepIndex(selectedTask.status);
+                  return (
+                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-xl">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          selectedTask.status === "cancelled"
+                            ? "bg-rose-100 text-rose-700"
+                            : selectedTask.status === "done"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : selectedTask.status === "revision_requested"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-govblue-100 text-govblue-800"
+                        }`}>
+                          {selectedTask.status === "cancelled" ? (
+                            <X size={16} />
+                          ) : selectedTask.status === "done" ? (
+                            <Award size={16} />
+                          ) : selectedTask.status === "revision_requested" ? (
+                            <AlertCircle size={16} />
+                          ) : (
+                            <ArrowRight size={16} />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-900 truncate">
+                            {selectedTask.status === "pending" && "ขั้นตอนถัดไป: ยืนยันการรับงาน"}
+                            {selectedTask.status === "accepted" && "ขั้นตอนถัดไป: เริ่มลงพื้นที่สำรวจรังวัด"}
+                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ขั้นตอนถัดไป: กรอกข้อมูลและส่งภาพผลงานให้ตรวจ"}
+                            {selectedTask.status === "submitted" && (isSup ? "ขั้นตอนถัดไป: ตรวจสอบและอนุมัติผลงาน" : "รอหัวหน้างานตรวจสอบและอนุมัติ")}
+                            {selectedTask.status === "done" && "ภารกิจสำรวจเสร็จสมบูรณ์เรียบร้อย"}
+                            {selectedTask.status === "cancelled" && "ภารกิจนี้ถูกยกเลิก"}
+                          </p>
+                          <p className="text-[11px] text-gray-500 truncate">
+                            {selectedTask.status === "pending" && "เมื่อกดยืนยันรับงาน สถานะจะเปลี่ยนเป็น 'รับงานแล้ว'"}
+                            {selectedTask.status === "accepted" && "กดเริ่มงานเมื่อทีมงานพร้อมลงพื้นที่สำรวจรังวัดแนวเขต"}
+                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ส่งพิกัด แผนที่ และภาพถ่ายผลงานเพื่อขออนุมัติ"}
+                            {selectedTask.status === "submitted" && (isSup ? "ตรวจสอบความถูกต้องของข้อมูลและภาพถ่ายก่อนอนุมัติ" : "ส่งผลงานเข้าระบบแล้ว อยู่ระหว่างรอตรวจสอบ")}
+                            {selectedTask.status === "done" && "ผ่านการตรวจสอบและบันทึกเข้าระบบเรียบร้อยแล้ว"}
+                            {selectedTask.status === "cancelled" && "ท่านสามารถกู้คืนสถานะเพื่อกลับมาดำเนินงานต่อได้"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Buttons: Next Step Action & Cancel Button */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {/* Primary Next Action Button */}
+                        {selectedTask.status !== "cancelled" && curIdx < 4 && (
+                          <button
+                            type="button"
+                            onClick={() => handleAdvancePipeline(curIdx + 1)}
+                            className="px-3.5 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5"
+                          >
+                            {curIdx === 0 && (
+                              <>
+                                <CheckCircle2 size={14} className="text-govgold-400" />
+                                <span>ยืนยันรับงาน</span>
+                              </>
+                            )}
+                            {curIdx === 1 && (
+                              <>
+                                <MapPin size={14} className="text-govgold-400" />
+                                <span>เริ่มลงพื้นที่</span>
+                              </>
+                            )}
+                            {curIdx === 2 && (
+                              <>
+                                <FileCheck2 size={14} className="text-govgold-400" />
+                                <span>ส่งผลงานให้ตรวจ</span>
+                              </>
+                            )}
+                            {curIdx === 3 && isSup && (
+                              <>
+                                <Award size={14} className="text-govgold-400" />
+                                <span>ตรวจและอนุมัติ</span>
+                              </>
+                            )}
+                            {curIdx === 3 && !isSup && (
+                              <>
+                                <Clock size={14} />
+                                <span>รอหัวหน้าอนุมัติ</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {/* ยกเว้น ยกเลิก (Cancel Exception Button) */}
+                        {selectedTask.status !== "cancelled" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmDialog({
+                                isOpen: true,
+                                title: "ยืนยันการยกเลิกงานสำรวจ",
+                                message: (
+                                  <div className="text-left space-y-2">
+                                    <p className="text-center text-gray-700">
+                                      ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{selectedTask.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                                      งานที่ถูกยกเลิกจะไม่ปรากฏในรายการปฏิบัติงานประจำวัน แต่ท่านสามารถกู้คืนสถานะกลับมาได้ในภายหลัง
+                                    </p>
+                                  </div>
+                                ),
+                                tone: "warning",
+                                confirmLabel: "ยืนยันยกเลิกงาน",
+                                cancelLabel: "ย้อนกลับ",
+                                onCancel: closeConfirmDialog,
+                                onConfirm: () => {
+                                  setStatus(selectedTask, "cancelled");
+                                  setSelectedTask({ ...selectedTask, status: "cancelled" });
+                                  closeConfirmDialog();
+                                },
+                              });
+                            }}
+                            className="px-2.5 py-1.5 text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition font-medium flex items-center gap-1"
+                          >
+                            <X size={13} />
+                            <span>ยกเลิกงานนี้</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatus(selectedTask, "pending");
+                              setSelectedTask({ ...selectedTask, status: "pending" });
+                            }}
+                            className="px-3 py-1.5 text-xs text-govblue-800 hover:bg-govblue-50 border border-govblue-300 rounded-lg transition font-semibold flex items-center gap-1"
+                          >
+                            <RotateCcw size={13} />
+                            <span>กู้คืนสถานะกลับมา</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Supervisor Feedback Banner (เมื่อถูกส่งกลับให้แก้ไข) */}
