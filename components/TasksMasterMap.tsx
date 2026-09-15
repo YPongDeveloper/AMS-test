@@ -89,15 +89,16 @@ export default function TasksMasterMap({
 
   // กรองเฉพาะงานที่มีพิกัด
   const mappableTasks = useMemo(() => {
-    return tasks.filter((t) => t.lat != null && t.lng != null);
+    return (tasks || []).filter((t) => t && t.lat != null && t.lng != null && !isNaN(Number(t.lat)) && !isNaN(Number(t.lng)));
   }, [tasks]);
 
   // เรียงลำดับงานตาม orderedIds
   const orderedTasks = useMemo(() => {
     const copy = [...mappableTasks];
+    const safeOrderedIds = Array.isArray(orderedIds) ? orderedIds : [];
     copy.sort((a, b) => {
-      const idxA = orderedIds.indexOf(a.public_id);
-      const idxB = orderedIds.indexOf(b.public_id);
+      const idxA = a?.public_id ? safeOrderedIds.indexOf(a.public_id) : -1;
+      const idxB = b?.public_id ? safeOrderedIds.indexOf(b.public_id) : -1;
       if (idxA === -1 && idxB === -1) return 0;
       if (idxA === -1) return 1;
       if (idxB === -1) return -1;
@@ -349,24 +350,28 @@ export default function TasksMasterMap({
         gpsMarker.bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px; text-align: center; padding: 2px;">
             <b style="color: #1d4ed8;">📍 ตำแหน่งปัจจุบันของคุณ (GPS)</b><br/>
-            <span style="font-size: 11px; color: #64748b;">${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}</span>
+            <span style="font-size: 11px; color: #64748b;">${Number(userLocation.lat).toFixed(6)}, ${Number(userLocation.lng).toFixed(6)}</span>
           </div>
         `);
 
         userGpsMarkerRef.current = gpsMarker;
-        allLatLngs.push([userLocation.lat, userLocation.lng]);
+        allLatLngs.push([Number(userLocation.lat), Number(userLocation.lng)]);
       }
 
       // 2. วาดหมุดงานตามลำดับ (1, 2, 3...)
       const routePoints: [number, number][] = [];
       if (userLocation) {
-        routePoints.push([userLocation.lat, userLocation.lng]);
+        routePoints.push([Number(userLocation.lat), Number(userLocation.lng)]);
       }
 
-      orderedTasks.forEach((task, idx) => {
-        if (task.lat == null || task.lng == null) return;
-        const seq = idx + 1;
-        const pt: [number, number] = [task.lat, task.lng];
+      orderedTasks.forEach((task, index) => {
+        if (!task || task.lat == null || task.lng == null) return;
+        const taskLat = Number(task.lat);
+        const taskLng = Number(task.lng);
+        if (isNaN(taskLat) || isNaN(taskLng)) return;
+
+        const seq = index + 1;
+        const pt: [number, number] = [taskLat, taskLng];
         routePoints.push(pt);
         allLatLngs.push(pt);
 
@@ -387,11 +392,11 @@ export default function TasksMasterMap({
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
               <span style="font-weight: bold; color: #1e3a8a;">ลำดับที่ ${seq}: ${task.code || "TASK"}</span>
               <span style="font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 9999px; ${statusBg}">
-                ${STATUS_LABEL[task.status]}
+                ${STATUS_LABEL[task.status] || task.status || ""}
               </span>
             </div>
             <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px; line-height: 1.3;">
-              ${task.title}
+              ${task.title || ""}
             </div>
             ${
               task.place_name
@@ -399,7 +404,7 @@ export default function TasksMasterMap({
                 : ""
             }
             <div style="font-size: 11px; color: #4b5563; font-family: monospace; margin-bottom: 8px;">
-              พิกัด: ${task.lat.toFixed(6)}, ${task.lng.toFixed(6)}
+              พิกัด: ${taskLat.toFixed(6)}, ${taskLng.toFixed(6)}
             </div>
             <button
               id="ams-open-task-${task.public_id}"

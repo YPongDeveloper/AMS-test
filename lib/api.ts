@@ -447,8 +447,13 @@ export const TYPE_LABEL: Record<TaskType, string> = {
 
 export function fmtDateTime(iso: string | null): string {
   if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " น.";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " น.";
+  } catch {
+    return "-";
+  }
 }
 
 // ---- Land & Building Types and APIs ----

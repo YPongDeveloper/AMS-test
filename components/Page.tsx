@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Topbar } from "./Topbar";
 import { getCurrentUser, hasValidSession, type Role } from "@/lib/api";
 import { ShieldAlert, LogIn, ArrowLeft } from "lucide-react";
@@ -11,7 +12,14 @@ interface PageProps {
   allowedRoles?: Role[];
 }
 
+export function getRoleHomeHref(role?: Role): string {
+  if (role === "accountant") return "/tax";
+  if (role === "subordinate" || role === "supervisor") return "/tasks";
+  return "/dashboard";
+}
+
 export function Page({ children, allowedRoles }: PageProps) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [authError, setAuthError] = useState<"no_session" | "forbidden" | null>(null);
@@ -22,6 +30,7 @@ export function Page({ children, allowedRoles }: PageProps) {
     if (!hasValidSession()) {
       setAuthorized(false);
       setAuthError("no_session");
+      router.replace("/?reason=unauthenticated");
       return;
     }
 
@@ -31,12 +40,14 @@ export function Page({ children, allowedRoles }: PageProps) {
       if (!u || !allowedRoles.includes(u.role)) {
         setAuthorized(false);
         setAuthError("forbidden");
+        const homeHref = getRoleHomeHref(u?.role);
+        router.replace(homeHref);
         return;
       }
     }
 
     setAuthorized(true);
-  }, [allowedRoles]);
+  }, [allowedRoles, router]);
 
   if (!mounted || authorized === null) {
     return (
@@ -82,18 +93,13 @@ export function Page({ children, allowedRoles }: PageProps) {
               ) : (
                 (() => {
                   const u = getCurrentUser();
-                  const homeHref =
-                    u?.role === "accountant"
-                      ? "/tax"
-                      : u?.role === "subordinate"
-                        ? "/tasks"
-                        : "/dashboard";
+                  const homeHref = getRoleHomeHref(u?.role);
                   return (
                     <Link
                       href={homeHref}
                       className="w-full bg-govblue-800 hover:bg-govblue-900 text-white font-medium py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
                     >
-                      <ArrowLeft size={15} /> กลับสู่หน้าหลักของคุณ
+                      <ArrowLeft size={15} /> กำลังนำคุณไปยังหน้าเริ่มต้นของคุณ (คลิกหากไม่เปลี่ยนหน้าอัตโนมัติ)
                     </Link>
                   );
                 })()

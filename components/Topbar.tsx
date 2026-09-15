@@ -51,7 +51,7 @@ export function Topbar() {
   const homeHref =
     user?.role === "accountant"
       ? "/tax"
-      : user?.role === "subordinate"
+      : user?.role === "subordinate" || user?.role === "supervisor"
         ? "/tasks"
         : "/dashboard";
 
