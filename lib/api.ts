@@ -823,6 +823,12 @@ export interface TeamMember {
   responded_at?: string | null;
 }
 
+export function notifyDataUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ams_data_updated"));
+  }
+}
+
 const TEAM_STORAGE_KEY = "ams_mock_team_members";
 
 function getLocalTeam(): TeamMember[] {
@@ -875,9 +881,11 @@ export async function inviteToTeam(username: string): Promise<void> {
       });
     }
     saveLocalTeam(all);
+    notifyDataUpdated();
     return;
   }
   await api("/api/team/invite", { method: "POST", json: { username } });
+  notifyDataUpdated();
 }
 
 export async function fetchMyTeam(): Promise<TeamMember[]> {
@@ -930,12 +938,14 @@ export async function respondToInvitation(supervisorPublicId: string, action: "a
       item.responded_at = new Date().toISOString();
       saveLocalTeam(all);
     }
+    notifyDataUpdated();
     return;
   }
   await api("/api/team/respond", {
     method: "POST",
     json: { supervisor_public_id: supervisorPublicId, action },
   });
+  notifyDataUpdated();
 }
 
 export async function removeTeamMember(subordinatePublicId: string): Promise<void> {
@@ -943,9 +953,11 @@ export async function removeTeamMember(subordinatePublicId: string): Promise<voi
     const local = getLocalTeam();
     const all = (Array.isArray(local) ? local : []).filter((m) => m && m.subordinate_public_id !== subordinatePublicId);
     saveLocalTeam(all);
+    notifyDataUpdated();
     return;
   }
   await api(`/api/team/${subordinatePublicId}`, { method: "DELETE" });
+  notifyDataUpdated();
 }
 
 // ---- Accountant Revision Requests Types & APIs ----
@@ -1035,9 +1047,10 @@ export async function createRevisionRequest(data: {
     };
     all.unshift(newReq);
     saveLocalRequests(all);
+    notifyDataUpdated();
     return newReq;
   }
-  return api<RevisionRequest>("/api/requests", {
+  const created = await api<RevisionRequest>("/api/requests", {
     method: "POST",
     json: {
       target_type: data.target_type,
@@ -1048,6 +1061,8 @@ export async function createRevisionRequest(data: {
       remark: remarkText,
     },
   });
+  notifyDataUpdated();
+  return created;
 }
 
 export async function fetchRevisionRequests(status?: string): Promise<RevisionRequest[]> {
@@ -1077,12 +1092,14 @@ export async function assignRevisionRequest(requestPublicId: string, taskPublicI
       it.assigned_task_public_id = taskPublicId;
       saveLocalRequests(all);
     }
+    notifyDataUpdated();
     return;
   }
   await api(`/api/requests/${requestPublicId}/assign`, {
     method: "POST",
     json: { task_public_id: taskPublicId },
   });
+  notifyDataUpdated();
 }
 
 // ---- Task Data Submit & Review APIs ----
@@ -1103,14 +1120,17 @@ export async function submitTaskData(
       if (typeof window !== "undefined") {
         window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
       }
+      notifyDataUpdated();
       return list[idx];
     }
     throw new Error("ไม่พบงาน");
   }
-  return api<Task>(`/api/tasks/${taskPublicId}/submit`, {
+  const res = await api<Task>(`/api/tasks/${taskPublicId}/submit`, {
     method: "POST",
     json: { data },
   });
+  notifyDataUpdated();
+  return res;
 }
 
 export async function reviewTask(
@@ -1157,13 +1177,37 @@ export async function reviewTask(
       if (typeof window !== "undefined") {
         window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
       }
+      notifyDataUpdated();
       return task;
     }
     throw new Error("ไม่พบงาน");
   }
-  return api<Task>(`/api/tasks/${taskPublicId}/review`, {
+  const res = await api<Task>(`/api/tasks/${taskPublicId}/review`, {
     method: "POST",
     json: { action, feedback },
   });
+  notifyDataUpdated();
+  return res;
+}
+
+export async function fetchTasksList(): Promise<Task[]> {
+  if (API_CONFIGURED) {
+    try {
+      const res = await api<Task[]>("/api/tasks");
+      if (Array.isArray(res) && res.length > 0) return res;
+    } catch {}
+  }
+  if (typeof window !== "undefined") {
+    const cached = window.localStorage.getItem("ams_saved_tasks_v5");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t) => t && typeof t === "object" && t.public_id);
+        }
+      } catch {}
+    }
+  }
+  return [];
 }
 
