@@ -11,6 +11,7 @@ import {
   fetchMyTeam,
   assignRevisionRequest,
   type TeamMember,
+  notifyDataUpdated,
 } from "@/lib/api";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
@@ -180,6 +181,7 @@ function NewTaskContent() {
         await assignRevisionRequest(requestId, res.public_id).catch(() => {});
       }
 
+      notifyDataUpdated();
       router.push("/tasks");
     } catch (e) {
       setErr((e as Error).message);

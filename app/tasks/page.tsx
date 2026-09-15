@@ -89,10 +89,23 @@ const getTaskDateStr = (task?: Task | null) => {
   if (!task) return "";
   const dt = task.due_at || task.created_at;
   if (!dt) return "";
-  const m = String(dt).match(/^(\d{4}-\d{2}-\d{2})/);
-  if (m) return m[1];
+  const plainMatch = String(dt).trim().match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (plainMatch) return plainMatch[1];
   try {
     const d = new Date(dt);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    return "";
+  }
+};
+
+const getTaskCreatedDateStr = (task?: Task | null) => {
+  if (!task?.created_at) return "";
+  const plainMatch = String(task.created_at).trim().match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (plainMatch) return plainMatch[1];
+  try {
+    const d = new Date(task.created_at);
     if (isNaN(d.getTime())) return "";
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   } catch {
@@ -1015,7 +1028,23 @@ export default function TasksPage() {
       if (!task) return false;
       if (!filterByDate) return true;
       const tDate = getTaskDateStr(task);
-      return tDate === selectedDate;
+      const createdDate = getTaskCreatedDateStr(task);
+
+      // 1. ถ้าตรงกับวันที่เลือกโดยตรง (ไม่ว่าจะเป็นวันกำหนดเสร็จ หรือวันที่สั่ง/สร้างงาน)
+      if (tDate === selectedDate || createdDate === selectedDate) {
+        return true;
+      }
+
+      // 2. ถ้าเปิดดูหน้า "วันนี้" (selectedDate === getTodayStr()):
+      // แสดงงานที่กำลังรอทำหรือกำลังดำเนินการอยู่ (pending, accepted, in_progress, submitted, revision_requested)
+      // เพื่อให้ลูกน้องและหัวหน้าเห็นภารกิจจริงที่ต้องรับผิดชอบในปัจจุบัน ไม่พลาดงานที่สั่งไว้
+      const isToday = selectedDate === getTodayStr();
+      if (isToday) {
+        const isActive = task.status !== "done" && task.status !== "cancelled";
+        if (isActive) return true;
+      }
+
+      return false;
     });
   }, [currentTabTasks, filterByDate, selectedDate]);
 
