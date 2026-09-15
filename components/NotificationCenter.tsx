@@ -452,11 +452,31 @@ export function NotificationCenter({ currentUser }: { currentUser?: AppUser | nu
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  const dispatchNavigationEvent = (link: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      const u = new URL(link, window.location.origin);
+      const taskId = u.searchParams.get("task_id");
+      const reviewTaskId = u.searchParams.get("review_task_id");
+      const openParam = u.searchParams.get("open");
+      if (taskId) {
+        window.dispatchEvent(new CustomEvent("ams_open_task", { detail: { taskId } }));
+      }
+      if (reviewTaskId) {
+        window.dispatchEvent(new CustomEvent("ams_open_review", { detail: { reviewTaskId } }));
+      }
+      if (openParam) {
+        window.dispatchEvent(new CustomEvent("ams_open_modal", { detail: { open: openParam } }));
+      }
+    } catch {}
+  };
+
   const handleItemClick = (item: NotificationItem) => {
     markAsRead(item.id);
     setOpen(false);
     if (item.link) {
       router.push(item.link);
+      dispatchNavigationEvent(item.link);
     }
   };
 
@@ -482,6 +502,7 @@ export function NotificationCenter({ currentUser }: { currentUser?: AppUser | nu
     if (action.actionType === "navigate" && action.link) {
       setOpen(false);
       router.push(action.link);
+      dispatchNavigationEvent(action.link);
     }
   };
 

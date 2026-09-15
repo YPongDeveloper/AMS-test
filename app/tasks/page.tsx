@@ -932,8 +932,62 @@ export default function TasksPage() {
     return () => window.removeEventListener("ams_data_updated", handleDataUpdate);
   }, [isSup, loadTasks, loadTeam, loadRevisionRequests, loadInvitations]);
 
+  const clearUrlParam = useCallback((paramKey: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has(paramKey)) {
+        url.searchParams.delete(paramKey);
+        const searchStr = url.searchParams.toString();
+        const newUrl = url.pathname + (searchStr ? `?${searchStr}` : "") + url.hash;
+        window.history.replaceState(null, "", newUrl);
+      }
+    } catch {}
+  }, []);
+
+  const handleCloseTaskModal = useCallback(() => {
+    setSelectedTask(null);
+    clearUrlParam("task_id");
+  }, [clearUrlParam]);
+
+  // ล้างค่า URL query parameter เมื่อปิด Modal แต่ละตัว เพื่อไม่ให้เด้งซ้ำเมื่อรีเฟรชหน้า
+  useEffect(() => {
+    if (!selectedTask) {
+      clearUrlParam("task_id");
+    }
+  }, [selectedTask, clearUrlParam]);
+
+  useEffect(() => {
+    if (!reviewModalOpen) {
+      clearUrlParam("review_task_id");
+    }
+  }, [reviewModalOpen, clearUrlParam]);
+
+  useEffect(() => {
+    if (!teamModalOpen) {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("open") === "team") {
+          clearUrlParam("open");
+        }
+      }
+    }
+  }, [teamModalOpen, clearUrlParam]);
+
+  useEffect(() => {
+    if (!requestsModalOpen) {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("open") === "requests") {
+          clearUrlParam("open");
+        }
+      }
+    }
+  }, [requestsModalOpen, clearUrlParam]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const checkParams = () => {
       const params = new URLSearchParams(window.location.search);
       const open = params.get("open");
@@ -946,22 +1000,104 @@ export default function TasksPage() {
       if (tab === "my_tasks" || tab === "assigned_by_me" || tab === "all" || tab === "members") {
         setActiveTab(tab);
       }
-      if (reviewTaskId && tasks.length > 0) {
+
+      if (reviewTaskId) {
         const found = tasks.find((t) => t.public_id === reviewTaskId);
         if (found) {
           setReviewingTask(found);
           setReviewFeedback("");
           setReviewModalOpen(true);
+        } else if (tasks.length > 0) {
+          api<Task[]>("/api/tasks").then((list) => {
+            if (Array.isArray(list)) {
+              const f = list.find((t) => t.public_id === reviewTaskId);
+              if (f) {
+                setReviewingTask(f);
+                setReviewFeedback("");
+                setReviewModalOpen(true);
+              }
+            }
+          }).catch(() => {});
         }
       }
-      if (taskId && tasks.length > 0) {
+
+      if (taskId) {
         const found = tasks.find((t) => t.public_id === taskId);
-        if (found) setSelectedTask(found);
+        if (found) {
+          setSelectedTask(found);
+        } else if (tasks.length > 0) {
+          api<Task[]>("/api/tasks").then((list) => {
+            if (Array.isArray(list)) {
+              const f = list.find((t) => t.public_id === taskId);
+              if (f) setSelectedTask(f);
+            }
+          }).catch(() => {});
+        }
       }
     };
+
     checkParams();
     window.addEventListener("popstate", checkParams);
-    return () => window.removeEventListener("popstate", checkParams);
+
+    // รับอีเวนต์เปิดงานทันทีเมื่อคลิกจากกล่องแจ้งเตือน (แก้ปัญหาครั้งแรกกดไม่ขึ้นเมื่ออยู่ในหน้านี้อยู่แล้ว)
+    const handleOpenTask = (e: any) => {
+      const targetId = e.detail?.taskId;
+      if (!targetId) return;
+      const found = tasks.find((t) => t.public_id === targetId);
+      if (found) {
+        setSelectedTask(found);
+      } else {
+        api<Task[]>("/api/tasks").then((list) => {
+          if (Array.isArray(list)) {
+            const f = list.find((t) => t.public_id === targetId);
+            if (f) {
+              setTasks(list);
+              setSelectedTask(f);
+            }
+          }
+        }).catch(() => {});
+      }
+    };
+
+    const handleOpenReview = (e: any) => {
+      const targetId = e.detail?.reviewTaskId;
+      if (!targetId) return;
+      const found = tasks.find((t) => t.public_id === targetId);
+      if (found) {
+        setReviewingTask(found);
+        setReviewFeedback("");
+        setReviewModalOpen(true);
+      } else {
+        api<Task[]>("/api/tasks").then((list) => {
+          if (Array.isArray(list)) {
+            const f = list.find((t) => t.public_id === targetId);
+            if (f) {
+              setTasks(list);
+              setReviewingTask(f);
+              setReviewFeedback("");
+              setReviewModalOpen(true);
+            }
+          }
+        }).catch(() => {});
+      }
+    };
+
+    const handleOpenModal = (e: any) => {
+      const mode = e.detail?.open;
+      if (mode === "team") setTeamModalOpen(true);
+      if (mode === "requests") setRequestsModalOpen(true);
+    };
+
+    window.addEventListener("ams_open_task", handleOpenTask);
+    window.addEventListener("ams_open_review", handleOpenReview);
+    window.addEventListener("ams_open_modal", handleOpenModal);
+
+    return () => {
+      window.removeEventListener("popstate", checkParams);
+      window.removeEventListener("ams_open_task", handleOpenTask);
+      window.removeEventListener("ams_open_review", handleOpenReview);
+      window.removeEventListener("ams_open_modal", handleOpenModal);
+    };
   }, [tasks]);
 
   async function setStatus(task: Task, status: TaskStatus) {
@@ -1965,7 +2101,7 @@ export default function TasksPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedTask(null)}
+                onClick={handleCloseTaskModal}
                 className="p-1.5 text-blue-200 hover:text-white rounded-lg hover:bg-white/15 transition shrink-0"
                 title="ปิดหน้าต่าง"
               >
@@ -2260,7 +2396,7 @@ export default function TasksPage() {
 
               <button
                 type="button"
-                onClick={() => setSelectedTask(null)}
+                onClick={handleCloseTaskModal}
                 className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold rounded-lg transition"
               >
                 ปิดหน้าต่าง
