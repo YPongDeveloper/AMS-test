@@ -2927,12 +2927,12 @@ export default function TasksPage() {
                       {/* Desktop View: Horizontal Progress Tracker (Image 2 style) */}
                       <div className="hidden sm:block relative pt-2 pb-2">
                         {/* Base connecting line across 5 columns (starts at center of col 0, ends at center of col 4) */}
-                        <div className="absolute top-4 sm:top-5 left-[10%] right-[10%] h-1.5 sm:h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0" />
+                        <div className="absolute top-[30px] left-[10%] right-[10%] h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0" />
 
                         {/* Filled active progress bar */}
                         {selectedTask.status !== "cancelled" && curIdx >= 0 && (
                           <div
-                            className="absolute top-4 sm:top-5 left-[10%] h-1.5 sm:h-2 bg-gradient-to-r from-govblue-600 via-govblue-700 to-govblue-800 rounded-full -translate-y-1/2 z-0 transition-all duration-500"
+                            className="absolute top-[30px] left-[10%] h-2 bg-gradient-to-r from-govblue-600 via-govblue-700 to-govblue-800 rounded-full -translate-y-1/2 z-0 transition-all duration-500"
                             style={{ width: `${Math.max(0, Math.min(curIdx, 4)) * 20}%` }}
                           />
                         )}
@@ -2972,7 +2972,7 @@ export default function TasksPage() {
                               >
                                 {/* Circular Node */}
                                 <div
-                                  className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
+                                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
                                     isRevision
                                       ? "bg-orange-500 text-white ring-4 ring-orange-200 shadow-md animate-pulse"
                                       : isPassed
