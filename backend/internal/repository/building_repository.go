@@ -22,6 +22,7 @@ const bldgCols = `
 b.id, b.public_id, b.bldg_code, b.land_code, b.name, b.bldg_69,
 b.material_type, b.age, b.be_age, b.num_fl, b.floors, b.bld_condition_type,
 b.picture_f, b.picture_b, b.picture_r, b.picture_l,
+b.address_no, b.subdistrict, b.district, b.province, b.postal_code,
 u.display_name, b.created_at, b.updated_at`
 
 const bldgFrom = `
@@ -36,6 +37,7 @@ func scanBuilding(row interface{ Scan(...any) error }) (*model.Building, error) 
 		&b.ID, &b.PublicID, &b.BldgCode, &b.LandCode, &b.Name, &b.Bldg69,
 		&b.MaterialType, &b.Age, &b.BEAge, &b.NumFl, &floorsJSON, &b.BLDConditionType,
 		&b.PictureF, &b.PictureB, &b.PictureR, &b.PictureL,
+		&b.AddressNo, &b.Subdistrict, &b.District, &b.Province, &b.PostalCode,
 		&b.CreatedBy, &b.CreatedAt, &b.UpdatedAt,
 	)
 	if err != nil {
@@ -93,18 +95,21 @@ func (r *BuildingRepository) Create(ctx context.Context, b *model.Building, user
 		WITH ins AS (
 			INSERT INTO buildings (
 				bldg_code, land_code, name, bldg_69, material_type, age, be_age,
-				num_fl, floors, bld_condition_type, picture_f, picture_b, picture_r, picture_l, created_by
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				num_fl, floors, bld_condition_type, picture_f, picture_b, picture_r, picture_l,
+				address_no, subdistrict, district, province, postal_code, created_by
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			RETURNING *
 		)
 		SELECT ins.id, ins.public_id, ins.bldg_code, ins.land_code, ins.name, ins.bldg_69,
 		       ins.material_type, ins.age, ins.be_age, ins.num_fl, ins.floors, ins.bld_condition_type,
 		       ins.picture_f, ins.picture_b, ins.picture_r, ins.picture_l,
+		       ins.address_no, ins.subdistrict, ins.district, ins.province, ins.postal_code,
 		       u.display_name, ins.created_at, ins.updated_at
 		FROM ins
 		LEFT JOIN users u ON u.id = ins.created_by
 	`, b.BldgCode, b.LandCode, b.Name, b.Bldg69, b.MaterialType, b.Age, b.BEAge,
-		b.NumFl, string(floorsJSON), b.BLDConditionType, b.PictureF, b.PictureB, b.PictureR, b.PictureL, userID)
+		b.NumFl, string(floorsJSON), b.BLDConditionType, b.PictureF, b.PictureB, b.PictureR, b.PictureL,
+		b.AddressNo, b.Subdistrict, b.District, b.Province, b.PostalCode, userID)
 	return scanBuilding(row)
 }
 
@@ -127,18 +132,25 @@ func (r *BuildingRepository) Update(ctx context.Context, publicID string, b *mod
 			    picture_b = $13,
 			    picture_r = $14,
 			    picture_l = $15,
-			    updated_at = $16
+			    address_no = $16,
+			    subdistrict = $17,
+			    district = $18,
+			    province = $19,
+			    postal_code = $20,
+			    updated_at = $21
 			WHERE public_id = $1
 			RETURNING *
 		)
 		SELECT upd.id, upd.public_id, upd.bldg_code, upd.land_code, upd.name, upd.bldg_69,
 		       upd.material_type, upd.age, upd.be_age, upd.num_fl, upd.floors, upd.bld_condition_type,
 		       upd.picture_f, upd.picture_b, upd.picture_r, upd.picture_l,
+		       upd.address_no, upd.subdistrict, upd.district, upd.province, upd.postal_code,
 		       u.display_name, upd.created_at, upd.updated_at
 		FROM upd
 		LEFT JOIN users u ON u.id = upd.created_by
 	`, publicID, b.BldgCode, b.LandCode, b.Name, b.Bldg69, b.MaterialType, b.Age, b.BEAge,
-		b.NumFl, string(floorsJSON), b.BLDConditionType, b.PictureF, b.PictureB, b.PictureR, b.PictureL, time.Now())
+		b.NumFl, string(floorsJSON), b.BLDConditionType, b.PictureF, b.PictureB, b.PictureR, b.PictureL,
+		b.AddressNo, b.Subdistrict, b.District, b.Province, b.PostalCode, time.Now())
 	return scanBuilding(row)
 }
 

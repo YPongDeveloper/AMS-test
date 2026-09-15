@@ -469,6 +469,11 @@ export interface LandParcel {
   picture_f: string;
   lat?: number | null;
   lng?: number | null;
+  address_no?: string;
+  subdistrict?: string;
+  district?: string;
+  province?: string;
+  postal_code?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -498,6 +503,11 @@ export interface Building {
   picture_b: string;
   picture_r: string;
   picture_l: string;
+  address_no?: string;
+  subdistrict?: string;
+  district?: string;
+  province?: string;
+  postal_code?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -521,6 +531,11 @@ const MOCK_LANDS: LandParcel[] = [
     picture_f: "",
     lat: 13.7563,
     lng: 100.5018,
+    address_no: "1 ถนนรองเมือง",
+    subdistrict: "รองเมือง",
+    district: "ปทุมวัน",
+    province: "กรุงเทพมหานคร",
+    postal_code: "10330",
     created_by: "เจ้าหน้าที่สำรวจ",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -541,6 +556,36 @@ const MOCK_LANDS: LandParcel[] = [
     picture_f: "",
     lat: 13.765,
     lng: 100.52,
+    address_no: "234/12 ถนนพหลโยธิน",
+    subdistrict: "จตุจักร",
+    district: "จตุจักร",
+    province: "กรุงเทพมหานคร",
+    postal_code: "10900",
+    created_by: "เจ้าหน้าที่สำรวจ",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "mock-lp-3",
+    land_code: "LP-2569-0088",
+    srt_land_type: "ที่ดินเกษตรกรรม",
+    land_use: "ใช้เพื่อการเกษตร",
+    land_type: "โฉนด",
+    deed_no: "78910/2550",
+    dimension: "5-2-80",
+    rai: 5,
+    ngan: 2,
+    wa: 80,
+    width: 100.0,
+    length: 220.0,
+    picture_f: "",
+    lat: 14.706,
+    lng: 101.416,
+    address_no: "88 หมู่ 4 ถ.มิตรภาพ",
+    subdistrict: "ปากช่อง",
+    district: "ปากช่อง",
+    province: "นครราชสีมา",
+    postal_code: "30130",
     created_by: "เจ้าหน้าที่สำรวจ",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -568,6 +613,39 @@ const MOCK_BUILDINGS: Building[] = [
     picture_b: "",
     picture_r: "",
     picture_l: "",
+    address_no: "1 อาคารบริหาร รฟท.",
+    subdistrict: "รองเมือง",
+    district: "ปทุมวัน",
+    province: "กรุงเทพมหานคร",
+    postal_code: "10330",
+    created_by: "เจ้าหน้าที่สำรวจ",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    public_id: "mock-bl-2",
+    bldg_code: "BL-2569-0119",
+    land_code: "LP-2569-0044",
+    name: "ศูนย์การค้าคอมมูนิตี้มอลล์จตุจักร",
+    bldg_69: "302 - อาคารพาณิชย์",
+    material_type: "คอนกรีตเสริมเหล็ก",
+    age: "12",
+    be_age: "2557",
+    num_fl: 2,
+    floors: [
+      { floor_number: 1, bldg_use: "ร้านค้าและพื้นที่บริการพาณิชย์", dim: 450, width: 20, length: 22.5 },
+      { floor_number: 2, bldg_use: "ศูนย์อาหารและสำนักงานผู้จัดการ", dim: 450, width: 20, length: 22.5 },
+    ],
+    bld_condition_type: "ดีมาก",
+    picture_f: "",
+    picture_b: "",
+    picture_r: "",
+    picture_l: "",
+    address_no: "234/12 อาคารเอ",
+    subdistrict: "จตุจักร",
+    district: "จตุจักร",
+    province: "กรุงเทพมหานคร",
+    postal_code: "10900",
     created_by: "เจ้าหน้าที่สำรวจ",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -612,6 +690,11 @@ export async function createLand(data: Partial<LandParcel>): Promise<LandParcel>
       picture_f: data.picture_f || "",
       lat: data.lat || 13.7563,
       lng: data.lng || 100.5018,
+      address_no: data.address_no || "",
+      subdistrict: data.subdistrict || "",
+      district: data.district || "",
+      province: data.province || "",
+      postal_code: data.postal_code || "",
       created_by: "ฉัน (Demo)",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -684,6 +767,11 @@ export async function createBuilding(data: Partial<Building>): Promise<Building>
       picture_b: data.picture_b || "",
       picture_r: data.picture_r || "",
       picture_l: data.picture_l || "",
+      address_no: data.address_no || "",
+      subdistrict: data.subdistrict || "",
+      district: data.district || "",
+      province: data.province || "",
+      postal_code: data.postal_code || "",
       created_by: "ฉัน (Demo)",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

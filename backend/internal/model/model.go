@@ -170,6 +170,11 @@ type LandParcel struct {
 	PictureF    string    `json:"picture_f"`     // Picture_F (Text 254)
 	Lat         *float64  `json:"lat,omitempty"`
 	Lng         *float64  `json:"lng,omitempty"`
+	AddressNo   string    `json:"address_no"`    // เลขที่/ถนน/ซอย
+	Subdistrict string    `json:"subdistrict"`   // ตำบล/แขวง
+	District    string    `json:"district"`      // อำเภอ/เขต
+	Province    string    `json:"province"`      // จังหวัด
+	PostalCode  string    `json:"postal_code"`   // รหัสไปรษณีย์
 	CreatedBy   *string   `json:"created_by,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -202,6 +207,11 @@ type Building struct {
 	PictureB         string        `json:"picture_b"`           // Picture_B (Text 254) หลัง
 	PictureR         string        `json:"picture_r"`           // Picture_R (Text 254) ขวา
 	PictureL         string        `json:"picture_l"`           // Picture_L (Text 254) ซ้าย
+	AddressNo        string        `json:"address_no"`          // เลขที่/ถนน/ซอย
+	Subdistrict      string        `json:"subdistrict"`         // ตำบล/แขวง
+	District         string        `json:"district"`            // อำเภอ/เขต
+	Province         string        `json:"province"`            // จังหวัด
+	PostalCode       string        `json:"postal_code"`         // รหัสไปรษณีย์
 	CreatedBy        *string       `json:"created_by,omitempty"`
 	CreatedAt        time.Time     `json:"created_at"`
 	UpdatedAt        time.Time     `json:"updated_at"`
