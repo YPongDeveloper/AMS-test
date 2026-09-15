@@ -73,7 +73,9 @@ function NewTaskContent() {
         fetchMyTeam().catch(() => [] as TeamMember[]),
         api<AppUser[]>("/api/users?role=subordinate").catch(() => [] as AppUser[]),
       ]).then(([myTeam, allSubordinates]) => {
-        const acceptedMembers = myTeam.filter((m) => m.status === "accepted");
+        const safeTeam = Array.isArray(myTeam) ? myTeam : [];
+        const safeSubordinates = Array.isArray(allSubordinates) ? allSubordinates : [];
+        const acceptedMembers = safeTeam.filter((m) => m && m.status === "accepted");
         if (acceptedMembers.length > 0) {
           setIsTeamAssignee(true);
           const teamUsers: AppUser[] = acceptedMembers.map((m) => ({
@@ -86,11 +88,11 @@ function NewTaskContent() {
             created_at: "",
           }));
           setUsers(teamUsers);
-          setAssignee(teamUsers[0].public_id);
+          setAssignee(teamUsers[0]?.public_id || "");
         } else {
           setIsTeamAssignee(false);
-          setUsers(allSubordinates);
-          if (allSubordinates.length > 0) setAssignee(allSubordinates[0].public_id);
+          setUsers(safeSubordinates);
+          if (safeSubordinates.length > 0) setAssignee(safeSubordinates[0]?.public_id || "");
         }
       });
     }

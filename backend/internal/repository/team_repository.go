@@ -65,7 +65,7 @@ func (r *TeamRepository) ListBySupervisor(ctx context.Context, supervisorID int6
 	}
 	defer rows.Close()
 
-	var list []model.TeamMember
+	list := make([]model.TeamMember, 0)
 	for rows.Next() {
 		m, err := scanTeamMember(rows)
 		if err != nil {
@@ -87,7 +87,7 @@ func (r *TeamRepository) ListInvitationsForSubordinate(ctx context.Context, subo
 	}
 	defer rows.Close()
 
-	var list []model.TeamMember
+	list := make([]model.TeamMember, 0)
 	for rows.Next() {
 		m, err := scanTeamMember(rows)
 		if err != nil {

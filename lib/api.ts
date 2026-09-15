@@ -829,7 +829,10 @@ function getLocalTeam(): TeamMember[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(TEAM_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((m) => m && typeof m === "object");
+    }
   } catch {}
   return [
     {
@@ -847,14 +850,16 @@ function getLocalTeam(): TeamMember[] {
 
 function saveLocalTeam(list: TeamMember[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(list));
+  const safe = Array.isArray(list) ? list : [];
+  window.localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(safe));
 }
 
 export async function inviteToTeam(username: string): Promise<void> {
   if (!API_CONFIGURED) {
-    const all = getLocalTeam();
+    const local = getLocalTeam();
+    const all = Array.isArray(local) ? [...local] : [];
     const cur = getCurrentUser();
-    const existing = all.find((m) => m.subordinate_username === username);
+    const existing = all.find((m) => m && m.subordinate_username === username);
     if (existing) {
       existing.status = "pending";
       existing.invited_at = new Date().toISOString();
@@ -877,26 +882,33 @@ export async function inviteToTeam(username: string): Promise<void> {
 
 export async function fetchMyTeam(): Promise<TeamMember[]> {
   if (!API_CONFIGURED) {
-    return getLocalTeam();
+    const local = getLocalTeam();
+    return Array.isArray(local) ? local : [];
   }
   try {
-    return await api<TeamMember[]>("/api/team/members");
+    const res = await api<TeamMember[]>("/api/team/members");
+    return Array.isArray(res) ? res : [];
   } catch {
-    return getLocalTeam();
+    const local = getLocalTeam();
+    return Array.isArray(local) ? local : [];
   }
 }
 
 export async function fetchMyInvitations(): Promise<TeamMember[]> {
   if (!API_CONFIGURED) {
     const cur = getCurrentUser();
-    return getLocalTeam().filter(
+    const local = getLocalTeam();
+    const arr = Array.isArray(local) ? local : [];
+    return arr.filter(
       (m) =>
+        m &&
         m.status === "pending" &&
         (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
     );
   }
   try {
-    return await api<TeamMember[]>("/api/team/invitations");
+    const res = await api<TeamMember[]>("/api/team/invitations");
+    return Array.isArray(res) ? res : [];
   } catch {
     return [];
   }
@@ -904,10 +916,12 @@ export async function fetchMyInvitations(): Promise<TeamMember[]> {
 
 export async function respondToInvitation(supervisorPublicId: string, action: "accepted" | "declined"): Promise<void> {
   if (!API_CONFIGURED) {
-    const all = getLocalTeam();
+    const local = getLocalTeam();
+    const all = Array.isArray(local) ? [...local] : [];
     const cur = getCurrentUser();
     const item = all.find(
       (m) =>
+        m &&
         m.supervisor_public_id === supervisorPublicId &&
         (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
     );
@@ -926,7 +940,8 @@ export async function respondToInvitation(supervisorPublicId: string, action: "a
 
 export async function removeTeamMember(subordinatePublicId: string): Promise<void> {
   if (!API_CONFIGURED) {
-    const all = getLocalTeam().filter((m) => m.subordinate_public_id !== subordinatePublicId);
+    const local = getLocalTeam();
+    const all = (Array.isArray(local) ? local : []).filter((m) => m && m.subordinate_public_id !== subordinatePublicId);
     saveLocalTeam(all);
     return;
   }
@@ -959,7 +974,10 @@ function getLocalRequests(): RevisionRequest[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(REQUESTS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((r) => r && typeof r === "object");
+    }
   } catch {}
   return [
     {
@@ -982,7 +1000,8 @@ function getLocalRequests(): RevisionRequest[] {
 
 function saveLocalRequests(list: RevisionRequest[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(list));
+  const safe = Array.isArray(list) ? list : [];
+  window.localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(safe));
 }
 
 export async function createRevisionRequest(data: {
@@ -996,7 +1015,8 @@ export async function createRevisionRequest(data: {
   const remarkText = data.remarks || data.remark || "";
   if (!API_CONFIGURED) {
     const cur = getCurrentUser();
-    const all = getLocalRequests();
+    const local = getLocalRequests();
+    const all = Array.isArray(local) ? [...local] : [];
     const newReq: RevisionRequest = {
       id: "req-" + Date.now(),
       public_id: "req-" + Date.now(),
@@ -1032,14 +1052,19 @@ export async function createRevisionRequest(data: {
 
 export async function fetchRevisionRequests(status?: string): Promise<RevisionRequest[]> {
   if (!API_CONFIGURED) {
-    const all = getLocalRequests();
-    return status ? all.filter((r) => r.status === status) : all;
+    const local = getLocalRequests();
+    const all = Array.isArray(local) ? local : [];
+    return status ? all.filter((r) => r && r.status === status) : all;
   }
   try {
     const q = status ? `?status=${encodeURIComponent(status)}` : "";
-    return await api<RevisionRequest[]>(`/api/requests${q}`);
+    const res = await api<RevisionRequest[]>(`/api/requests${q}`);
+    const all = Array.isArray(res) ? res : [];
+    return status ? all.filter((r) => r && r.status === status) : all;
   } catch {
-    return getLocalRequests();
+    const local = getLocalRequests();
+    const all = Array.isArray(local) ? local : [];
+    return status ? all.filter((r) => r && r.status === status) : all;
   }
 }
 
