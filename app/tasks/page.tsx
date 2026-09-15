@@ -2331,34 +2331,34 @@ export default function TasksPage() {
 
             {/* Modal Body (Scrollable) */}
             <div className="p-6 space-y-5 overflow-y-auto flex-1 text-gray-800">
-              {/* Modern Delivery Tracker Pipeline Stepper (สไตล์ Tracker ในรูปที่ 2) */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-sm space-y-4">
+              {/* Modern Delivery Tracker Pipeline Stepper (รองรับมือถือแบบเรียงสถานะละ 1 แถว และ Desktop แบบ Tracker แนวนอน) */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-sm space-y-3 sm:space-y-4">
                 {/* Header */}
-                <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-govblue-50 text-govblue-800 flex items-center justify-center font-bold text-xs">
+                <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-gray-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-govblue-50 text-govblue-800 flex items-center justify-center font-bold text-xs shrink-0">
                       <Activity size={15} />
                     </div>
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-govblue-950 uppercase tracking-wide">
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-bold text-govblue-950 uppercase tracking-wide truncate">
                         ขั้นตอนการดำเนินงาน (Workflow Pipeline)
                       </h3>
-                      <p className="text-[11px] text-gray-500">
-                        ดำเนินงานตามลำดับขั้นตอน (ค่อยๆ ไปทีละขั้นตอน ไม่กดข้าม)
+                      <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
+                        ดำเนินงานตามลำดับขั้นตอน (ทีละขั้นตอน ไม่กดข้าม)
                       </p>
                     </div>
                   </div>
 
-                  <div>
+                  <div className="shrink-0">
                     {selectedTask.status === "cancelled" ? (
-                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                      <span className="text-[11px] sm:text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1 whitespace-nowrap">
                         <X size={12} className="stroke-[3]" />
                         ยกเลิกงานนี้แล้ว
                       </span>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-gray-500 hidden sm:inline">สถานะปัจจุบัน:</span>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${STATUS_COLOR[selectedTask.status] || "bg-gray-100 text-gray-800"}`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-gray-500 hidden sm:inline">สถานะ:</span>
+                        <span className={`text-[11px] sm:text-xs font-bold px-2.5 py-0.5 sm:py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[selectedTask.status] || "bg-gray-100 text-gray-800"}`}>
                           {STATUS_LABEL[selectedTask.status] || selectedTask.status}
                         </span>
                       </div>
@@ -2366,24 +2366,12 @@ export default function TasksPage() {
                   </div>
                 </div>
 
-                {/* Horizontal Progress Tracker (Image 2 style) */}
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
                   return (
-                    <div className="relative pt-2 pb-2">
-                      {/* Base connecting line across 5 columns (starts at center of col 0, ends at center of col 4) */}
-                      <div className="absolute top-4 sm:top-5 left-[10%] right-[10%] h-1.5 sm:h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0" />
-
-                      {/* Filled active progress bar */}
-                      {selectedTask.status !== "cancelled" && curIdx >= 0 && (
-                        <div
-                          className="absolute top-4 sm:top-5 left-[10%] h-1.5 sm:h-2 bg-gradient-to-r from-govblue-600 via-govblue-700 to-govblue-800 rounded-full -translate-y-1/2 z-0 transition-all duration-500"
-                          style={{ width: `${Math.max(0, Math.min(curIdx, 4)) * 20}%` }}
-                        />
-                      )}
-
-                      {/* 5 Step Nodes Grid */}
-                      <div className="grid grid-cols-5 relative z-10">
+                    <>
+                      {/* Mobile View: เรียง Status ละ 1 แถว สบายตา ไม่เบียด Text กระชับ (ตามคำขอของผู้ใช้) */}
+                      <div className="block sm:hidden space-y-2">
                         {PIPELINE_STEPS.map((step, idx) => {
                           const StepIcon = step.icon;
                           const isCurrent = curIdx === idx && selectedTask.status !== "cancelled";
@@ -2392,130 +2380,250 @@ export default function TasksPage() {
                           const isRevision = isCurrent && selectedTask.status === "revision_requested";
 
                           return (
-                            <button
+                            <div
                               key={step.status}
-                              type="button"
-                              onClick={() => handleAdvancePipeline(idx)}
-                              className={`flex flex-col items-center text-center transition-all group focus:outline-none ${
-                                isNextImmediate
-                                  ? "cursor-pointer"
+                              onClick={() => {
+                                if (isNextImmediate) handleAdvancePipeline(idx);
+                              }}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                                isRevision
+                                  ? "bg-orange-50/90 border-orange-300 ring-2 ring-orange-200"
                                   : isCurrent
-                                  ? "cursor-default"
+                                  ? "bg-govblue-50/80 border-govblue-300 shadow-xs ring-1 ring-govblue-200"
                                   : isPassed
-                                  ? "cursor-pointer"
-                                  : "cursor-not-allowed opacity-70"
-                              }`}
-                              title={
-                                isPassed
-                                  ? `ขั้นตอนที่ ${idx + 1}: ${step.label} (เสร็จแล้ว)`
-                                  : isCurrent
-                                  ? `ขั้นตอนปัจจุบัน: ${step.label}`
+                                  ? "bg-gray-50/70 border-gray-200 text-gray-700"
                                   : isNextImmediate
-                                  ? `คลิกเพื่อดำเนินการขั้นตอนถัดไป: ${step.label}`
-                                  : `ขั้นตอนที่ ${idx + 1}: ${step.label} (ต้องทำตามลำดับ)`
-                              }
+                                  ? "bg-white border-2 border-dashed border-govblue-500 shadow-xs cursor-pointer active:bg-govblue-50/50"
+                                  : "bg-gray-50/40 border-gray-200 opacity-60"
+                              }`}
                             >
-                              {/* Circular Node */}
-                              <div
-                                className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
-                                  isRevision
-                                    ? "bg-orange-500 text-white ring-4 ring-orange-200 shadow-md animate-pulse"
-                                    : isPassed
-                                    ? "bg-govblue-800 text-white shadow-sm group-hover:scale-105"
-                                    : isCurrent
-                                    ? "bg-govblue-900 text-govgold-400 ring-4 ring-govblue-200 shadow-lg scale-110 font-bold"
-                                    : isNextImmediate
-                                    ? "bg-white text-govblue-700 border-2 border-dashed border-govblue-600 ring-2 ring-govblue-100 hover:ring-govblue-300 hover:bg-govblue-50/60 shadow-sm group-hover:scale-105"
-                                    : "bg-white text-gray-300 border-2 border-gray-300 shadow-2xs"
-                                }`}
-                              >
-                                {isRevision ? (
-                                  <AlertCircle size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
-                                ) : isPassed ? (
-                                  <Check size={16} className="sm:w-5 sm:h-5 stroke-[3] text-govgold-400" />
-                                ) : isCurrent ? (
-                                  <StepIcon size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
-                                ) : isNextImmediate ? (
-                                  <ArrowRight size={15} className="sm:w-4 sm:h-4 text-govblue-700 stroke-[2.5] group-hover:translate-x-0.5 transition" />
-                                ) : (
-                                  <Lock size={13} className="sm:w-3.5 sm:h-3.5 text-gray-400" />
-                                )}
-                              </div>
+                              {/* Left: Node Circle + Label */}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition ${
+                                    isRevision
+                                      ? "bg-orange-500 text-white shadow-xs animate-pulse"
+                                      : isPassed
+                                      ? "bg-govblue-800 text-white"
+                                      : isCurrent
+                                      ? "bg-govblue-900 text-govgold-400 ring-2 ring-govblue-300 font-bold shadow-xs"
+                                      : isNextImmediate
+                                      ? "bg-white text-govblue-700 border-2 border-dashed border-govblue-600"
+                                      : "bg-gray-100 text-gray-400 border border-gray-200"
+                                  }`}
+                                >
+                                  {isRevision ? (
+                                    <AlertCircle size={14} className="stroke-[2.5]" />
+                                  ) : isPassed ? (
+                                    <Check size={14} className="stroke-[3] text-govgold-400" />
+                                  ) : isCurrent ? (
+                                    <StepIcon size={14} className="stroke-[2.5]" />
+                                  ) : isNextImmediate ? (
+                                    <ArrowRight size={13} className="text-govblue-700 stroke-[2.5]" />
+                                  ) : (
+                                    <Lock size={11} className="text-gray-400" />
+                                  )}
+                                </div>
 
-                              {/* Step Content below Node (Image 2 style with icon and clean typography) */}
-                              <div className="mt-2 flex flex-col items-center max-w-[95px] sm:max-w-[110px]">
-                                {/* Step Icon & Title */}
-                                <div className="flex items-center justify-center gap-1">
-                                  <StepIcon
-                                    size={12}
-                                    className={`hidden sm:inline shrink-0 ${
-                                      isCurrent
-                                        ? "text-govblue-900 font-bold"
-                                        : isPassed
-                                        ? "text-govblue-700"
-                                        : isNextImmediate
-                                        ? "text-govblue-600"
-                                        : "text-gray-400"
-                                    }`}
-                                  />
+                                <div className="min-w-0">
                                   <span
-                                    className={`text-[10px] sm:text-xs leading-tight ${
+                                    className={`text-xs leading-snug block truncate ${
                                       isCurrent
                                         ? "font-bold text-govblue-950"
                                         : isPassed
                                         ? "font-semibold text-gray-800"
                                         : isNextImmediate
-                                        ? "font-semibold text-govblue-700 underline decoration-govblue-300 decoration-1 underline-offset-2"
-                                        : "font-medium text-gray-400"
+                                        ? "font-semibold text-govblue-800"
+                                        : "font-medium text-gray-500"
                                     }`}
                                   >
-                                    {step.label}
+                                    {idx + 1}. {step.label}
                                   </span>
                                 </div>
-
-                                {/* Step Subtitle */}
-                                <span
-                                  className={`text-[8px] sm:text-[10px] mt-0.5 leading-tight hidden sm:block ${
-                                    isCurrent
-                                      ? "text-govblue-700 font-medium"
-                                      : isPassed
-                                      ? "text-gray-500"
-                                      : "text-gray-400"
-                                  }`}
-                                >
-                                  {step.sub}
-                                </span>
-
-                                {/* Status Indicator Pill */}
-                                <div className="mt-1">
-                                  {isRevision ? (
-                                    <span className="text-[8px] sm:text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                                      ส่งกลับแก้ไข
-                                    </span>
-                                  ) : isPassed ? (
-                                    <span className="text-[8px] sm:text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5">
-                                      <Check size={9} className="stroke-[3]" /> เสร็จสิ้น
-                                    </span>
-                                  ) : isCurrent ? (
-                                    <span className="text-[8px] sm:text-[9px] font-bold text-govblue-800 bg-govblue-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap ring-1 ring-govblue-200">
-                                      {idx === 4 ? "สมบูรณ์" : "กำลังทำ"}
-                                    </span>
-                                  ) : isNextImmediate ? (
-                                    <span className="text-[8px] sm:text-[9px] font-bold text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-govblue-200 transition">
-                                      ถัดไป ➔
-                                    </span>
-                                  ) : (
-                                    <span className="text-[8px] sm:text-[9px] text-gray-400 whitespace-nowrap flex items-center gap-0.5">
-                                      <Lock size={8} /> รอดำเนินการ
-                                    </span>
-                                  )}
-                                </div>
                               </div>
-                            </button>
+
+                              {/* Right: Action or Status Badge */}
+                              <div className="shrink-0 pl-2">
+                                {isRevision ? (
+                                  <span className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                    ส่งกลับแก้ไข
+                                  </span>
+                                ) : isPassed ? (
+                                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md whitespace-nowrap flex items-center gap-1">
+                                    <Check size={10} className="stroke-[3]" /> เสร็จสิ้น
+                                  </span>
+                                ) : isCurrent ? (
+                                  <span className="text-[10px] font-bold text-govblue-800 bg-govblue-100 border border-govblue-200 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                    {idx === 4 ? "เสร็จสมบูรณ์" : "กำลังทำ"}
+                                  </span>
+                                ) : isNextImmediate ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAdvancePipeline(idx);
+                                    }}
+                                    className="text-[11px] font-bold text-white bg-govblue-800 hover:bg-govblue-900 active:scale-95 px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 whitespace-nowrap transition"
+                                  >
+                                    <span>ทำขั้นตอนนี้</span>
+                                    <ArrowRight size={11} />
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400 whitespace-nowrap flex items-center gap-1 px-1">
+                                    <Lock size={9} /> รอดำเนินการ
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
-                    </div>
+
+                      {/* Desktop View: Horizontal Progress Tracker (Image 2 style) */}
+                      <div className="hidden sm:block relative pt-2 pb-2">
+                        {/* Base connecting line across 5 columns (starts at center of col 0, ends at center of col 4) */}
+                        <div className="absolute top-4 sm:top-5 left-[10%] right-[10%] h-1.5 sm:h-2 bg-gray-200 rounded-full -translate-y-1/2 z-0" />
+
+                        {/* Filled active progress bar */}
+                        {selectedTask.status !== "cancelled" && curIdx >= 0 && (
+                          <div
+                            className="absolute top-4 sm:top-5 left-[10%] h-1.5 sm:h-2 bg-gradient-to-r from-govblue-600 via-govblue-700 to-govblue-800 rounded-full -translate-y-1/2 z-0 transition-all duration-500"
+                            style={{ width: `${Math.max(0, Math.min(curIdx, 4)) * 20}%` }}
+                          />
+                        )}
+
+                        {/* 5 Step Nodes Grid */}
+                        <div className="grid grid-cols-5 relative z-10">
+                          {PIPELINE_STEPS.map((step, idx) => {
+                            const StepIcon = step.icon;
+                            const isCurrent = curIdx === idx && selectedTask.status !== "cancelled";
+                            const isPassed = curIdx > idx && selectedTask.status !== "cancelled";
+                            const isNextImmediate = curIdx + 1 === idx && selectedTask.status !== "cancelled";
+                            const isRevision = isCurrent && selectedTask.status === "revision_requested";
+
+                            return (
+                              <button
+                                key={step.status}
+                                type="button"
+                                onClick={() => handleAdvancePipeline(idx)}
+                                className={`flex flex-col items-center text-center transition-all group focus:outline-none ${
+                                  isNextImmediate
+                                    ? "cursor-pointer"
+                                    : isCurrent
+                                    ? "cursor-default"
+                                    : isPassed
+                                    ? "cursor-pointer"
+                                    : "cursor-not-allowed opacity-70"
+                                }`}
+                                title={
+                                  isPassed
+                                    ? `ขั้นตอนที่ ${idx + 1}: ${step.label} (เสร็จแล้ว)`
+                                    : isCurrent
+                                    ? `ขั้นตอนปัจจุบัน: ${step.label}`
+                                    : isNextImmediate
+                                    ? `คลิกเพื่อดำเนินการขั้นตอนถัดไป: ${step.label}`
+                                    : `ขั้นตอนที่ ${idx + 1}: ${step.label} (ต้องทำตามลำดับ)`
+                                }
+                              >
+                                {/* Circular Node */}
+                                <div
+                                  className={`w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 ${
+                                    isRevision
+                                      ? "bg-orange-500 text-white ring-4 ring-orange-200 shadow-md animate-pulse"
+                                      : isPassed
+                                      ? "bg-govblue-800 text-white shadow-sm group-hover:scale-105"
+                                      : isCurrent
+                                      ? "bg-govblue-900 text-govgold-400 ring-4 ring-govblue-200 shadow-lg scale-110 font-bold"
+                                      : isNextImmediate
+                                      ? "bg-white text-govblue-700 border-2 border-dashed border-govblue-600 ring-2 ring-govblue-100 hover:ring-govblue-300 hover:bg-govblue-50/60 shadow-sm group-hover:scale-105"
+                                      : "bg-white text-gray-300 border-2 border-gray-300 shadow-2xs"
+                                  }`}
+                                >
+                                  {isRevision ? (
+                                    <AlertCircle size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
+                                  ) : isPassed ? (
+                                    <Check size={16} className="sm:w-5 sm:h-5 stroke-[3] text-govgold-400" />
+                                  ) : isCurrent ? (
+                                    <StepIcon size={16} className="sm:w-5 sm:h-5 stroke-[2.5]" />
+                                  ) : isNextImmediate ? (
+                                    <ArrowRight size={15} className="sm:w-4 sm:h-4 text-govblue-700 stroke-[2.5] group-hover:translate-x-0.5 transition" />
+                                  ) : (
+                                    <Lock size={13} className="sm:w-3.5 sm:h-3.5 text-gray-400" />
+                                  )}
+                                </div>
+
+                                {/* Step Content below Node */}
+                                <div className="mt-2 flex flex-col items-center max-w-[95px] sm:max-w-[110px]">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <StepIcon
+                                      size={12}
+                                      className={`hidden sm:inline shrink-0 ${
+                                        isCurrent
+                                          ? "text-govblue-900 font-bold"
+                                          : isPassed
+                                          ? "text-govblue-700"
+                                          : isNextImmediate
+                                          ? "text-govblue-600"
+                                          : "text-gray-400"
+                                      }`}
+                                    />
+                                    <span
+                                      className={`text-[10px] sm:text-xs leading-tight ${
+                                        isCurrent
+                                          ? "font-bold text-govblue-950"
+                                          : isPassed
+                                          ? "font-semibold text-gray-800"
+                                          : isNextImmediate
+                                          ? "font-semibold text-govblue-700 underline decoration-govblue-300 decoration-1 underline-offset-2"
+                                          : "font-medium text-gray-400"
+                                      }`}
+                                    >
+                                      {step.label}
+                                    </span>
+                                  </div>
+
+                                  <span
+                                    className={`text-[8px] sm:text-[10px] mt-0.5 leading-tight hidden sm:block ${
+                                      isCurrent
+                                        ? "text-govblue-700 font-medium"
+                                        : isPassed
+                                        ? "text-gray-500"
+                                        : "text-gray-400"
+                                    }`}
+                                  >
+                                    {step.sub}
+                                  </span>
+
+                                  <div className="mt-1">
+                                    {isRevision ? (
+                                      <span className="text-[8px] sm:text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                        ส่งกลับแก้ไข
+                                      </span>
+                                    ) : isPassed ? (
+                                      <span className="text-[8px] sm:text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5">
+                                        <Check size={9} className="stroke-[3]" /> เสร็จสิ้น
+                                      </span>
+                                    ) : isCurrent ? (
+                                      <span className="text-[8px] sm:text-[9px] font-bold text-govblue-800 bg-govblue-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap ring-1 ring-govblue-200">
+                                        {idx === 4 ? "สมบูรณ์" : "กำลังทำ"}
+                                      </span>
+                                    ) : isNextImmediate ? (
+                                      <span className="text-[8px] sm:text-[9px] font-bold text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-govblue-200 transition">
+                                        ถัดไป ➔
+                                      </span>
+                                    ) : (
+                                      <span className="text-[8px] sm:text-[9px] text-gray-400 whitespace-nowrap flex items-center gap-0.5">
+                                        <Lock size={8} /> รอดำเนินการ
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
                   );
                 })()}
 
@@ -2523,9 +2631,9 @@ export default function TasksPage() {
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
                   return (
-                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-xl">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50/70 p-2.5 sm:p-3 rounded-xl">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
                           selectedTask.status === "cancelled"
                             ? "bg-rose-100 text-rose-700"
                             : selectedTask.status === "done"
@@ -2535,29 +2643,29 @@ export default function TasksPage() {
                             : "bg-govblue-100 text-govblue-800"
                         }`}>
                           {selectedTask.status === "cancelled" ? (
-                            <X size={16} />
+                            <X size={15} />
                           ) : selectedTask.status === "done" ? (
-                            <Award size={16} />
+                            <Award size={15} />
                           ) : selectedTask.status === "revision_requested" ? (
-                            <AlertCircle size={16} />
+                            <AlertCircle size={15} />
                           ) : (
-                            <ArrowRight size={16} />
+                            <ArrowRight size={15} />
                           )}
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-gray-900 truncate">
                             {selectedTask.status === "pending" && "ขั้นตอนถัดไป: ยืนยันการรับงาน"}
                             {selectedTask.status === "accepted" && "ขั้นตอนถัดไป: เริ่มลงพื้นที่สำรวจรังวัด"}
-                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ขั้นตอนถัดไป: กรอกข้อมูลและส่งภาพผลงานให้ตรวจ"}
+                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ขั้นตอนถัดไป: กรอกข้อมูลและส่งภาพผลงาน"}
                             {selectedTask.status === "submitted" && (isSup ? "ขั้นตอนถัดไป: ตรวจสอบและอนุมัติผลงาน" : "รอหัวหน้างานตรวจสอบและอนุมัติ")}
                             {selectedTask.status === "done" && "ภารกิจสำรวจเสร็จสมบูรณ์เรียบร้อย"}
-                            {selectedTask.status === "cancelled" && "ภารกิจนี้ถูกยกเลิก"}
+                            {selectedTask.status === "cancelled" && "ภารกิจนี้ถูกยกเลิกแล้ว"}
                           </p>
-                          <p className="text-[11px] text-gray-500 truncate">
-                            {selectedTask.status === "pending" && "เมื่อกดยืนยันรับงาน สถานะจะเปลี่ยนเป็น 'รับงานแล้ว'"}
-                            {selectedTask.status === "accepted" && "กดเริ่มงานเมื่อทีมงานพร้อมลงพื้นที่สำรวจรังวัดแนวเขต"}
+                          <p className="text-[10px] text-gray-500 truncate hidden sm:block">
+                            {selectedTask.status === "pending" && "เมื่อยืนยันรับงาน สถานะจะเปลี่ยนเป็น 'รับงานแล้ว'"}
+                            {selectedTask.status === "accepted" && "กดเริ่มงานเมื่อทีมงานพร้อมลงพื้นที่สำรวจ"}
                             {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ส่งพิกัด แผนที่ และภาพถ่ายผลงานเพื่อขออนุมัติ"}
-                            {selectedTask.status === "submitted" && (isSup ? "ตรวจสอบความถูกต้องของข้อมูลและภาพถ่ายก่อนอนุมัติ" : "ส่งผลงานเข้าระบบแล้ว อยู่ระหว่างรอตรวจสอบ")}
+                            {selectedTask.status === "submitted" && (isSup ? "ตรวจสอบความถูกต้องของข้อมูลก่อนอนุมัติ" : "ส่งผลงานเข้าระบบแล้ว รอการตรวจสอบ")}
                             {selectedTask.status === "done" && "ผ่านการตรวจสอบและบันทึกเข้าระบบเรียบร้อยแล้ว"}
                             {selectedTask.status === "cancelled" && "ท่านสามารถกู้คืนสถานะเพื่อกลับมาดำเนินงานต่อได้"}
                           </p>
@@ -2565,41 +2673,41 @@ export default function TasksPage() {
                       </div>
 
                       {/* Buttons: Next Step Action & Cancel Button */}
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      <div className="flex items-center gap-2 justify-end shrink-0">
                         {/* Primary Next Action Button */}
                         {selectedTask.status !== "cancelled" && curIdx < 4 && (
                           <button
                             type="button"
                             onClick={() => handleAdvancePipeline(curIdx + 1)}
-                            className="px-3.5 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5"
+                            className="px-3 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap"
                           >
                             {curIdx === 0 && (
                               <>
-                                <CheckCircle2 size={14} className="text-govgold-400" />
+                                <CheckCircle2 size={13} className="text-govgold-400" />
                                 <span>ยืนยันรับงาน</span>
                               </>
                             )}
                             {curIdx === 1 && (
                               <>
-                                <MapPin size={14} className="text-govgold-400" />
+                                <MapPin size={13} className="text-govgold-400" />
                                 <span>เริ่มลงพื้นที่</span>
                               </>
                             )}
                             {curIdx === 2 && (
                               <>
-                                <FileCheck2 size={14} className="text-govgold-400" />
+                                <FileCheck2 size={13} className="text-govgold-400" />
                                 <span>ส่งผลงานให้ตรวจ</span>
                               </>
                             )}
                             {curIdx === 3 && isSup && (
                               <>
-                                <Award size={14} className="text-govgold-400" />
+                                <Award size={13} className="text-govgold-400" />
                                 <span>ตรวจและอนุมัติ</span>
                               </>
                             )}
                             {curIdx === 3 && !isSup && (
                               <>
-                                <Clock size={14} />
+                                <Clock size={13} />
                                 <span>รอหัวหน้าอนุมัติ</span>
                               </>
                             )}

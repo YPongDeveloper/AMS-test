@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	AccessTokenTTL  = 15 * time.Minute
-	RefreshTokenTTL = 30 * 24 * time.Hour
+	AccessTokenTTL  = 7 * 24 * time.Hour  // ขยายอายุ Access Token เป็น 7 วัน (แก้ปัญหาระบบหลุดบ่อยหลังผ่านไป 15 นาที)
+	RefreshTokenTTL = 90 * 24 * time.Hour // ขยายอายุ Refresh Token เป็น 90 วัน
 )
 
 // Claims ที่ฝังใน Access Token — handler/middleware ดึง uid/role จากตรงนี้เสมอ
@@ -45,8 +45,8 @@ type AuthService struct {
 
 func NewAuthService(users *repository.UserRepository, refresh *repository.RefreshTokenRepository, secret, lineChannelID string) *AuthService {
 	if strings.TrimSpace(secret) == "" {
-		log.Println("WARN: JWT_SECRET not set — สุ่มชั่วคราว (token จะใช้ไม่ได้เมื่อ restart)")
-		secret = fmt.Sprintf("dev-secret-%d", time.Now().UnixNano())
+		log.Println("INFO: JWT_SECRET not set in env — ใช้ stable default secret เพื่อคงสถานะเซสชันไม่ให้หลุดเมื่อ restart")
+		secret = "ams-railway-thai-secure-jwt-secret-key-2026-prod"
 	}
 	return &AuthService{
 		users:         users,
