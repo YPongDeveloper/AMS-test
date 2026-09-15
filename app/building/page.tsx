@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import BuildingDetailModal from "@/components/BuildingDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import {
   calculateBuildingTax,
   calculateBuildingTotalSqm,
@@ -61,6 +62,9 @@ export default function BuildingPage() {
   const [filterLand, setFilterLand] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; tone: "green" | "red" } | null>(null);
+
+  // Confirmation Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{ publicId: string; code: string } | null>(null);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -352,14 +356,20 @@ export default function BuildingPage() {
     setMsg(null);
   };
 
-  const handleDelete = async (publicId: string, code: string) => {
-    if (!confirm(`ยืนยันการลบสิ่งปลูกสร้าง "${code}" ใช่หรือไม่?`)) return;
+  const handleDelete = (publicId: string, code: string) => {
+    setDeleteTarget({ publicId, code });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteBuilding(publicId);
-      setMsg({ text: `ลบสิ่งปลูกสร้าง "${code}" สำเร็จ`, tone: "green" });
+      await deleteBuilding(deleteTarget.publicId);
+      setMsg({ text: `ลบสิ่งปลูกสร้าง "${deleteTarget.code}" สำเร็จ`, tone: "green" });
       loadData();
     } catch (e) {
       setMsg({ text: (e as Error).message || "เกิดข้อผิดพลาดในการลบ", tone: "red" });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -1390,6 +1400,26 @@ export default function BuildingPage() {
         onClose={() => setTaxInvoiceBuilding(null)}
         targetType="building"
         building={taxInvoiceBuilding}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title="ยืนยันการลบสิ่งปลูกสร้าง"
+        message={
+          <div className="text-left space-y-2">
+            <p className="text-center text-gray-700">
+              คุณต้องการลบสิ่งปลูกสร้าง <strong className="text-gray-900 font-semibold">"{deleteTarget?.code}"</strong> ใช่หรือไม่?
+            </p>
+            <p className="text-[11px] text-rose-700 bg-rose-50 p-2.5 rounded-xl border border-rose-100 leading-relaxed">
+              ⚠️ <strong>คำเตือน:</strong> การลบสิ่งปลูกสร้างนี้จะไม่สามารถกู้คืนได้ และข้อมูลชั้นการใช้งานและรูปภาพจะถูกลบออกจากระบบ
+            </p>
+          </div>
+        }
+        confirmLabel="ยืนยันลบข้อมูล"
+        cancelLabel="ยกเลิก"
+        tone="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </Page>
   );

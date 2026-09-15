@@ -29,6 +29,7 @@ import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
 import MapPicker from "@/components/MapPicker";
 import TasksMasterMap from "@/components/TasksMasterMap";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import {
   ClipboardList,
   MapPin,
@@ -437,6 +438,28 @@ export default function TasksPage() {
   const [err, setErr] = useState("");
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Custom Confirmation & Alert Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: "danger" | "warning" | "primary" | "success";
+    isLoading?: boolean;
+    onConfirm: () => void | Promise<void>;
+    onCancel?: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+  };
+
   // 1. Team Management State (Supervisor)
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [myTeam, setMyTeam] = useState<TeamMember[]>([]);
@@ -503,21 +526,56 @@ export default function TasksPage() {
       setNotice(`ส่งคำเชิญให้ @${inviteUsername.trim()} เข้าร่วมทีมเรียบร้อยแล้ว`);
       await loadTeam();
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการส่งคำเชิญ");
+      setConfirmDialog({
+        isOpen: true,
+        title: "เกิดข้อผิดพลาดในการส่งคำเชิญ",
+        message: err.message || "ไม่สามารถส่งคำเชิญได้ กรุณาตรวจสอบชื่อผู้ใช้งาน (Username) และลองใหม่อีกครั้ง",
+        tone: "danger",
+        confirmLabel: "รับทราบ",
+        onConfirm: closeConfirmDialog,
+      });
     } finally {
       setInviting(false);
     }
   };
 
-  const handleRemoveMember = async (id: string, name: string) => {
-    if (!confirm(`ยืนยันการนำคุณ "${name}" ออกจากทีมใช่หรือไม่?`)) return;
-    try {
-      await removeTeamMember(id);
-      setNotice(`นำสมาชิกออกจากทีมเรียบร้อย`);
-      await loadTeam();
-    } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
-    }
+  const handleRemoveMember = (id: string, name: string, username?: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "ยืนยันการนำสมาชิกออกจากทีม",
+      message: (
+        <div className="text-left space-y-2.5">
+          <p className="text-center text-gray-700">
+            ท่านต้องการนำคุณ <strong className="text-gray-900 font-semibold">"{name || username || "สมาชิก"}"</strong> {username ? `(@${username})` : ""} ออกจากทีมสำรวจใช่หรือไม่?
+          </p>
+          <div className="bg-amber-50/80 border border-amber-200/70 p-3 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+            ⚠️ <strong>หมายเหตุ:</strong> สมาชิกนี้จะไม่ได้รับมอบหมายงานสำรวจของทีมนี้อีกจนกว่าท่านจะส่งคำเชิญใหม่อีกครั้ง
+          </div>
+        </div>
+      ),
+      tone: "danger",
+      confirmLabel: "ยืนยันนำออก",
+      cancelLabel: "ยกเลิก",
+      onCancel: closeConfirmDialog,
+      onConfirm: async () => {
+        try {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+          await removeTeamMember(id);
+          closeConfirmDialog();
+          setNotice(`นำสมาชิก "${name || username || ""}" ออกจากทีมเรียบร้อย`);
+          await loadTeam();
+        } catch (err: any) {
+          setConfirmDialog({
+            isOpen: true,
+            title: "ไม่สามารถนำสมาชิกออกได้",
+            message: err.message || "เกิดข้อผิดพลาดในการนำสมาชิกออกจากทีม กรุณาลองใหม่อีกครั้ง",
+            tone: "danger",
+            confirmLabel: "ตกลง",
+            onConfirm: closeConfirmDialog,
+          });
+        }
+      },
+    });
   };
 
   const handleRespondInvitation = async (id: string, action: "accepted" | "declined") => {
@@ -527,7 +585,14 @@ export default function TasksPage() {
       await loadInvitations();
       await loadTasks();
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
+      setConfirmDialog({
+        isOpen: true,
+        title: "เกิดข้อผิดพลาด",
+        message: err.message || "ไม่สามารถตอบรับคำเชิญได้ กรุณาลองใหม่อีกครั้ง",
+        tone: "danger",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
     }
   };
 
@@ -643,7 +708,14 @@ export default function TasksPage() {
         setSelectedTask(null);
       }
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการส่งข้อมูล");
+      setConfirmDialog({
+        isOpen: true,
+        title: "เกิดข้อผิดพลาดในการส่งข้อมูล",
+        message: err.message || "ไม่สามารถบันทึกและส่งข้อมูลงานได้ กรุณาลองใหม่อีกครั้ง",
+        tone: "danger",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
     } finally {
       setSubmittingData(false);
     }
@@ -658,7 +730,14 @@ export default function TasksPage() {
   const handleReviewAction = async (decision: "approve" | "reject") => {
     if (!reviewingTask) return;
     if (decision === "reject" && !reviewFeedback.trim()) {
-      alert("กรุณาระบุข้อเสนอแนะหรือสิ่งที่ต้องการให้ลูกน้องแก้ไข");
+      setConfirmDialog({
+        isOpen: true,
+        title: "กรุณาระบุข้อเสนอแนะ",
+        message: "กรุณาระบุข้อเสนอแนะหรือสิ่งที่ต้องการให้ผู้ปฏิบัติงานแก้ไข ก่อนส่งงานกลับ",
+        tone: "warning",
+        confirmLabel: "เข้าใจแล้ว",
+        onConfirm: closeConfirmDialog,
+      });
       return;
     }
     setIsReviewing(true);
@@ -679,7 +758,14 @@ export default function TasksPage() {
         setSelectedTask(null);
       }
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการตรวจสอบงาน");
+      setConfirmDialog({
+        isOpen: true,
+        title: "เกิดข้อผิดพลาดในการตรวจสอบงาน",
+        message: err.message || "ไม่สามารถบันทึกผลการตรวจสอบงานได้ กรุณาลองใหม่อีกครั้ง",
+        tone: "danger",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
     } finally {
       setIsReviewing(false);
     }
@@ -890,7 +976,14 @@ export default function TasksPage() {
       await api(`/api/users/${publicId}/role`, { method: "PATCH", json: { role } });
       loadUsers();
     } catch (e) {
-      alert((e as Error).message);
+      setConfirmDialog({
+        isOpen: true,
+        title: "เกิดข้อผิดพลาดในการเปลี่ยนสิทธิ์",
+        message: (e as Error).message || "ไม่สามารถเปลี่ยนสิทธิ์ผู้ใช้งานได้",
+        tone: "danger",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
     }
   }
 
@@ -1937,10 +2030,29 @@ export default function TasksPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm("ต้องการเปลี่ยนสถานะเป็น 'ยกเลิก' ใช่หรือไม่?")) {
-                            setStatus(selectedTask, "cancelled");
-                            setSelectedTask({ ...selectedTask, status: "cancelled" });
-                          }
+                          setConfirmDialog({
+                            isOpen: true,
+                            title: "ยืนยันการยกเลิกงานสำรวจ",
+                            message: (
+                              <div className="text-left space-y-2">
+                                <p className="text-center text-gray-700">
+                                  ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{selectedTask.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
+                                </p>
+                                <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                                  งานที่ถูกยกเลิกจะไม่ปรากฏในรายการปฏิบัติงานประจำวัน แต่ท่านสามารถกู้คืนสถานะกลับมาได้ในภายหลัง
+                                </p>
+                              </div>
+                            ),
+                            tone: "warning",
+                            confirmLabel: "ยืนยันยกเลิกงาน",
+                            cancelLabel: "ย้อนกลับ",
+                            onCancel: closeConfirmDialog,
+                            onConfirm: () => {
+                              setStatus(selectedTask, "cancelled");
+                              setSelectedTask({ ...selectedTask, status: "cancelled" });
+                              closeConfirmDialog();
+                            },
+                          });
                         }}
                         className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-medium"
                       >
@@ -2220,8 +2332,8 @@ export default function TasksPage() {
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "")}
-                                className="text-gray-400 hover:text-rose-600 p-1"
+                                onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "", m.subordinate_username)}
+                                className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
                                 title="นำออกจากทีม"
                               >
                                 <X size={14} />
@@ -2980,6 +3092,19 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* 5. Custom Confirmation & Alert Dialog */}
+      <ConfirmModal
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        cancelLabel={confirmDialog.cancelLabel}
+        tone={confirmDialog.tone}
+        isLoading={confirmDialog.isLoading}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.cancelLabel ? confirmDialog.onCancel : undefined}
+      />
     </Page>
   );
 }
