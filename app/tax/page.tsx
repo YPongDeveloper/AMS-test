@@ -60,6 +60,7 @@ interface ConsolidatedPortfolioItem {
 export default function TaxPage() {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<"individual" | "consolidated">("consolidated");
+  const [individualTargetType, setIndividualTargetType] = useState<"land" | "building">("land");
   const [lands, setLands] = useState<LandParcel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [selectedLandCode, setSelectedLandCode] = useState<string>("");
@@ -128,6 +129,15 @@ export default function TaxPage() {
     }
     if (totalSqm === 0) totalSqm = 900;
     setBldgAreaSqm(totalSqm);
+
+    const primaryUse = b.floors?.[0]?.bldg_use || b.name || "";
+    if (primaryUse.includes("อาศัย") || primaryUse.includes("บ้าน") || primaryUse.includes("หอพัก")) {
+      setLandUseType("ที่อยู่อาศัย");
+    } else if (primaryUse.includes("เกษตร") || primaryUse.includes("เพาะปลูก") || primaryUse.includes("เลี้ยงสัตว์")) {
+      setLandUseType("เกษตรกรรม");
+    } else {
+      setLandUseType("พาณิชยกรรม / อื่นๆ");
+    }
   };
 
   const onSelectLand = (code: string) => {
@@ -142,24 +152,31 @@ export default function TaxPage() {
     if (found) applyBuilding(found);
   };
 
-  // Tax calculations according to Thailand Land & Building Tax Act B.E. 2562
-  const landValue = landAreaWah * appraisalLandPerWah;
-  const bldgValue = bldgAreaSqm * appraisalBldgPerSqm;
-  const totalBaseValue = landValue + bldgValue;
+  const currentSelectedLand = useMemo(
+    () => lands.find((l) => l.land_code === selectedLandCode) || null,
+    [lands, selectedLandCode]
+  );
 
-  let landRate = 0.003;
-  let bldgRate = 0.003;
+  const currentSelectedBuilding = useMemo(
+    () => buildings.find((b) => b.bldg_code === selectedBldgCode) || null,
+    [buildings, selectedBldgCode]
+  );
+
+  // Individual Tax calculations according to selected target type (แยกคำนวณที่ดิน หรือ สิ่งปลูกสร้าง)
+  const isLandTarget = individualTargetType === "land";
+
+  const currentBaseValue = isLandTarget
+    ? landAreaWah * appraisalLandPerWah
+    : bldgAreaSqm * appraisalBldgPerSqm;
+
+  let currentRate = 0.003;
   if (landUseType === "ที่อยู่อาศัย") {
-    landRate = 0.0002;
-    bldgRate = 0.0002;
+    currentRate = 0.0002;
   } else if (landUseType === "เกษตรกรรม") {
-    landRate = 0.0001;
-    bldgRate = 0.0001;
+    currentRate = 0.0001;
   }
 
-  const landTax = Math.round(landValue * landRate);
-  const bldgTax = Math.round(bldgValue * bldgRate);
-  const totalTax = landTax + bldgTax;
+  const currentTax = Math.round(currentBaseValue * currentRate);
 
   const fmtCurrency = (n: number) =>
     "฿ " + n.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -292,14 +309,34 @@ export default function TaxPage() {
   };
 
   const openTaxInvoiceModalForIndividual = () => {
-    const foundLand = lands.find((l) => l.land_code === selectedLandCode);
-    const foundBldg = buildings.find((b) => b.bldg_code === selectedBldgCode);
-    if (foundLand) {
-      setTaxInvoiceLand(foundLand);
-    } else if (foundBldg) {
-      setTaxInvoiceBuilding(foundBldg);
+    if (isLandTarget) {
+      if (currentSelectedLand) {
+        setTaxInvoiceLand(currentSelectedLand);
+      } else if (lands.length > 0) {
+        setTaxInvoiceLand(lands[0]);
+      }
     } else {
-      window.print();
+      if (currentSelectedBuilding) {
+        setTaxInvoiceBuilding(currentSelectedBuilding);
+      } else if (buildings.length > 0) {
+        setTaxInvoiceBuilding(buildings[0]);
+      }
+    }
+  };
+
+  const openDetailModalForIndividual = () => {
+    if (isLandTarget) {
+      if (currentSelectedLand) {
+        setDetailLand(currentSelectedLand);
+      } else if (lands.length > 0) {
+        setDetailLand(lands[0]);
+      }
+    } else {
+      if (currentSelectedBuilding) {
+        setDetailBuilding(currentSelectedBuilding);
+      } else if (buildings.length > 0) {
+        setDetailBuilding(buildings[0]);
+      }
     }
   };
 
@@ -343,81 +380,211 @@ export default function TaxPage() {
       </div>
 
       {activeTab === "individual" ? (
-        /* โหมดคำนวณรายแห่ง (Individual Property Tax) */
+        /* โหมดคำนวณรายแห่ง (Individual Property Tax) - แยกคำนวณที่ดิน หรือ สิ่งปลูกสร้าง */
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
-            <Card className="p-4">
-              <h3 className="text-sm font-semibold text-govblue-700 mb-3">
-                1. เลือกทรัพย์สินที่ดินและสิ่งปลูกสร้างสำหรับการคำนวณ
-              </h3>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="ปีภาษี">
-                  <Select value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
-                    <option value="2569">2569 (2026)</option>
-                    <option value="2568">2568 (2025)</option>
-                    <option value="2567">2567 (2024)</option>
-                  </Select>
-                </Field>
-                <Field label="ประเภทการใช้ประโยชน์ตาม พ.ร.บ.">
-                  <Select value={landUseType} onChange={(e) => setLandUseType(e.target.value)}>
-                    <option value="พาณิชยกรรม / อื่นๆ">พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)</option>
-                    <option value="ที่อยู่อาศัย">ที่อยู่อาศัย (อัตรา 0.02%)</option>
-                    <option value="เกษตรกรรม">เกษตรกรรม (อัตรา 0.01%)</option>
-                    <option value="ที่ดินรกร้างว่างเปล่า">รกร้างว่างเปล่า (อัตรา 0.3%)</option>
-                  </Select>
-                </Field>
-                <Field label="เลือกแปลงที่ดิน (จากระบบสำรวจ)">
-                  <Select value={selectedLandCode} onChange={(e) => onSelectLand(e.target.value)}>
-                    <option value="">— เลือกแปลงที่ดิน —</option>
-                    {lands.map((l) => (
-                      <option key={l.public_id} value={l.land_code}>
-                        {l.land_code} (โฉนด: {l.deed_no || "-"})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="เลือกสิ่งปลูกสร้าง (จากระบบสำรวจ)">
-                  <Select value={selectedBldgCode} onChange={(e) => onSelectBldg(e.target.value)}>
-                    <option value="">— เลือกสิ่งปลูกสร้าง —</option>
-                    {buildings.map((b) => (
-                      <option key={b.public_id} value={b.bldg_code}>
-                        {b.bldg_code} ({b.name})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="ขนาดพื้นที่ดิน (ตร.ว.)" hint="1 ไร่ = 400 ตร.ว.">
-                  <Input
-                    type="number"
-                    value={landAreaWah}
-                    onChange={(e) => setLandAreaWah(Number(e.target.value))}
-                  />
-                </Field>
-                <Field label="ราคาประเมินที่ดิน (บาท/ตร.ว.)">
-                  <Input
-                    type="number"
-                    value={appraisalLandPerWah}
-                    onChange={(e) => setAppraisalLandPerWah(Number(e.target.value))}
-                  />
-                </Field>
-                <Field label="พื้นที่อาคารรวม (ตร.ม.)" hint="รวมทุกชั้น">
-                  <Input
-                    type="number"
-                    value={bldgAreaSqm}
-                    onChange={(e) => setBldgAreaSqm(Number(e.target.value))}
-                  />
-                </Field>
-                <Field label="ราคาประเมินอาคาร (บาท/ตร.ม.)">
-                  <Input
-                    type="number"
-                    value={appraisalBldgPerSqm}
-                    onChange={(e) => setAppraisalBldgPerSqm(Number(e.target.value))}
-                  />
-                </Field>
+            <Card className="p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
+                <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-1.5">
+                  <Calculator size={16} className="text-govblue-700" />
+                  1. เลือกทรัพย์สินสำหรับการคำนวณภาษีรายแห่ง
+                </h3>
+                <span className="text-xs text-gray-500">
+                  คำนวณแยกตามประเภททรัพย์สิน (ที่ดิน หรือ สิ่งปลูกสร้าง)
+                </span>
               </div>
+
+              {/* Property Type Selector: ที่ดิน หรือ สิ่งปลูกสร้าง/สถานที่ */}
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  เลือกประเภททรัพย์สินที่ต้องการประเมินภาษี:
+                </label>
+                <div className="grid grid-cols-2 gap-3 max-w-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIndividualTargetType("land");
+                      if (currentSelectedLand) applyLand(currentSelectedLand);
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition border ${
+                      individualTargetType === "land"
+                        ? "bg-emerald-700 text-white border-emerald-800 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-emerald-50/50 hover:border-emerald-200"
+                    }`}
+                  >
+                    <TreePine size={16} />
+                    <span>🌱 แปลงที่ดิน (Land)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIndividualTargetType("building");
+                      if (currentSelectedBuilding) applyBuilding(currentSelectedBuilding);
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition border ${
+                      individualTargetType === "building"
+                        ? "bg-blue-700 text-white border-blue-800 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-blue-50/50 hover:border-blue-200"
+                    }`}
+                  >
+                    <Building2 size={16} />
+                    <span>🏢 สิ่งปลูกสร้าง / สถานที่ (Building)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Form fields based on selected type */}
+              {isLandTarget ? (
+                /* ฟอร์มคำนวณภาษีแปลงที่ดิน */
+                <div className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <Field label="เลือกแปลงที่ดิน (จากระบบสำรวจ)" hint="เลือกแปลงที่ดินที่ต้องการประเมิน">
+                      <Select value={selectedLandCode} onChange={(e) => onSelectLand(e.target.value)}>
+                        <option value="">— เลือกแปลงที่ดิน —</option>
+                        {lands.map((l) => (
+                          <option key={l.public_id} value={l.land_code}>
+                            {l.land_code} (โฉนด: {l.deed_no || "-"} • {l.srt_land_type || "ที่ดิน รฟท."})
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label="ปีภาษี">
+                      <Select value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
+                        <option value="2569">2569 (2026)</option>
+                        <option value="2568">2568 (2025)</option>
+                        <option value="2567">2567 (2024)</option>
+                      </Select>
+                    </Field>
+
+                    <Field label="ประเภทการใช้ประโยชน์ตาม พ.ร.บ.">
+                      <Select value={landUseType} onChange={(e) => setLandUseType(e.target.value)}>
+                        <option value="พาณิชยกรรม / อื่นๆ">พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)</option>
+                        <option value="ที่อยู่อาศัย">ที่อยู่อาศัย (อัตรา 0.02%)</option>
+                        <option value="เกษตรกรรม">เกษตรกรรม (อัตรา 0.01%)</option>
+                        <option value="ที่ดินรกร้างว่างเปล่า">รกร้างว่างเปล่า (อัตรา 0.3%)</option>
+                      </Select>
+                    </Field>
+
+                    <Field label="ขนาดพื้นที่ดิน (ตร.ว.)" hint="คำนวณจาก ไร่-งาน-วา อัตโนมัติ">
+                      <Input
+                        type="number"
+                        value={landAreaWah}
+                        onChange={(e) => setLandAreaWah(Number(e.target.value))}
+                      />
+                    </Field>
+
+                    <Field label="ราคาประเมินที่ดิน (บาท/ตร.ว.)">
+                      <Input
+                        type="number"
+                        value={appraisalLandPerWah}
+                        onChange={(e) => setAppraisalLandPerWah(Number(e.target.value))}
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Property Details Card for Land */}
+                  {currentSelectedLand && (
+                    <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs space-y-1.5 text-emerald-950">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <TreePine size={14} className="text-emerald-700" />
+                          ข้อมูลแปลงที่ดิน: {currentSelectedLand.land_code}
+                        </span>
+                        <span className="text-emerald-700 font-mono">โฉนด: {currentSelectedLand.deed_no || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-emerald-800 text-[11px]">
+                        <MapPin size={12} className="shrink-0 text-emerald-600" />
+                        <span>ที่ตั้ง: {formatShortAddress(currentSelectedLand)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-emerald-700 pt-1 border-t border-emerald-200/50">
+                        <span>ประเภท: {currentSelectedLand.srt_land_type || "-"}</span>
+                        <span>•</span>
+                        <span>
+                          เนื้อที่ตามทะเบียน: {currentSelectedLand.rai || 0} ไร่ {currentSelectedLand.ngan || 0} งาน {currentSelectedLand.wa || 0} ตร.ว.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ฟอร์มคำนวณภาษีสิ่งปลูกสร้าง / สถานที่ */
+                <div className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <Field label="เลือกสิ่งปลูกสร้าง / สถานที่ (จากระบบสำรวจ)" hint="เลือกอาคารที่ต้องการประเมิน">
+                      <Select value={selectedBldgCode} onChange={(e) => onSelectBldg(e.target.value)}>
+                        <option value="">— เลือกสิ่งปลูกสร้าง —</option>
+                        {buildings.map((b) => (
+                          <option key={b.public_id} value={b.bldg_code}>
+                            {b.bldg_code} ({b.name})
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label="ปีภาษี">
+                      <Select value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
+                        <option value="2569">2569 (2026)</option>
+                        <option value="2568">2568 (2025)</option>
+                        <option value="2567">2567 (2024)</option>
+                      </Select>
+                    </Field>
+
+                    <Field label="ประเภทการใช้ประโยชน์ตาม พ.ร.บ.">
+                      <Select value={landUseType} onChange={(e) => setLandUseType(e.target.value)}>
+                        <option value="พาณิชยกรรม / อื่นๆ">พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)</option>
+                        <option value="ที่อยู่อาศัย">ที่อยู่อาศัย (อัตรา 0.02%)</option>
+                        <option value="เกษตรกรรม">เกษตรกรรม (อัตรา 0.01%)</option>
+                        <option value="ที่ดินรกร้างว่างเปล่า">รกร้างว่างเปล่า (อัตรา 0.3%)</option>
+                      </Select>
+                    </Field>
+
+                    <Field label="พื้นที่อาคารรวม (ตร.ม.)" hint="รวมทุกชั้นของอาคาร">
+                      <Input
+                        type="number"
+                        value={bldgAreaSqm}
+                        onChange={(e) => setBldgAreaSqm(Number(e.target.value))}
+                      />
+                    </Field>
+
+                    <Field label="ราคาประเมินอาคาร (บาท/ตร.ม.)">
+                      <Input
+                        type="number"
+                        value={appraisalBldgPerSqm}
+                        onChange={(e) => setAppraisalBldgPerSqm(Number(e.target.value))}
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Property Details Card for Building */}
+                  {currentSelectedBuilding && (
+                    <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs space-y-1.5 text-blue-950">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 size={14} className="text-blue-700" />
+                          ข้อมูลอาคาร: {currentSelectedBuilding.bldg_code} ({currentSelectedBuilding.name})
+                        </span>
+                        <span className="text-blue-700 font-mono">
+                          แปลงที่ดิน: {currentSelectedBuilding.land_code || "-"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-blue-800 text-[11px]">
+                        <MapPin size={12} className="shrink-0 text-blue-600" />
+                        <span>ที่ตั้ง: {formatShortAddress(currentSelectedBuilding)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-blue-700 pt-1 border-t border-blue-200/50">
+                        <span>จำนวนชั้น: {currentSelectedBuilding.num_fl || 1} ชั้น</span>
+                        <span>•</span>
+                        <span>วัสดุ/แบบ: {currentSelectedBuilding.material_type || currentSelectedBuilding.bldg_69 || "-"}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-4 sm:p-5">
               <h3 className="text-sm font-semibold text-govblue-700 mb-3 flex items-center gap-1.5">
                 <Calculator size={16} /> 2. รายละเอียดการประเมินภาษี (พ.ร.บ. ภาษีที่ดินฯ พ.ศ. 2562)
               </h3>
@@ -425,52 +592,113 @@ export default function TaxPage() {
                 สูตร: ภาษี = ฐานภาษี (ราคาประเมินทุนทรัพย์) × อัตราภาษีตามประเภทการใช้ประโยชน์
               </div>
               <div className="space-y-2 text-xs divide-y divide-gray-100">
-                <Row label="มูลค่าฐานภาษีที่ดิน (พื้นที่ × ราคาประเมิน)" value={fmtCurrency(landValue)} />
-                <Row label="อัตราภาษีที่ดิน" value={`${(landRate * 100).toFixed(2)}%`} tone="muted" />
-                <Row label="ภาษีที่ดินที่ต้องชำระ" value={fmtCurrency(landTax)} />
-                <Row
-                  label="มูลค่าฐานภาษีสิ่งปลูกสร้าง (พื้นที่ × ราคาประเมิน)"
-                  value={fmtCurrency(bldgValue)}
-                />
-                <Row
-                  label="อัตราภาษีสิ่งปลูกสร้าง"
-                  value={`${(bldgRate * 100).toFixed(2)}%`}
-                  tone="muted"
-                />
-                <Row label="ภาษีสิ่งปลูกสร้างที่ต้องชำระ" value={fmtCurrency(bldgTax)} />
+                {isLandTarget ? (
+                  <>
+                    <Row
+                      label="ขนาดพื้นที่ดิน"
+                      value={`${landAreaWah.toLocaleString()} ตารางวา`}
+                    />
+                    <Row
+                      label="ราคาประเมินที่ดินต่อหน่วย"
+                      value={`${fmtCurrency(appraisalLandPerWah)} / ตร.ว.`}
+                      tone="muted"
+                    />
+                    <Row
+                      label="มูลค่าฐานภาษีที่ดิน (เนื้อที่ × ราคาประเมิน)"
+                      value={fmtCurrency(currentBaseValue)}
+                    />
+                    <Row
+                      label="ประเภทการใช้ประโยชน์"
+                      value={landUseType}
+                      tone="muted"
+                    />
+                    <Row
+                      label="อัตราภาษีที่ดินตามกฎหมาย"
+                      value={`${(currentRate * 100).toFixed(2)}%`}
+                      tone="muted"
+                    />
+                    <Row
+                      label="ภาษีที่ดินที่ต้องชำระประจำปี"
+                      value={fmtCurrency(currentTax)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Row
+                      label="พื้นที่ใช้สอยอาคารรวม"
+                      value={`${bldgAreaSqm.toLocaleString()} ตารางเมตร`}
+                    />
+                    <Row
+                      label="ราคาประเมินสิ่งปลูกสร้างต่อหน่วย"
+                      value={`${fmtCurrency(appraisalBldgPerSqm)} / ตร.ม.`}
+                      tone="muted"
+                    />
+                    <Row
+                      label="มูลค่าฐานภาษีสิ่งปลูกสร้าง (พื้นที่ × ราคาประเมิน)"
+                      value={fmtCurrency(currentBaseValue)}
+                    />
+                    <Row
+                      label="ประเภทการใช้ประโยชน์"
+                      value={landUseType}
+                      tone="muted"
+                    />
+                    <Row
+                      label="อัตราภาษีสิ่งปลูกสร้างตามกฎหมาย"
+                      value={`${(currentRate * 100).toFixed(2)}%`}
+                      tone="muted"
+                    />
+                    <Row
+                      label="ภาษีสิ่งปลูกสร้างที่ต้องชำระประจำปี"
+                      value={fmtCurrency(currentTax)}
+                    />
+                  </>
+                )}
               </div>
             </Card>
           </div>
 
           <div className="space-y-3">
             <StatCard
-              label="ภาษีที่ดินประจำปี"
-              value={fmtCurrency(landTax)}
-              hint={`${(landRate * 100).toFixed(2)}% × ${fmtCurrency(landValue)}`}
-              tone="blue"
+              label={isLandTarget ? "ฐานประเมินทุนทรัพย์ที่ดิน" : "ฐานประเมินทุนทรัพย์สิ่งปลูกสร้าง"}
+              value={fmtCurrency(currentBaseValue)}
+              hint={
+                isLandTarget
+                  ? `${landAreaWah.toLocaleString()} ตร.ว. × ${fmtCurrency(appraisalLandPerWah)}`
+                  : `${bldgAreaSqm.toLocaleString()} ตร.ม. × ${fmtCurrency(appraisalBldgPerSqm)}`
+              }
+              tone={isLandTarget ? "blue" : "gold"}
             />
             <StatCard
-              label="ภาษีสิ่งปลูกสร้างประจำปี"
-              value={fmtCurrency(bldgTax)}
-              hint={`${(bldgRate * 100).toFixed(2)}% × ${fmtCurrency(bldgValue)}`}
-              tone="gold"
+              label={`อัตราภาษีประจำปี (${landUseType})`}
+              value={`${(currentRate * 100).toFixed(2)}%`}
+              hint="ตาม พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. 2562"
+              tone="green"
             />
 
             <Card className="p-4 bg-gradient-to-br from-govblue-800 to-govblue-700 text-white shadow-lg">
               <div className="text-xs uppercase tracking-wider opacity-80 flex items-center gap-1">
-                <CircleDollarSign size={14} /> ภาษีรวมทั้งสิ้น (Total Annual Tax)
+                <CircleDollarSign size={14} /> ภาษีที่ต้องชำระประจำปี ({isLandTarget ? "ที่ดิน" : "สิ่งปลูกสร้าง"})
               </div>
               <div className="text-3xl font-bold mt-2 text-govgold-400 font-mono">
-                {fmtCurrency(totalTax)}
+                {fmtCurrency(currentTax)}
               </div>
-              <div className="text-[11px] opacity-80 mt-1">ประจำปีภาษี {taxYear}</div>
+              <div className="text-[11px] opacity-80 mt-1">
+                ประจำปีภาษี {taxYear} • {isLandTarget ? selectedLandCode : selectedBldgCode}
+              </div>
               <div className="mt-4 flex flex-col gap-2">
                 <Btn
                   onClick={openTaxInvoiceModalForIndividual}
                   variant="secondary"
-                  className="!bg-govgold-500 !text-govblue-900 !border-0 hover:!bg-govgold-400 justify-center font-semibold"
+                  className="!bg-govgold-500 !text-govblue-900 !border-0 hover:!bg-govgold-400 justify-center font-semibold text-xs py-2"
                 >
                   <Printer size={14} /> พิมพ์ใบแจ้งประเมินภาษี (ภ.ด.ส. 3)
+                </Btn>
+                <Btn
+                  onClick={openDetailModalForIndividual}
+                  variant="secondary"
+                  className="!bg-white/10 !text-white !border-white/20 hover:!bg-white/20 justify-center text-xs py-1.5"
+                >
+                  <Eye size={13} /> ดูรายละเอียดเชิงลึก
                 </Btn>
               </div>
             </Card>
@@ -479,7 +707,7 @@ export default function TaxPage() {
               <div className="flex items-center gap-1 font-semibold text-govblue-700 mb-1">
                 <FileText size={12} /> อ้างอิงข้อกำหนด รฟท.
               </div>
-              ข้อมูลที่ดินและสิ่งปลูกสร้างเชื่อมโยงจากชั้นข้อมูลสำรวจภาคสนาม รฟท.
+              ข้อมูล{isLandTarget ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}เชื่อมโยงจากฐานข้อมูลสำรวจ รฟท.
               สามารถนำไปใช้ในกระบวนการจัดเก็บรายได้และการยื่นแบบประเมินภาษีต่อไป
             </Card>
           </div>
