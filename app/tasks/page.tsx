@@ -54,6 +54,7 @@ import {
   List,
   Navigation,
   RotateCcw,
+  Search,
 } from "lucide-react";
 
 // 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน
@@ -429,6 +430,9 @@ export default function TasksPage() {
   // 3. Accountant Requests State (Supervisor)
   const [requestsModalOpen, setRequestsModalOpen] = useState(false);
   const [revisionRequests, setRevisionRequests] = useState<RevisionRequest[]>([]);
+  const [reqSearch, setReqSearch] = useState("");
+  const [reqStatusFilter, setReqStatusFilter] = useState<"all" | "pending" | "assigned" | "resolved">("all");
+  const [reqTypeFilter, setReqTypeFilter] = useState<"all" | "land" | "building">("all");
 
   // 4. Subordinate Data Submission Modal
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
@@ -2180,68 +2184,182 @@ export default function TasksPage() {
             </div>
 
             <p className="text-xs text-gray-500">
-              ฝ่ายบัญชีได้สร้างคำร้องขอให้ตรวจสอบหรือแก้ไขข้อมูล ท่านสามารถสั่งงานต่อให้ลูกน้องในทีมลงพื้นที่หรือแก้ไขข้อมูลได้ทันที
+              ฝ่ายบัญชีได้สร้างคำร้องขอให้ตรวจสอบหรือแก้ไขข้อมูล ท่านสามารถค้นหาและสั่งงานต่อให้ลูกน้องในทีมลงพื้นที่หรือแก้ไขข้อมูลได้ทันที
             </p>
 
-            <div className="max-h-96 overflow-y-auto space-y-3">
-              {revisionRequests.length === 0 ? (
-                <div className="p-8 text-center text-xs text-gray-400 border border-dashed rounded-xl">
-                  ยังไม่มีคำร้องจากฝ่ายบัญชีในขณะนี้
-                </div>
-              ) : (
-                revisionRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs"
+            {/* Keyword Search and Filters */}
+            <div className="space-y-2.5 bg-gray-50 p-3 rounded-xl border border-gray-200">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={15} />
+                <input
+                  type="text"
+                  placeholder="พิมพ์ค้นหาคำร้อง เช่น รหัสแปลง/อาคาร, รายละเอียดคำร้อง, ผู้สร้าง..."
+                  value={reqSearch}
+                  onChange={(e) => setReqSearch(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none bg-white"
+                />
+                {reqSearch && (
+                  <button
+                    onClick={() => setReqSearch("")}
+                    className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                    title="ล้างคำค้นหา"
                   >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-govblue-900">
-                          {req.target_type === "land" ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}: {req.target_code || "ทั่วไป"}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
-                          {req.request_type === "survey_new" ? "ขอสำรวจใหม่" : "ขอแก้ไขข้อมูล"}
-                        </span>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          req.status === "assigned"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : req.status === "resolved"
-                            ? "bg-gray-100 text-gray-700"
-                            : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {req.status === "assigned" ? "✓ สั่งงานแล้ว" : req.status === "resolved" ? "เสร็จสิ้น" : "⏳ รอสั่งงาน"}
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-gray-500 text-[11px] font-medium">สถานะ:</span>
+                  {[
+                    { id: "all", label: "ทั้งหมด" },
+                    { id: "pending", label: "⏳ รอสั่งงาน" },
+                    { id: "assigned", label: "✓ สั่งงานแล้ว" },
+                    { id: "resolved", label: "เสร็จสิ้น" },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setReqStatusFilter(st.id as any)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                        reqStatusFilter === st.id
+                          ? "bg-amber-500 text-white shadow-xs"
+                          : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                      }`}
+                    >
+                      {st.label}{" "}
+                      <span className="opacity-75">
+                        (
+                        {st.id === "all"
+                          ? revisionRequests.length
+                          : revisionRequests.filter((r) => r.status === st.id).length}
+                        )
                       </span>
-                    </div>
+                    </button>
+                  ))}
+                </div>
 
-                    <div className="p-2.5 bg-white rounded-lg border border-gray-200 text-gray-700 whitespace-pre-wrap">
-                      "{req.remarks}"
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-                      <span>ผู้สร้างคำร้อง: {req.creator_name || "พนักงานบัญชี"} • {fmtDateTime(req.created_at)}</span>
-                      {req.status === "pending" && (
-                        <Link
-                          href={`/tasks/new?request_id=${req.id || ""}&target_type=${req.target_type}&target_code=${req.target_code || ""}&request_type=${req.request_type || "revision"}&remarks=${encodeURIComponent(req.remarks || "")}`}
-                          onClick={() => setRequestsModalOpen(false)}
-                          className="px-3 py-1 bg-govblue-800 hover:bg-govblue-900 text-white rounded-md font-semibold text-[11px] transition shadow-xs"
-                        >
-                          สั่งงานแก้ไขตามคำร้องนี้ →
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+                <div className="flex items-center gap-1 text-[11px]">
+                  <span className="text-gray-500 font-medium">ประเภท:</span>
+                  <button
+                    type="button"
+                    onClick={() => setReqTypeFilter("all")}
+                    className={`px-2 py-0.5 rounded cursor-pointer ${
+                      reqTypeFilter === "all"
+                        ? "bg-govblue-800 text-white font-bold"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReqTypeFilter("land")}
+                    className={`px-2 py-0.5 rounded cursor-pointer ${
+                      reqTypeFilter === "land"
+                        ? "bg-govblue-800 text-white font-bold"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    ที่ดิน
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReqTypeFilter("building")}
+                    className={`px-2 py-0.5 rounded cursor-pointer ${
+                      reqTypeFilter === "building"
+                        ? "bg-govblue-800 text-white font-bold"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    อาคาร
+                  </button>
+                </div>
+              </div>
             </div>
+
+            {/* Request Items List */}
+            {(() => {
+              const filteredRequests = revisionRequests.filter((req) => {
+                if (reqStatusFilter !== "all" && req.status !== reqStatusFilter) return false;
+                if (reqTypeFilter !== "all" && req.target_type !== reqTypeFilter) return false;
+                if (reqSearch.trim()) {
+                  const q = reqSearch.toLowerCase();
+                  const matchCode = (req.target_code || "").toLowerCase().includes(q);
+                  const matchRemarks = (req.remarks || "").toLowerCase().includes(q);
+                  const matchCreator = (req.creator_name || "").toLowerCase().includes(q);
+                  const matchType = (req.target_type === "land" ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง").toLowerCase().includes(q);
+                  const matchReqType = (req.request_type === "survey_new" ? "ขอสำรวจใหม่" : "ขอแก้ไขข้อมูล").toLowerCase().includes(q);
+                  return matchCode || matchRemarks || matchCreator || matchType || matchReqType;
+                }
+                return true;
+              });
+
+              return (
+                <div className="max-h-96 overflow-y-auto space-y-3">
+                  {filteredRequests.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-gray-500 border border-dashed rounded-xl bg-gray-50/50">
+                      {reqSearch || reqStatusFilter !== "all" || reqTypeFilter !== "all"
+                        ? `ไม่พบคำร้องที่ตรงกับเงื่อนไขการค้นหา ${reqSearch ? `"${reqSearch}"` : ""}`
+                        : "ยังไม่มีคำร้องจากฝ่ายบัญชีในขณะนี้"}
+                    </div>
+                  ) : (
+                    filteredRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-xs hover:border-amber-300 transition"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-govblue-900">
+                              {req.target_type === "land" ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}: {req.target_code || "ทั่วไป"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
+                              {req.request_type === "survey_new" ? "ขอสำรวจใหม่" : "ขอแก้ไขข้อมูล"}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              req.status === "assigned"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : req.status === "resolved"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {req.status === "assigned" ? "✓ สั่งงานแล้ว" : req.status === "resolved" ? "เสร็จสิ้น" : "⏳ รอสั่งงาน"}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 bg-white rounded-lg border border-gray-200 text-gray-700 whitespace-pre-wrap">
+                          "{req.remarks}"
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+                          <span>ผู้สร้างคำร้อง: {req.creator_name || "พนักงานบัญชี"} • {fmtDateTime(req.created_at)}</span>
+                          {req.status === "pending" && (
+                            <Link
+                              href={`/tasks/new?request_id=${req.id || ""}&target_type=${req.target_type}&target_code=${req.target_code || ""}&request_type=${req.request_type || "revision"}&remarks=${encodeURIComponent(req.remarks || "")}`}
+                              onClick={() => setRequestsModalOpen(false)}
+                              className="px-3 py-1 bg-govblue-800 hover:bg-govblue-900 text-white rounded-md font-semibold text-[11px] transition shadow-xs"
+                            >
+                              สั่งงานแก้ไขตามคำร้องนี้ →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="pt-2 border-t border-gray-100 flex justify-end">
               <button
                 type="button"
                 onClick={() => setRequestsModalOpen(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition cursor-pointer"
               >
                 ปิดหน้าต่าง
               </button>

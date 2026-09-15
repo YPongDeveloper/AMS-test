@@ -47,7 +47,6 @@ import {
 export default function LandPage() {
   const { t } = useI18n();
   const [view, setView] = useState<"list" | "form">("list");
-  const [listTab, setListTab] = useState<"list" | "tax_breakdown">("list");
   const [detailLand, setDetailLand] = useState<LandParcel | null>(null);
   const [taxInvoiceLand, setTaxInvoiceLand] = useState<LandParcel | null>(null);
   const [lands, setLands] = useState<LandParcel[]>([]);
@@ -88,6 +87,7 @@ export default function LandPage() {
   const [reqType, setReqType] = useState<"revision" | "survey_new">("revision");
   const [reqRemarks, setReqRemarks] = useState("");
   const [reqSending, setReqSending] = useState(false);
+  const [reqSearch, setReqSearch] = useState("");
 
   const openRequestModal = (l?: LandParcel) => {
     if (l) {
@@ -100,6 +100,7 @@ export default function LandPage() {
       setReqLandId("");
       setReqLandCode("");
     }
+    setReqSearch("");
     setReqType("revision");
     setReqRemarks("");
     setRequestModalOpen(true);
@@ -441,366 +442,393 @@ export default function LandPage() {
 
       {view === "list" ? (
         <div className="space-y-4">
-          {/* Tab Switcher */}
-          <div className="flex border-b border-gray-200">
-            <button
-              type="button"
-              onClick={() => setListTab("list")}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
-                listTab === "list"
-                  ? "border-govblue-800 text-govblue-900 bg-govblue-50/50"
-                  : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-              }`}
-            >
-              <Layers size={15} /> 📋 ข้อมูลแปลงที่ดิน ({lands.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setListTab("tax_breakdown")}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
-                listTab === "tax_breakdown"
-                  ? "border-emerald-600 text-emerald-800 bg-emerald-50/50"
-                  : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-              }`}
-            >
-              <Receipt size={15} /> 📊 ตารางภาษีรวมรายแปลง (Tax Breakdown Table)
-            </button>
-          </div>
-
-          {/* Filter Bar */}
+          {/* Filter & Action Bar */}
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
               <input
                 type="text"
-                placeholder="ค้นหารหัสที่ดิน, เลขที่โฉนด, ประเภทที่ดิน..."
+                placeholder="ค้นหารหัสที่ดิน, เลขที่โฉนด, ประเภทที่ดิน, ที่ตั้ง..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
               />
             </div>
-            {listTab === "tax_breakdown" && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportLandTaxCSV}
-                  className="px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Download size={14} className="text-govblue-700" /> ส่งออก CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-900 rounded-lg shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Printer size={14} /> พิมพ์ตารางภาษี
-                </button>
-              </div>
-            )}
-            <Btn variant="secondary" onClick={() => loadData(search)} disabled={loading}>
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> รีเฟรช
-            </Btn>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleExportLandTaxCSV}
+                className="px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Download size={14} className="text-govblue-700" /> ส่งออก CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-900 rounded-lg shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Printer size={14} /> พิมพ์ตารางภาษี
+              </button>
+              <Btn variant="secondary" onClick={() => loadData(search)} disabled={loading}>
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> รีเฟรช
+              </Btn>
+            </div>
           </div>
 
-          {listTab === "tax_breakdown" && (
-            /* Summary Cards for Consolidated Land Tax */
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs">
-                <span className="text-xs text-gray-500 block">แปลงที่ดินทั้งหมดในระบบ</span>
-                <span className="text-xl font-bold text-gray-900 mt-1 block">
-                  {lands.length} แปลง
-                </span>
-                <span className="text-[11px] text-gray-400 block mt-0.5">
-                  เนื้อที่รวม {landTaxStats.totalAreaFormatted} ({landTaxStats.totalWah.toLocaleString()} ตร.ว.)
-                </span>
-              </div>
-              <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs">
-                <span className="text-xs text-gray-500 block">มูลค่าฐานภาษีประเมินรวมทั้งสิ้น</span>
-                <span className="text-xl font-bold text-govblue-900 font-mono mt-1 block">
-                  ฿{landTaxStats.formattedBaseValue}
-                </span>
-                <span className="text-[11px] text-gray-400 block mt-0.5">
-                  คิดจากราคาประเมินทุนทรัพย์ที่ดิน รฟท.
-                </span>
-              </div>
-              <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl shadow-2xs">
-                <span className="text-xs text-emerald-800 font-medium block">ประมาณการภาษีที่ดินรวมปี 2569</span>
-                <span className="text-xl font-black text-emerald-700 font-mono mt-1 block">
-                  ฿{landTaxStats.formattedTaxPayable}
-                </span>
-                <span className="text-[11px] text-emerald-600 block mt-0.5">
-                  ตามอัตรา พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง
-                </span>
-              </div>
+          {/* Summary Cards for Consolidated Land Tax */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs">
+              <span className="text-xs text-gray-500 block">แปลงที่ดินทั้งหมดในระบบ</span>
+              <span className="text-xl font-bold text-gray-900 mt-1 block">
+                {lands.length} แปลง
+              </span>
+              <span className="text-[11px] text-gray-400 block mt-0.5">
+                เนื้อที่รวม {landTaxStats.totalAreaFormatted} ({landTaxStats.totalWah.toLocaleString()} ตร.ว.)
+              </span>
             </div>
-          )}
+            <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs">
+              <span className="text-xs text-gray-500 block">มูลค่าฐานภาษีประเมินรวมทั้งสิ้น</span>
+              <span className="text-xl font-bold text-govblue-900 font-mono mt-1 block">
+                ฿{landTaxStats.formattedBaseValue}
+              </span>
+              <span className="text-[11px] text-gray-400 block mt-0.5">
+                คิดจากราคาประเมินทุนทรัพย์ที่ดิน รฟท.
+              </span>
+            </div>
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl shadow-2xs">
+              <span className="text-xs text-emerald-800 font-medium block">ประมาณการภาษีที่ดินรวมปี 2569</span>
+              <span className="text-xl font-black text-emerald-700 font-mono mt-1 block">
+                ฿{landTaxStats.formattedTaxPayable}
+              </span>
+              <span className="text-[11px] text-emerald-600 block mt-0.5">
+                ตามอัตรา พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง
+              </span>
+            </div>
+          </div>
 
-          {listTab === "list" ? (
-            /* Land List Table */
-            <Card className="overflow-hidden border border-gray-200">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-govblue-50/80 text-govblue-800 border-b border-gray-200 font-semibold uppercase tracking-wider">
+          {/* 1. Desktop Table View (hidden on mobile, visible on md+) */}
+          <Card className="hidden md:block overflow-hidden border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-emerald-900 text-white border-b border-gray-200 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3 text-center w-12">ลำดับ</th>
+                    <th className="p-3">รหัสที่ดิน</th>
+                    <th className="p-3">เลขที่โฉนด</th>
+                    <th className="p-3">ประเภท รฟท.</th>
+                    <th className="p-3">การใช้ประโยชน์</th>
+                    <th className="p-3 text-right">เนื้อที่ (ไร่-งาน-วา)</th>
+                    <th className="p-3 text-right">เนื้อที่รวม (ตร.ว.)</th>
+                    <th className="p-3 text-right">ราคาประเมิน/ตร.ว.</th>
+                    <th className="p-3 text-right">มูลค่าฐานภาษี</th>
+                    <th className="p-3 text-center">อัตราภาษี</th>
+                    <th className="p-3 text-right">ภาษีที่ต้องชำระ</th>
+                    <th className="p-3 text-center">การจัดการ / ออกเอกสาร</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {loading && lands.length === 0 ? (
                     <tr>
-                      <th className="p-3">รหัสที่ดิน (Land_Code)</th>
-                      <th className="p-3">เลขที่โฉนด</th>
-                      <th className="p-3">ประเภท รฟท.</th>
-                      <th className="p-3">การใช้ประโยชน์</th>
-                      <th className="p-3">ขนาด (ไร่-งาน-วา)</th>
-                      <th className="p-3">กว้าง × ยาว (ม.)</th>
-                      <th className="p-3">พิกัด GPS</th>
-                      <th className="p-3 text-right">จัดการ</th>
+                      <td colSpan={12} className="p-8 text-center text-gray-500">
+                        กำลังโหลดข้อมูลแปลงที่ดิน...
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {loading && lands.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center text-gray-500">
-                          กำลังโหลดข้อมูลแปลงที่ดิน...
-                        </td>
-                      </tr>
-                    ) : lands.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center text-gray-500">
-                          ยังไม่พบข้อมูลแปลงที่ดิน — กดปุ่ม "+ บันทึกแปลงที่ดินใหม่" เพื่อเริ่มต้น
-                        </td>
-                      </tr>
-                    ) : (
-                      lands.map((l) => (
-                        <tr key={l.public_id} className="hover:bg-blue-50/40 transition">
+                  ) : lands.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="p-8 text-center text-gray-500">
+                        ไม่พบข้อมูลแปลงที่ดิน
+                      </td>
+                    </tr>
+                  ) : (
+                    lands.map((l, idx) => {
+                      const tx = calculateLandTax(l);
+                      const r = l.rai ?? (l.dimension ? l.dimension.split("-")[0] : 0);
+                      const n = l.ngan ?? (l.dimension ? l.dimension.split("-")[1] : 0);
+                      const w = l.wa ?? (l.dimension ? l.dimension.split("-")[2] : 0);
+                      return (
+                        <tr key={l.public_id} className="hover:bg-emerald-50/40 transition">
+                          <td className="p-3 text-center text-gray-400">{idx + 1}</td>
                           <td className="p-3">
-                            <div className="font-semibold text-govblue-800 flex items-center gap-2">
-                              <Layers size={14} className="text-govblue-600" />
-                              <span>{l.land_code}</span>
-                            </div>
+                            <div className="font-bold text-govblue-900">{l.land_code}</div>
                             {formatShortAddress(l) !== "-" && (
-                              <div className="text-[11px] text-gray-500 font-normal mt-0.5">
+                              <div className="text-[10px] text-gray-500 font-normal">
                                 📍 {formatShortAddress(l)}
                               </div>
                             )}
                           </td>
                           <td className="p-3 text-gray-700">{l.deed_no || "-"}</td>
                           <td className="p-3">
-                            <Tag tone="blue">{l.srt_land_type || "-"}</Tag>
+                            <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]">
+                              {l.srt_land_type || "รฟท."}
+                            </span>
                           </td>
-                          <td className="p-3 text-gray-600">{l.land_use || "-"}</td>
-                          <td className="p-3">
-                            <div className="font-medium text-govblue-900">
-                              {l.rai ?? (l.dimension ? l.dimension.split("-")[0] : 0)} ไร่{" "}
-                              {l.ngan ?? (l.dimension ? l.dimension.split("-")[1] : 0)} งาน{" "}
-                              {l.wa ?? (l.dimension ? l.dimension.split("-")[2] : 0)} วา
-                            </div>
-                            {l.dimension && (
-                              <div className="text-[10px] text-gray-400 font-mono">({l.dimension})</div>
-                            )}
+                          <td className="p-3 text-gray-700">{tx.useType}</td>
+                          <td className="p-3 text-right text-gray-800">
+                            {r} ไร่ {n} งาน {w} วา
                           </td>
-                          <td className="p-3 text-gray-600">
-                            {l.width && l.length ? `${l.width} × ${l.length} ม.` : "-"}
+                          <td className="p-3 text-right font-mono font-medium text-gray-900">
+                            {tx.totalWah.toLocaleString()}
                           </td>
-                          <td className="p-3 font-mono text-[11px] text-gray-500">
-                            {l.lat && l.lng ? `${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}` : "-"}
+                          <td className="p-3 text-right font-mono text-gray-600">
+                            ฿{tx.appraisalPerWah.toLocaleString()}
                           </td>
-                          <td className="p-3 text-right space-x-1 whitespace-nowrap">
-                            {currentUser?.role === "accountant" ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => setDetailLand(l)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-govblue-800 bg-govblue-50 hover:bg-govblue-100 rounded border border-govblue-200 transition"
-                                  title="ดูรายละเอียดแปลงที่ดิน"
-                                >
-                                  <Eye size={13} /> รายละเอียด
-                                </button>
-                                <button
-                                  onClick={() => setTaxInvoiceLand(l)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 transition"
-                                  title="พิมพ์ใบแจ้งการประเมินภาษี / ใบกำกับภาษี"
-                                >
-                                  <Printer size={13} /> ใบภาษี
-                                </button>
-                                <button
-                                  onClick={() => openRequestModal(l)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded border border-amber-200 transition"
-                                  title="สร้างคำร้องขอแก้ไขแปลงนี้"
-                                >
-                                  <AlertCircle size={13} /> ขอแก้ไข
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => setDetailLand(l)}
-                                  className="p-1 text-govblue-700 hover:text-govblue-900 hover:bg-govblue-50 rounded"
-                                  title="ดูรายละเอียด"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                                <button
-                                  onClick={() => setTaxInvoiceLand(l)}
-                                  className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded"
-                                  title="พิมพ์ใบแจ้งการประเมินภาษี"
-                                >
-                                  <Printer size={14} />
-                                </button>
-                                <button
-                                  onClick={() => openRequestModal(l)}
-                                  className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded"
-                                  title="สร้างคำร้องขอแก้ไข"
-                                >
-                                  <AlertCircle size={14} />
-                                </button>
-                                <button
-                                  onClick={() => openEdit(l)}
-                                  className="p-1 text-govblue-600 hover:text-govblue-800 hover:bg-govblue-50 rounded"
-                                  title="แก้ไข"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(l.public_id, l.land_code)}
-                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
-                                  title="ลบ"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            )}
+                          <td className="p-3 text-right font-mono font-medium text-govblue-900">
+                            ฿{tx.formattedBaseValue}
                           </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          ) : (
-            /* Consolidated Property-by-Property Tax Table */
-            <Card className="overflow-hidden border border-gray-200">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-emerald-900 text-white border-b border-gray-200 font-semibold uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3 text-center w-12">ลำดับ</th>
-                      <th className="p-3">รหัสที่ดิน</th>
-                      <th className="p-3">เลขที่โฉนด</th>
-                      <th className="p-3">ประเภท รฟท.</th>
-                      <th className="p-3">การใช้ประโยชน์</th>
-                      <th className="p-3 text-right">เนื้อที่ (ไร่-งาน-วา)</th>
-                      <th className="p-3 text-right">เนื้อที่รวม (ตร.ว.)</th>
-                      <th className="p-3 text-right">ราคาประเมิน/ตร.ว.</th>
-                      <th className="p-3 text-right">มูลค่าฐานภาษี</th>
-                      <th className="p-3 text-center">อัตราภาษี</th>
-                      <th className="p-3 text-right">ภาษีที่ต้องชำระ</th>
-                      <th className="p-3 text-center">ออกเอกสาร</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {lands.length === 0 ? (
-                      <tr>
-                        <td colSpan={12} className="p-8 text-center text-gray-500">
-                          ไม่พบข้อมูลแปลงที่ดินสำหรับคำนวณภาษี
-                        </td>
-                      </tr>
-                    ) : (
-                      lands.map((l, idx) => {
-                        const tx = calculateLandTax(l);
-                        const r = l.rai ?? (l.dimension ? l.dimension.split("-")[0] : 0);
-                        const n = l.ngan ?? (l.dimension ? l.dimension.split("-")[1] : 0);
-                        const w = l.wa ?? (l.dimension ? l.dimension.split("-")[2] : 0);
-                        return (
-                          <tr key={l.public_id} className="hover:bg-emerald-50/40 transition">
-                            <td className="p-3 text-center text-gray-400">{idx + 1}</td>
-                            <td className="p-3">
-                              <div className="font-bold text-govblue-900">{l.land_code}</div>
-                              {formatShortAddress(l) !== "-" && (
-                                <div className="text-[10px] text-gray-500 font-normal">
-                                  {formatShortAddress(l)}
+                          <td className="p-3 text-center font-mono">
+                            {tx.taxRatePercent}%
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-emerald-700">
+                            ฿{tx.formattedTaxPayable}
+                          </td>
+                          <td className="p-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setDetailLand(l)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-govblue-800 bg-govblue-50 hover:bg-govblue-100 rounded-md border border-govblue-200 transition shadow-2xs"
+                                title="ดูรายละเอียดเชิงลึก"
+                              >
+                                <Eye size={13} /> <span>ดูรายละเอียด</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTaxInvoiceLand(l)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-govblue-800 hover:bg-govblue-900 rounded-md shadow-2xs transition"
+                                title="พิมพ์ใบแจ้งการประเมินภาษี / ใบกำกับภาษี"
+                              >
+                                <Printer size={12} /> <span>พิมพ์ใบภาษี</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openRequestModal(l)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-md border border-amber-200 transition"
+                                title="สร้างคำร้องขอแก้ไขแปลงนี้"
+                              >
+                                <AlertCircle size={12} /> <span>ขอแก้ไข</span>
+                              </button>
+                              {currentUser?.role === "admin" && (
+                                <div className="flex items-center gap-0.5 ml-1 pl-1 border-l border-gray-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(l)}
+                                    className="p-1 text-govblue-600 hover:bg-govblue-50 rounded"
+                                    title="แก้ไข"
+                                  >
+                                    <Edit2 size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(l.public_id, l.land_code)}
+                                    className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                                    title="ลบ"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
                                 </div>
                               )}
-                            </td>
-                            <td className="p-3 text-gray-700">{l.deed_no || "-"}</td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]">
-                                {l.srt_land_type || "รฟท."}
-                              </span>
-                            </td>
-                            <td className="p-3 text-gray-700">{tx.useType}</td>
-                            <td className="p-3 text-right text-gray-800">
-                              {r} ไร่ {n} งาน {w} วา
-                            </td>
-                            <td className="p-3 text-right font-mono font-medium text-gray-900">
-                              {tx.totalWah.toLocaleString()}
-                            </td>
-                            <td className="p-3 text-right font-mono text-gray-600">
-                              ฿{tx.appraisalPerWah.toLocaleString()}
-                            </td>
-                            <td className="p-3 text-right font-mono font-medium text-govblue-900">
-                              ฿{tx.formattedBaseValue}
-                            </td>
-                            <td className="p-3 text-center font-mono">
-                              {tx.taxRatePercent}%
-                            </td>
-                            <td className="p-3 text-right font-mono font-bold text-emerald-700">
-                              ฿{tx.formattedTaxPayable}
-                            </td>
-                            <td className="p-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setTaxInvoiceLand(l)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-govblue-800 hover:bg-govblue-900 rounded-md shadow-2xs transition"
-                                  title="พิมพ์ใบแจ้งการประเมินภาษี / ใบกำกับภาษี"
-                                >
-                                  <Printer size={12} /> พิมพ์ใบภาษี
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDetailLand(l)}
-                                  className="p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded"
-                                  title="ดูรายละเอียด"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                  <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300 text-xs">
-                    <tr>
-                      <td colSpan={5} className="p-3 text-right text-gray-700">
-                        รวมทั้งสิ้น ({lands.length} แปลง):
-                      </td>
-                      <td className="p-3 text-right text-gray-800">
-                        {landTaxStats.totalAreaFormatted}
-                      </td>
-                      <td className="p-3 text-right font-mono font-bold text-gray-900">
-                        {landTaxStats.totalWah.toLocaleString()} ตร.ว.
-                      </td>
-                      <td className="p-3 text-right">-</td>
-                      <td className="p-3 text-right font-mono font-bold text-govblue-950">
-                        ฿{landTaxStats.formattedBaseValue}
-                      </td>
-                      <td className="p-3 text-center">-</td>
-                      <td className="p-3 text-right font-mono font-black text-emerald-800 text-sm">
-                        ฿{landTaxStats.formattedTaxPayable}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => window.print()}
-                          className="text-xs text-govblue-700 hover:underline font-semibold"
-                        >
-                          พิมพ์ตารางนี้
-                        </button>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300 text-xs">
+                  <tr>
+                    <td colSpan={5} className="p-3 text-right text-gray-700">
+                      รวมทั้งสิ้น ({lands.length} แปลง):
+                    </td>
+                    <td className="p-3 text-right text-gray-800">
+                      {landTaxStats.totalAreaFormatted}
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-gray-900">
+                      {landTaxStats.totalWah.toLocaleString()} ตร.ว.
+                    </td>
+                    <td className="p-3 text-right">-</td>
+                    <td className="p-3 text-right font-mono font-bold text-govblue-950">
+                      ฿{landTaxStats.formattedBaseValue}
+                    </td>
+                    <td className="p-3 text-center">-</td>
+                    <td className="p-3 text-right font-mono font-black text-emerald-800 text-sm">
+                      ฿{landTaxStats.formattedTaxPayable}
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="text-xs text-govblue-700 hover:underline font-semibold"
+                      >
+                        พิมพ์ตารางนี้
+                      </button>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </Card>
+
+          {/* 2. Mobile Responsive Card View (visible on mobile, hidden on md+) */}
+          <div className="md:hidden space-y-3">
+            {loading && lands.length === 0 ? (
+              <div className="p-6 text-center text-xs text-gray-500 bg-white rounded-xl border border-gray-200">
+                กำลังโหลดข้อมูลแปลงที่ดิน...
               </div>
-            </Card>
-          )}
+            ) : lands.length === 0 ? (
+              <div className="p-6 text-center text-xs text-gray-500 bg-white rounded-xl border border-gray-200">
+                ไม่พบข้อมูลแปลงที่ดิน
+              </div>
+            ) : (
+              lands.map((l, idx) => {
+                const tx = calculateLandTax(l);
+                const r = l.rai ?? (l.dimension ? l.dimension.split("-")[0] : 0);
+                const n = l.ngan ?? (l.dimension ? l.dimension.split("-")[1] : 0);
+                const w = l.wa ?? (l.dimension ? l.dimension.split("-")[2] : 0);
+                return (
+                  <div
+                    key={l.public_id}
+                    className="bg-white rounded-xl border border-gray-200 p-4 shadow-2xs space-y-3"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-govblue-100 text-govblue-900 text-xs font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <span className="font-bold text-govblue-900 text-sm block">
+                            {l.land_code}
+                          </span>
+                          {l.deed_no && (
+                            <span className="text-[11px] text-gray-500">
+                              โฉนด {l.deed_no}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs font-medium">
+                        {l.srt_land_type || "รฟท."}
+                      </span>
+                    </div>
+
+                    {/* Location & Details */}
+                    <div className="text-xs space-y-1 text-gray-600 bg-gray-50/60 p-2.5 rounded-lg border border-gray-100">
+                      {formatShortAddress(l) !== "-" && (
+                        <div className="flex items-start gap-1.5 text-gray-700">
+                          <span className="text-govblue-600 shrink-0">📍</span>
+                          <span className="font-medium">{formatShortAddress(l)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-gray-500">การใช้ประโยชน์:</span>
+                        <span className="font-semibold text-gray-800">{tx.useType}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">เนื้อที่:</span>
+                        <span className="font-semibold text-gray-800">
+                          {r} ไร่ {n} งาน {w} วา ({tx.totalWah.toLocaleString()} ตร.ว.)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Tax Summary Grid */}
+                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500 text-[10px] block">ราคาประเมิน/ตร.ว.</span>
+                        <span className="font-mono font-medium text-gray-800">
+                          ฿{tx.appraisalPerWah.toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 text-[10px] block">อัตราภาษี</span>
+                        <span className="font-mono font-medium text-gray-800">
+                          {tx.taxRatePercent}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 text-[10px] block">มูลค่าฐานภาษี</span>
+                        <span className="font-mono font-bold text-govblue-900">
+                          ฿{tx.formattedBaseValue}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-800 text-[10px] font-bold block">
+                          ภาษีที่ต้องชำระ
+                        </span>
+                        <span className="font-mono font-black text-emerald-700 text-sm">
+                          ฿{tx.formattedTaxPayable}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setDetailLand(l)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-govblue-800 bg-govblue-50 hover:bg-govblue-100 rounded-lg border border-govblue-200 transition"
+                      >
+                        <Eye size={13} /> <span>ดูรายละเอียด</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTaxInvoiceLand(l)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-white bg-govblue-800 hover:bg-govblue-900 rounded-lg shadow-2xs transition"
+                      >
+                        <Printer size={13} /> <span>พิมพ์ใบภาษี</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openRequestModal(l)}
+                        className="inline-flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition"
+                        title="สร้างคำร้องขอแก้ไข"
+                      >
+                        <AlertCircle size={13} /> <span>ขอแก้ไข</span>
+                      </button>
+                      {currentUser?.role === "admin" && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(l)}
+                            className="p-2 text-govblue-700 hover:bg-govblue-50 rounded-lg border border-gray-200"
+                            title="แก้ไข"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(l.public_id, l.land_code)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200"
+                            title="ลบ"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* Mobile Summary Card */}
+            {lands.length > 0 && (
+              <div className="p-3 bg-gray-100 rounded-xl border border-gray-200 text-xs space-y-1 text-gray-700 font-medium">
+                <div className="flex justify-between">
+                  <span>รวมทั้งหมด:</span>
+                  <span className="font-bold">{lands.length} แปลง ({landTaxStats.totalWah.toLocaleString()} ตร.ว.)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ฐานภาษีรวม:</span>
+                  <span className="font-bold font-mono">฿{landTaxStats.formattedBaseValue}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800 font-bold border-t border-gray-200 pt-1">
+                  <span>ภาษีรวมปี 2569:</span>
+                  <span className="font-black font-mono text-sm">฿{landTaxStats.formattedTaxPayable}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         /* Form View */
@@ -1085,6 +1113,16 @@ export default function LandPage() {
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
                   แปลงที่ดินที่ต้องการให้ตรวจสอบ
                 </label>
+                <div className="relative mb-1.5">
+                  <Search className="absolute left-2.5 top-2 text-gray-400" size={13} />
+                  <input
+                    type="text"
+                    placeholder="พิมพ์ค้นหารหัสแปลง, โฉนด, ประเภทที่ดินเพื่อกรองตัวเลือก..."
+                    value={reqSearch}
+                    onChange={(e) => setReqSearch(e.target.value)}
+                    className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-govblue-500 focus:outline-none"
+                  />
+                </div>
                 <select
                   value={reqLandId}
                   onChange={(e) => {
@@ -1095,11 +1133,23 @@ export default function LandPage() {
                   className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
                 >
                   <option value="">— ไม่ระบุแปลงเฉพาะเจาะจง (งานทั่วไป) —</option>
-                  {lands.map((l) => (
-                    <option key={l.public_id} value={l.public_id}>
-                      {l.land_code} {l.deed_no ? `(โฉนด ${l.deed_no})` : ""} - {l.srt_land_type || "แปลงที่ดิน"}
-                    </option>
-                  ))}
+                  {lands
+                    .filter((l) => {
+                      if (!reqSearch.trim()) return true;
+                      const q = reqSearch.toLowerCase();
+                      return (
+                        l.land_code.toLowerCase().includes(q) ||
+                        (l.deed_no && l.deed_no.toLowerCase().includes(q)) ||
+                        (l.srt_land_type && l.srt_land_type.toLowerCase().includes(q)) ||
+                        (l.subdistrict && l.subdistrict.toLowerCase().includes(q)) ||
+                        (l.province && l.province.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((l) => (
+                      <option key={l.public_id} value={l.public_id}>
+                        {l.land_code} {l.deed_no ? `(โฉนด ${l.deed_no})` : ""} - {l.srt_land_type || "แปลงที่ดิน"}
+                      </option>
+                    ))}
                 </select>
               </div>
 
