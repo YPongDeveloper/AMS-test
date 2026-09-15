@@ -911,7 +911,12 @@ export async function fetchMyInvitations(): Promise<TeamMember[]> {
       (m) =>
         m &&
         m.status === "pending" &&
-        (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
+        (
+          !cur ||
+          cur.role === "subordinate" ||
+          (m.subordinate_username && cur.username && m.subordinate_username.toLowerCase() === cur.username.toLowerCase()) ||
+          (m.subordinate_public_id && cur.public_id && m.subordinate_public_id === cur.public_id)
+        )
     );
   }
   try {
@@ -930,8 +935,13 @@ export async function respondToInvitation(supervisorPublicId: string, action: "a
     const item = all.find(
       (m) =>
         m &&
-        m.supervisor_public_id === supervisorPublicId &&
-        (m.subordinate_username === cur?.username || m.subordinate_public_id === cur?.public_id)
+        (m.supervisor_public_id === supervisorPublicId || !supervisorPublicId) &&
+        (
+          !cur ||
+          cur.role === "subordinate" ||
+          (m.subordinate_username && cur.username && m.subordinate_username.toLowerCase() === cur.username.toLowerCase()) ||
+          (m.subordinate_public_id && cur.public_id && m.subordinate_public_id === cur.public_id)
+        )
     );
     if (item) {
       item.status = action;

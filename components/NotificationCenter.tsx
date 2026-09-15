@@ -20,9 +20,11 @@ import {
 import {
   getCurrentUser,
   fetchMyInvitations,
+  fetchMyTeam,
   respondToInvitation,
   fetchRevisionRequests,
   fetchTasksList,
+  type AppUser,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -76,7 +78,7 @@ function timeAgo(isoString: string, lang: "th" | "en" = "th"): string {
   }
 }
 
-export function NotificationCenter() {
+export function NotificationCenter({ currentUser }: { currentUser?: AppUser | null }) {
   const { lang } = useI18n();
   const th = lang === "th";
   const router = useRouter();
@@ -89,27 +91,49 @@ export function NotificationCenter() {
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const user = getCurrentUser();
+  const [user, setUser] = useState<AppUser | null>(currentUser || null);
 
   useEffect(() => {
-    if (!user) return;
+    if (currentUser !== undefined) {
+      setUser(currentUser);
+    } else {
+      setUser(getCurrentUser());
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handleAuth = () => {
+      setUser(getCurrentUser());
+    };
+    window.addEventListener("storage", handleAuth);
+    window.addEventListener("ams_data_updated", handleAuth);
+    return () => {
+      window.removeEventListener("storage", handleAuth);
+      window.removeEventListener("ams_data_updated", handleAuth);
+    };
+  }, []);
+
+  useEffect(() => {
+    const activeUser = user || getCurrentUser();
+    if (!activeUser) return;
     try {
-      const stored = localStorage.getItem(`ams_read_notifs_${user.public_id}`);
+      const stored = localStorage.getItem(`ams_read_notifs_${activeUser.public_id}`);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) setReadIds(parsed);
       }
     } catch {}
-  }, [user?.public_id]);
+  }, [user]);
 
   const markAsRead = useCallback(
     (id: string) => {
-      if (!user) return;
+      const activeUser = user || getCurrentUser();
+      if (!activeUser) return;
       setReadIds((prev) => {
         if (prev.includes(id)) return prev;
         const updated = [...prev, id];
         try {
-          localStorage.setItem(`ams_read_notifs_${user.public_id}`, JSON.stringify(updated));
+          localStorage.setItem(`ams_read_notifs_${activeUser.public_id}`, JSON.stringify(updated));
         } catch {}
         return updated;
       });
@@ -118,24 +142,26 @@ export function NotificationCenter() {
   );
 
   const markAllAsRead = useCallback(() => {
-    if (!user) return;
+    const activeUser = user || getCurrentUser();
+    if (!activeUser) return;
     const allIds = notifications.map((n) => n.id);
     setReadIds(allIds);
     try {
-      localStorage.setItem(`ams_read_notifs_${user.public_id}`, JSON.stringify(allIds));
+      localStorage.setItem(`ams_read_notifs_${activeUser.public_id}`, JSON.stringify(allIds));
     } catch {}
   }, [user, notifications]);
 
   const loadNotifications = useCallback(async () => {
-    if (!user) return;
+    const activeUser = user || getCurrentUser();
+    if (!activeUser) return;
     setLoading(true);
 
     try {
       const items: NotificationItem[] = [];
-      const isSup = user.role === "supervisor" || user.role === "admin";
-      const isOfficer = user.role === "subordinate";
+      const isSup = activeUser.role === "supervisor" || activeUser.role === "admin";
+      const isOfficer = activeUser.role === "subordinate";
 
-      // 1. Team Invitations (สำหรับลูกน้อง)
+      // 1. Team Invitations (สำหรับลูกน้อง/ผู้ถูกเชิญ)
       if (isOfficer) {
         try {
           const invitations = await fetchMyInvitations();
@@ -175,7 +201,70 @@ export function NotificationCenter() {
         } catch {}
       }
 
-      // 2. Accountant Revision Requests (สำหรับหัวหน้างาน / Admin)
+      // 2. Team Member Responses (สำหรับหัวหน้างาน: เมื่อลูกน้องกดยอมรับหรือปฏิเสธคำเชิญ)
+      if (isSup) {
+        try {
+          const team = await fetchMyTeam();
+          for (const m of Array.isArray(team) ? team : []) {
+            if (!m) continue;
+            if (m.status === "accepted" && m.responded_at) {
+              const id = `team-accepted-${m.subordinate_public_id}-${m.responded_at}`;
+              items.push({
+                id,
+                type: "task_approved",
+                title: th ? "สมาชิกตอบรับเข้าร่วมทีมแล้ว" : "Team Member Joined",
+                message: th
+                  ? `คุณ ${m.subordinate_name || m.subordinate_username} (@${m.subordinate_username}) ได้กดยอมรับคำเชิญและเข้าร่วมทีมสำรวจของคุณแล้ว`
+                  : `${m.subordinate_name || m.subordinate_username} accepted your invitation to join the team.`,
+                time: m.responded_at,
+                link: "/tasks?open=team",
+                badge: {
+                  label: th ? "เข้าร่วมทีม" : "Joined Team",
+                  bg: "bg-emerald-100",
+                  text: "text-emerald-800",
+                },
+                actions: [
+                  {
+                    label: th ? "ดูรายชื่อทีม" : "View Team",
+                    actionType: "navigate",
+                    link: "/tasks?open=team",
+                    variant: "success",
+                  },
+                ],
+                data: m,
+              });
+            } else if (m.status === "declined" && m.responded_at) {
+              const id = `team-declined-${m.subordinate_public_id}-${m.responded_at}`;
+              items.push({
+                id,
+                type: "task_rejected",
+                title: th ? "สมาชิกปฏิเสธคำเชิญเข้าร่วมทีม" : "Team Invitation Declined",
+                message: th
+                  ? `คุณ ${m.subordinate_name || m.subordinate_username} (@${m.subordinate_username}) ปฏิเสธคำเชิญเข้าร่วมทีมสำรวจ`
+                  : `${m.subordinate_name || m.subordinate_username} declined your invitation to join the team.`,
+                time: m.responded_at,
+                link: "/tasks?open=team",
+                badge: {
+                  label: th ? "ปฏิเสธ" : "Declined",
+                  bg: "bg-rose-100",
+                  text: "text-rose-800",
+                },
+                actions: [
+                  {
+                    label: th ? "ดูรายชื่อทีม" : "View Team",
+                    actionType: "navigate",
+                    link: "/tasks?open=team",
+                    variant: "secondary",
+                  },
+                ],
+                data: m,
+              });
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Accountant Revision Requests (สำหรับหัวหน้างาน / Admin)
       if (isSup) {
         try {
           const requests = await fetchRevisionRequests("pending");
@@ -245,7 +334,7 @@ export function NotificationCenter() {
           }
 
           // 3.2 ลูกน้อง: ได้รับมอบหมายงานสำรวจใหม่ (status === 'pending')
-          if (isOfficer && task.assignee_public_id === user.public_id && task.status === "pending") {
+          if (isOfficer && task.assignee_public_id === activeUser.public_id && task.status === "pending") {
             const id = `task-new-${task.public_id}`;
             items.push({
               id,
@@ -272,7 +361,7 @@ export function NotificationCenter() {
           }
 
           // 3.3 ลูกน้อง: งานถูกส่งกลับมาให้แก้ไข (revision_requested)
-          if (isOfficer && task.assignee_public_id === user.public_id && task.status === "revision_requested") {
+          if (isOfficer && task.assignee_public_id === activeUser.public_id && task.status === "revision_requested") {
             const id = `task-rev-${task.public_id}-${task.updated_at || task.created_at}`;
             items.push({
               id,
@@ -299,7 +388,7 @@ export function NotificationCenter() {
           }
 
           // 3.4 ลูกน้อง: ผลงานได้รับการอนุมัติสำเร็จแล้ว (done)
-          if (isOfficer && task.assignee_public_id === user.public_id && task.status === "done" && task.submission_data) {
+          if (isOfficer && task.assignee_public_id === activeUser.public_id && task.status === "done" && task.submission_data) {
             const id = `task-done-${task.public_id}-${task.updated_at || task.created_at}`;
             items.push({
               id,
