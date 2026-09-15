@@ -22,7 +22,7 @@ interface LandDetailModalProps {
   onClose: () => void;
   land: LandParcel | null;
   onOpenTaxInvoice: (land: LandParcel) => void;
-  onOpenRevisionRequest: (land: LandParcel) => void;
+  onOpenRevisionRequest?: (land: LandParcel) => void;
 }
 
 export default function LandDetailModal({
@@ -244,15 +244,19 @@ export default function LandDetailModal({
 
         {/* Footer Actions */}
         <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <button
-            onClick={() => {
-              onClose();
-              onOpenRevisionRequest(land);
-            }}
-            className="w-full sm:w-auto px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5"
-          >
-            <AlertCircle size={14} /> สร้างคำร้องขอแก้ไข / ตรวจสอบ
-          </button>
+          {onOpenRevisionRequest ? (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenRevisionRequest(land);
+              }}
+              className="w-full sm:w-auto px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5"
+            >
+              <AlertCircle size={14} /> สร้างคำร้องขอแก้ไข / ตรวจสอบ
+            </button>
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
