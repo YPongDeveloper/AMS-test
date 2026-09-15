@@ -70,6 +70,7 @@ function NewTaskContent() {
 
   useEffect(() => {
     if (me?.role === "supervisor" || me?.role === "admin") {
+      const qAssignee = searchParams.get("assignee");
       Promise.all([
         fetchMyTeam().catch(() => [] as TeamMember[]),
         api<AppUser[]>("/api/users?role=subordinate").catch(() => [] as AppUser[]),
@@ -89,15 +90,23 @@ function NewTaskContent() {
             created_at: "",
           }));
           setUsers(teamUsers);
-          setAssignee(teamUsers[0]?.public_id || "");
+          if (qAssignee && teamUsers.some((u) => u.public_id === qAssignee)) {
+            setAssignee(qAssignee);
+          } else {
+            setAssignee(teamUsers[0]?.public_id || "");
+          }
         } else {
           setIsTeamAssignee(false);
           setUsers(safeSubordinates);
-          if (safeSubordinates.length > 0) setAssignee(safeSubordinates[0]?.public_id || "");
+          if (qAssignee && safeSubordinates.some((u) => u.public_id === qAssignee)) {
+            setAssignee(qAssignee);
+          } else if (safeSubordinates.length > 0) {
+            setAssignee(safeSubordinates[0]?.public_id || "");
+          }
         }
       });
     }
-  }, [me]);
+  }, [me, searchParams]);
 
   const inputCls =
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";

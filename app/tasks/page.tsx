@@ -59,6 +59,9 @@ import {
   Lock,
   FileCheck2,
   Award,
+  Briefcase,
+  History,
+  UserMinus,
 } from "lucide-react";
 
 // 5 ขั้นตอนหลักของ Workflow ภารกิจสำรวจและส่งมอบงาน (ออกแบบตาม Delivery Tracker Pipeline)
@@ -481,6 +484,11 @@ export default function TasksPage() {
   const [myTeam, setMyTeam] = useState<TeamMember[]>([]);
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [memberTasksModal, setMemberTasksModal] = useState<{
+    isOpen: boolean;
+    member: TeamMember | null;
+    mode: "active" | "history";
+  }>({ isOpen: false, member: null, mode: "active" });
 
   // 2. Subordinate Invitation Alerts
   const [myInvitations, setMyInvitations] = useState<TeamMember[]>([]);
@@ -1508,19 +1516,6 @@ export default function TasksPage() {
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setTeamModalOpen(true)}
-                  className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-govblue-50 text-govblue-800 border border-gray-300 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg shadow-xs transition"
-                >
-                  <Users size={16} className="text-govblue-600" />
-                  <span>จัดการทีม</span>
-                  {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length > 0 && (
-                    <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
-                      {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length}
-                    </span>
-                  )}
-                </button>
 
                 <Link
                   href="/tasks/new"
@@ -1812,7 +1807,18 @@ export default function TasksPage() {
                     }`}
                   >
                     <Users size={15} />
-                    {t("สมาชิกในสังกัด", "Team Members")}
+                    <span>{t("สมาชิกในสังกัด", "Team Members")}</span>
+                    {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length > 0 && (
+                      <span
+                        className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
+                          activeTab === "members"
+                            ? "bg-white/20 text-white"
+                            : "bg-gray-200 text-gray-700"
+                        }`}
+                      >
+                        {(Array.isArray(myTeam) ? myTeam : []).filter((m) => m && m.status === "accepted").length}
+                      </span>
+                    )}
                   </button>
                 </>
               ) : (
@@ -1958,52 +1964,196 @@ export default function TasksPage() {
 
           {/* Members View (Supervisor Only) */}
           {activeTab === "members" && isSup && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-              <div className="p-4 bg-govblue-50/50 border-b border-gray-200">
-                <h3 className="text-sm font-semibold text-govblue-900">
-                  รายชื่อบุคลากรและเจ้าหน้าที่ในสังกัด
-                </h3>
-                <p className="text-xs text-gray-500">
-                  จัดการสิทธิ์ของสมาชิกเพื่อมอบหมายงานสำรวจภาคสนาม
-                </p>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 bg-govblue-50/50 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-govblue-900">
+                    {t("รายชื่อบุคลากรและเจ้าหน้าที่ในสังกัด", "Team Members & Subordinates")}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {t("รายชื่อทีมปฏิบัติงานสำรวจภาคสนามภายใต้การกำกับดูแล", "Field survey personnel under your direct supervision")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTeamModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 bg-govblue-700 hover:bg-govblue-800 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg shadow-sm transition shrink-0"
+                >
+                  <Plus size={16} className="stroke-[2.5]" />
+                  <span>{t("เพิ่มพนักงานเข้ากลุ่ม", "Add Member to Team")}</span>
+                </button>
               </div>
-              {users.map((u) => (
-                <div key={u.public_id} className="flex items-center gap-3 px-4 py-3.5">
-                  {u.picture_url ? (
-                    <img
-                      src={u.picture_url}
-                      alt=""
-                      className="w-10 h-10 rounded-full object-cover ring-1 ring-gray-200"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-govblue-100 text-govblue-700 flex items-center justify-center text-sm font-bold">
-                      {u.display_name.charAt(0)}
+
+              {(() => {
+                const safeTeam = Array.isArray(myTeam) ? myTeam : [];
+                if (safeTeam.length === 0) {
+                  return (
+                    <div className="p-10 sm:p-14 text-center">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-govblue-50 text-govblue-600 flex items-center justify-center mb-3">
+                        <Users size={28} />
+                      </div>
+                      <h4 className="text-sm font-bold text-gray-800 mb-1">
+                        {t("ยังไม่มีเจ้าหน้าที่ในสังกัด", "No subordinates in your team yet")}
+                      </h4>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4 leading-relaxed">
+                        {t(
+                          "คุณสามารถเชิญเจ้าหน้าที่สำรวจภาคสนามเข้าร่วมทีมของคุณ เพื่อมอบหมายงานและติดตามผลงานได้",
+                          "You can invite field survey personnel to your team to assign and monitor survey tasks."
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setTeamModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-govblue-700 hover:bg-govblue-800 text-white shadow-sm transition"
+                      >
+                        <Plus size={15} className="stroke-[2.5]" />
+                        <span>{t("เพิ่มพนักงานเข้ากลุ่ม", "Add Member to Team")}</span>
+                      </button>
                     </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-gray-800 truncate">
-                      {u.display_name}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {u.username ? `@${u.username}` : "ผู้ใช้งานในระบบ"}
-                    </div>
+                  );
+                }
+
+                return (
+                  <div className="divide-y divide-gray-100">
+                    {safeTeam.map((m) => {
+                      if (!m) return null;
+                      const userDetail = (Array.isArray(users) ? users : []).find(
+                        (u) =>
+                          u.public_id === m.subordinate_public_id ||
+                          u.username === m.subordinate_username
+                      );
+                      const memberTasks = (Array.isArray(tasks) ? tasks : []).filter(
+                        (t) =>
+                          t &&
+                          (t.assignee_public_id === m.subordinate_public_id ||
+                            (userDetail && t.assignee_public_id === userDetail.public_id))
+                      );
+                      const activeTasks = memberTasks.filter((t) =>
+                        ["pending", "accepted", "in_progress", "submitted"].includes(t.status)
+                      );
+                      const historyTasks = memberTasks.filter((t) =>
+                        ["done", "cancelled"].includes(t.status)
+                      );
+
+                      return (
+                        <div
+                          key={m.id || m.subordinate_public_id}
+                          className="flex flex-col md:flex-row md:items-center justify-between p-4 gap-3 hover:bg-gray-50/60 transition"
+                        >
+                          {/* Member Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            {userDetail?.picture_url ? (
+                              <img
+                                src={userDetail.picture_url}
+                                alt=""
+                                className="w-10 h-10 rounded-full object-cover ring-1 ring-gray-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-govblue-100 text-govblue-700 flex items-center justify-center text-sm font-bold shrink-0">
+                                {(m.subordinate_name || m.subordinate_username || "U").charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-gray-900 truncate">
+                                  {m.subordinate_name || m.subordinate_username}
+                                </span>
+                                {/* Fixed role badge (admin only controls permissions) */}
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-govblue-50 text-govblue-800 border border-govblue-200 shrink-0">
+                                  <Users size={11} className="text-govblue-600" />
+                                  <span>{t("เจ้าหน้าที่สำรวจภาคสนาม", "Survey Officer")}</span>
+                                </span>
+                                {m.status === "pending" && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 shrink-0">
+                                    ⏳ {t("รอการตอบรับ", "Pending Acceptance")}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                @{m.subordinate_username}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4 Actions Required by User */}
+                          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-auto">
+                            {/* 1. เพิ่มงาน */}
+                            <Link
+                              href={`/tasks/new?assignee=${encodeURIComponent(m.subordinate_public_id)}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-govblue-700 hover:bg-govblue-800 shadow-xs transition"
+                              title={t("มอบหมายงานใหม่ให้พนักงานคนนี้", "Assign new task")}
+                            >
+                              <Plus size={14} className="stroke-[2.5]" />
+                              <span>{t("เพิ่มงาน", "New Task")}</span>
+                            </Link>
+
+                            {/* 2. ดูงานที่กำลังทำอยู่ */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMemberTasksModal({
+                                  isOpen: true,
+                                  member: m,
+                                  mode: "active",
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+                              title={t("ดูงานที่กำลังทำอยู่", "View current tasks")}
+                            >
+                              <Briefcase size={13} className="text-amber-700" />
+                              <span>{t("งานที่ทำอยู่", "Active Tasks")}</span>
+                              {activeTasks.length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
+                                  {activeTasks.length}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* 3. ดูประวัติการทำงานของแต่ละคน */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMemberTasksModal({
+                                  isOpen: true,
+                                  member: m,
+                                  mode: "history",
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition"
+                              title={t("ดูประวัติการทำงาน", "View work history")}
+                            >
+                              <History size={13} className="text-gray-600" />
+                              <span>{t("ประวัติงาน", "History")}</span>
+                              {historyTasks.length > 0 && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-600 text-white">
+                                  {historyTasks.length}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* 4. ลบออกจากทีมสังกัด */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleRemoveMember(
+                                  m.subordinate_public_id,
+                                  m.subordinate_name || m.subordinate_username || "",
+                                  m.subordinate_username
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                              title={t("ลบออกจากทีมสังกัด", "Remove from team")}
+                            >
+                              <UserMinus size={13} className="text-rose-600" />
+                              <span>{t("ลบออกจากทีม", "Remove")}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <select
-                    value={u.role}
-                    onChange={(e) => changeRole(u.public_id, e.target.value)}
-                    className="text-xs font-medium border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-govblue-500/20"
-                  >
-                    <option value="subordinate">{t("เจ้าหน้าที่สำรวจ (ลูกน้อง)", "Subordinate")}</option>
-                    <option value="supervisor">{t("หัวหน้างาน (สั่งงานได้)", "Supervisor")}</option>
-                    <option value="admin">{t("ผู้ดูแลระบบ (Admin)", "Administrator")}</option>
-                  </select>
-                </div>
-              ))}
-              {(Array.isArray(users) ? users : []).length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-gray-400">
-                  {t("ยังไม่มีสมาชิกในระบบ", "No members yet")}
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
@@ -3780,6 +3930,219 @@ export default function TasksPage() {
                     </div>
                   </div>
                 </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Member Active Tasks & Work History Modal */}
+      {memberTasksModal.isOpen && memberTasksModal.member && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-govblue-800 to-govblue-900 text-white flex items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center text-base font-bold shrink-0">
+                  {(memberTasksModal.member.subordinate_name || memberTasksModal.member.subordinate_username || "U")
+                    .charAt(0)
+                    .toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold truncate">
+                    {memberTasksModal.member.subordinate_name || memberTasksModal.member.subordinate_username}
+                  </h3>
+                  <div className="text-xs text-govblue-200">
+                    @{memberTasksModal.member.subordinate_username} • {t("เจ้าหน้าที่สำรวจภาคสนามในสังกัด", "Survey Officer in Team")}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMemberTasksModal({ isOpen: false, member: null, mode: "active" })}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Mode Tabs */}
+            {(() => {
+              const m = memberTasksModal.member;
+              const userDetail = (Array.isArray(users) ? users : []).find(
+                (u) =>
+                  u.public_id === m.subordinate_public_id ||
+                  u.username === m.subordinate_username
+              );
+              const memberTasks = (Array.isArray(tasks) ? tasks : []).filter(
+                (t) =>
+                  t &&
+                  (t.assignee_public_id === m.subordinate_public_id ||
+                    (userDetail && t.assignee_public_id === userDetail.public_id))
+              );
+              const activeTasks = memberTasks.filter((t) =>
+                ["pending", "accepted", "in_progress", "submitted"].includes(t.status)
+              );
+              const historyTasks = memberTasks.filter((t) =>
+                ["done", "cancelled"].includes(t.status)
+              );
+              const currentList = memberTasksModal.mode === "active" ? activeTasks : historyTasks;
+
+              return (
+                <>
+                  <div className="px-6 pt-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMemberTasksModal((prev) => ({ ...prev, mode: "active" }))
+                        }
+                        className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
+                          memberTasksModal.mode === "active"
+                            ? "border-govblue-600 text-govblue-800 bg-white rounded-t-lg"
+                            : "border-transparent text-gray-500 hover:text-gray-800"
+                        }`}
+                      >
+                        <Briefcase size={14} className={memberTasksModal.mode === "active" ? "text-govblue-600" : "text-gray-400"} />
+                        <span>{t("งานที่กำลังทำอยู่", "Active Tasks")}</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                          {activeTasks.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMemberTasksModal((prev) => ({ ...prev, mode: "history" }))
+                        }
+                        className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
+                          memberTasksModal.mode === "history"
+                            ? "border-govblue-600 text-govblue-800 bg-white rounded-t-lg"
+                            : "border-transparent text-gray-500 hover:text-gray-800"
+                        }`}
+                      >
+                        <History size={14} className={memberTasksModal.mode === "history" ? "text-govblue-600" : "text-gray-400"} />
+                        <span>{t("ประวัติการทำงาน", "Work History")}</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700">
+                          {historyTasks.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    <Link
+                      href={`/tasks/new?assignee=${encodeURIComponent(m.subordinate_public_id)}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-govblue-700 hover:text-govblue-800 transition"
+                      onClick={() => setMemberTasksModal({ isOpen: false, member: null, mode: "active" })}
+                    >
+                      <Plus size={13} className="stroke-[2.5]" />
+                      <span>{t("สั่งงานใหม่ให้คนนี้", "Assign Task")}</span>
+                    </Link>
+                  </div>
+
+                  {/* Task List */}
+                  <div className="p-6 overflow-y-auto space-y-3 flex-1">
+                    {currentList.length === 0 ? (
+                      <div className="py-12 text-center text-gray-400">
+                        {memberTasksModal.mode === "active" ? (
+                          <>
+                            <Briefcase size={36} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm font-medium text-gray-700">ไม่มีงานที่กำลังปฏิบัติงานอยู่ในขณะนี้</p>
+                            <p className="text-xs text-gray-400 mt-1">สามารถกดปุ่ม "+ สั่งงานใหม่ให้คนนี้" ด้านบนเพื่อมอบหมายงาน</p>
+                          </>
+                        ) : (
+                          <>
+                            <History size={36} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm font-medium text-gray-700">ยังไม่มีประวัติงานที่เสร็จสิ้น</p>
+                            <p className="text-xs text-gray-400 mt-1">เมื่องานได้รับการอนุมัติเสร็จสิ้นจะแสดงประวัติที่นี่</p>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      currentList.map((task) => (
+                        <div
+                          key={task.public_id}
+                          className="p-4 bg-white border border-gray-200 rounded-xl shadow-xs hover:border-govblue-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              {task.code && (
+                                <span className="font-mono text-xs font-bold text-govblue-700 bg-govblue-50 px-2 py-0.5 rounded">
+                                  {task.code}
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                  task.status === "done"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : task.status === "in_progress"
+                                    ? "bg-sky-100 text-sky-800"
+                                    : task.status === "submitted"
+                                    ? "bg-purple-100 text-purple-800"
+                                    : task.status === "accepted"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : task.status === "cancelled"
+                                    ? "bg-gray-100 text-gray-600"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {STATUS_LABEL[task.status] || task.status}
+                              </span>
+                              {task.task_type && (
+                                <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                  {TYPE_LABEL[task.task_type] || task.task_type}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-sm font-bold text-gray-900 truncate">
+                              {task.title}
+                            </h4>
+                            {(task.place_name || task.due_at) && (
+                              <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
+                                {task.place_name && (
+                                  <span className="flex items-center gap-1 truncate max-w-xs">
+                                    <MapPin size={12} className="text-gray-400 shrink-0" />
+                                    {task.place_name}
+                                  </span>
+                                )}
+                                {task.due_at && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock size={12} className="text-gray-400" />
+                                    กำหนดส่ง: {task.due_at.slice(0, 10)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMemberTasksModal({ isOpen: false, member: null, mode: "active" });
+                                setSelectedTask(task);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-govblue-50 text-govblue-800 hover:bg-govblue-100 border border-govblue-200 transition"
+                            >
+                              <ExternalLink size={13} />
+                              <span>ดูรายละเอียดงาน</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setMemberTasksModal({ isOpen: false, member: null, mode: "active" })}
+                      className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+                    >
+                      {t("ปิดหน้าต่าง", "Close")}
+                    </button>
+                  </div>
+                </>
               );
             })()}
           </div>
