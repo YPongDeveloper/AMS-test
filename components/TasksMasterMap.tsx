@@ -615,20 +615,10 @@ export default function TasksMasterMap({
           <button
             type="button"
             onClick={() => setActiveLayer((prev) => (prev === "hybrid" ? "roadmap" : "hybrid"))}
-            className="px-2.5 py-1 rounded text-[11px] font-medium transition flex items-center gap-1.5 bg-govblue-800 hover:bg-govblue-900 text-white shadow-xs cursor-pointer"
-            title={activeLayer === "hybrid" ? "คลิกเพื่อสลับเป็น แผนที่ถนน Google" : "คลิกเพื่อสลับเป็น ภาพถ่ายดาวเทียม Google"}
+            className="px-2.5 py-1 rounded text-[11px] font-medium transition flex items-center gap-1 bg-govblue-800 hover:bg-govblue-900 text-white shadow-xs cursor-pointer"
+            title={activeLayer === "hybrid" ? "สลับเป็นแผนที่ถนน" : "สลับเป็นภาพดาวเทียม"}
           >
-            {activeLayer === "hybrid" ? (
-              <>
-                <span>🛰️ ดาวเทียม</span>
-                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ แผนที่</span>
-              </>
-            ) : (
-              <>
-                <span>🗺️ แผนที่</span>
-                <span className="text-[10px] text-govblue-200 border-l border-white/20 pl-1.5 font-normal">⇄ ดาวเทียม</span>
-              </>
-            )}
+            {activeLayer === "hybrid" ? "🗺️ แผนที่" : "🛰️ ดาวเทียม"}
           </button>
 
           <div className="w-[1px] h-4 bg-gray-200 mx-0.5" />
