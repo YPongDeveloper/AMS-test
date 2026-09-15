@@ -408,7 +408,7 @@ export default function MapPicker({
   const renderMapBox = () => (
     <div className="relative w-full h-full flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-inner bg-slate-100">
       {/* Search & Tool Bar ด้านบนแผนที่ */}
-      <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-col sm:flex-row gap-1.5 items-stretch sm:items-center justify-between pointer-events-none">
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-[1000] flex flex-row gap-1.5 items-center justify-between pointer-events-none">
         {/* ช่องค้นหา / วางลิงก์ Google Maps (เฉพาะโหมดเลือกพิกัด) หรือ ปุ่มเลื่อนไปยังจุดพิกัดงาน (โหมดดูอย่างเดียว) */}
         <div className="pointer-events-auto flex-1 max-w-md">
           {readOnly ? (
@@ -451,7 +451,7 @@ export default function MapPicker({
         </div>
 
         {/* ปุ่มควบคุมเสริมบนแผนที่ */}
-        <div className="pointer-events-auto flex items-center gap-1 shrink-0 self-end sm:self-auto bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
+        <div className="pointer-events-auto flex items-center gap-1 shrink-0 bg-white/95 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200">
           {/* ปุ่มสลับ Layer แผนที่ / ดาวเทียม (ปุ่มเดียวสลับได้) */}
           <button
             type="button"
