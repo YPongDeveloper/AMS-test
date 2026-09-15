@@ -234,3 +234,102 @@ export function thaiBahtText(num: number): string {
 
   return (isNegative ? "ลบ" : "") + result;
 }
+
+export interface Addressable {
+  address_no?: string | null;
+  subdistrict?: string | null;
+  district?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+}
+
+/**
+ * จัดรูปแบบที่อยู่เต็มภาษาไทยอย่างเป็นทางการ
+ * เช่น "เลขที่ 1 ถนนรองเมือง แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330"
+ */
+export function formatFullAddress(item?: Addressable | null): string {
+  if (!item) return "-";
+  const { address_no, subdistrict, district, province, postal_code } = item;
+  if (!address_no && !subdistrict && !district && !province && !postal_code) {
+    return "-";
+  }
+
+  const parts: string[] = [];
+  if (address_no?.trim()) {
+    const a = address_no.trim();
+    parts.push(a.startsWith("เลขที่") ? a : `เลขที่ ${a}`);
+  }
+
+  const isBkk =
+    Boolean(province?.includes("กรุงเทพ")) ||
+    (!province && Boolean(district?.includes("เขต") || subdistrict?.includes("แขวง")));
+
+  if (subdistrict?.trim()) {
+    const s = subdistrict.trim();
+    const prefix = isBkk ? "แขวง" : "ต.";
+    if (s.startsWith("ต.") || s.startsWith("ตำบล") || s.startsWith("แขวง")) {
+      parts.push(s);
+    } else {
+      parts.push(`${prefix}${s}`);
+    }
+  }
+
+  if (district?.trim()) {
+    const d = district.trim();
+    const prefix = isBkk ? "เขต" : "อ.";
+    if (d.startsWith("อ.") || d.startsWith("อำเภอ") || d.startsWith("เขต")) {
+      parts.push(d);
+    } else {
+      parts.push(`${prefix}${d}`);
+    }
+  }
+
+  if (province?.trim()) {
+    const p = province.trim();
+    if (p.includes("กรุงเทพ") || p.startsWith("จ.") || p.startsWith("จังหวัด")) {
+      parts.push(p);
+    } else {
+      parts.push(`จ.${p}`);
+    }
+  }
+
+  if (postal_code?.trim()) {
+    parts.push(postal_code.trim());
+  }
+
+  return parts.length > 0 ? parts.join(" ") : "-";
+}
+
+/**
+ * จัดรูปแบบที่อยู่แบบย่อ สำหรับแสดงในตารางข้อมูล
+ * เช่น "แขวงรองเมือง เขตปทุมวัน กทม." หรือ "ต.หนองกี่ อ.กบินทร์บุรี จ.ปราจีนบุรี"
+ */
+export function formatShortAddress(item?: Addressable | null): string {
+  if (!item) return "-";
+  const { subdistrict, district, province } = item;
+  if (!subdistrict && !district && !province) {
+    return item.address_no || "-";
+  }
+
+  const isBkk =
+    Boolean(province?.includes("กรุงเทพ")) ||
+    (!province && Boolean(district?.includes("เขต") || subdistrict?.includes("แขวง")));
+
+  const parts: string[] = [];
+  if (subdistrict?.trim()) {
+    const s = subdistrict.trim();
+    const prefix = isBkk ? "แขวง" : "ต.";
+    parts.push(s.startsWith("ต.") || s.startsWith("แขวง") ? s : `${prefix}${s}`);
+  }
+  if (district?.trim()) {
+    const d = district.trim();
+    const prefix = isBkk ? "เขต" : "อ.";
+    parts.push(d.startsWith("อ.") || d.startsWith("เขต") ? d : `${prefix}${d}`);
+  }
+  if (province?.trim()) {
+    const p = province.trim();
+    parts.push(p.includes("กรุงเทพ") ? "กทม." : p.startsWith("จ.") ? p : `จ.${p}`);
+  }
+
+  return parts.join(" ") || "-";
+}

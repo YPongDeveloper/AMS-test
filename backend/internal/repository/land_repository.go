@@ -21,6 +21,7 @@ func NewLandRepository(db *pgxpool.Pool) *LandRepository {
 const landCols = `
 l.id, l.public_id, l.land_code, l.srt_land_type, l.land_use, l.land_type,
 l.deed_no, l.dimension, l.rai, l.ngan, l.wa, l.width, l.length, l.picture_f, l.lat, l.lng,
+l.address_no, l.subdistrict, l.district, l.province, l.postal_code,
 u.display_name, l.created_at, l.updated_at`
 
 const landFrom = `
@@ -33,6 +34,7 @@ func scanLand(row interface{ Scan(...any) error }) (*model.LandParcel, error) {
 	err := row.Scan(
 		&l.ID, &l.PublicID, &l.LandCode, &l.SRTLandType, &l.LandUse, &l.LandType,
 		&l.DeedNo, &l.Dimension, &l.Rai, &l.Ngan, &l.Wa, &l.Width, &l.Length, &l.PictureF, &l.Lat, &l.Lng,
+		&l.AddressNo, &l.Subdistrict, &l.District, &l.Province, &l.PostalCode,
 		&l.CreatedBy, &l.CreatedAt, &l.UpdatedAt,
 	)
 	if err != nil {
@@ -91,17 +93,20 @@ func (r *LandRepository) Create(ctx context.Context, l *model.LandParcel, userID
 		WITH ins AS (
 			INSERT INTO land_parcels (
 				land_code, srt_land_type, land_use, land_type, deed_no,
-				dimension, rai, ngan, wa, width, length, picture_f, lat, lng, created_by
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				dimension, rai, ngan, wa, width, length, picture_f, lat, lng,
+				address_no, subdistrict, district, province, postal_code, created_by
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			RETURNING *
 		)
 		SELECT ins.id, ins.public_id, ins.land_code, ins.srt_land_type, ins.land_use, ins.land_type,
 		       ins.deed_no, ins.dimension, ins.rai, ins.ngan, ins.wa, ins.width, ins.length, ins.picture_f, ins.lat, ins.lng,
+		       ins.address_no, ins.subdistrict, ins.district, ins.province, ins.postal_code,
 		       u.display_name, ins.created_at, ins.updated_at
 		FROM ins
 		LEFT JOIN users u ON u.id = ins.created_by
 	`, l.LandCode, l.SRTLandType, l.LandUse, l.LandType, l.DeedNo,
-		l.Dimension, rai, ngan, wa, l.Width, l.Length, l.PictureF, l.Lat, l.Lng, userID)
+		l.Dimension, rai, ngan, wa, l.Width, l.Length, l.PictureF, l.Lat, l.Lng,
+		l.AddressNo, l.Subdistrict, l.District, l.Province, l.PostalCode, userID)
 	return scanLand(row)
 }
 
@@ -137,17 +142,24 @@ func (r *LandRepository) Update(ctx context.Context, publicID string, l *model.L
 			    picture_f = $13,
 			    lat = $14,
 			    lng = $15,
-			    updated_at = $16
+			    address_no = $16,
+			    subdistrict = $17,
+			    district = $18,
+			    province = $19,
+			    postal_code = $20,
+			    updated_at = $21
 			WHERE public_id = $1
 			RETURNING *
 		)
 		SELECT upd.id, upd.public_id, upd.land_code, upd.srt_land_type, upd.land_use, upd.land_type,
 		       upd.deed_no, upd.dimension, upd.rai, upd.ngan, upd.wa, upd.width, upd.length, upd.picture_f, upd.lat, upd.lng,
+		       upd.address_no, upd.subdistrict, upd.district, upd.province, upd.postal_code,
 		       u.display_name, upd.created_at, upd.updated_at
 		FROM upd
 		LEFT JOIN users u ON u.id = upd.created_by
 	`, publicID, l.LandCode, l.SRTLandType, l.LandUse, l.LandType, l.DeedNo,
-		l.Dimension, rai, ngan, wa, l.Width, l.Length, l.PictureF, l.Lat, l.Lng, time.Now())
+		l.Dimension, rai, ngan, wa, l.Width, l.Length, l.PictureF, l.Lat, l.Lng,
+		l.AddressNo, l.Subdistrict, l.District, l.Province, l.PostalCode, time.Now())
 	return scanLand(row)
 }
 

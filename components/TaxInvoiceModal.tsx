@@ -9,6 +9,7 @@ import {
   generateTaxDocNumber,
   thaiBahtText,
   formatCurrency,
+  formatFullAddress,
 } from "@/lib/tax";
 
 interface TaxInvoiceModalProps {
@@ -157,6 +158,12 @@ export default function TaxInvoiceModal({
                 <span className="font-bold text-rose-600">30 เมษายน 2569</span>
               </div>
             </div>
+            <div className="col-span-2 pt-2 border-t border-gray-200 flex items-center gap-1.5">
+              <span className="text-gray-500 font-medium">สถานที่ตั้งทรัพย์สิน:</span>
+              <span className="font-semibold text-gray-900">
+                {formatFullAddress(isLand ? land : building)}
+              </span>
+            </div>
           </div>
 
           {/* Property Assessment Details */}
@@ -187,6 +194,11 @@ export default function TaxInvoiceModal({
                         <div className="text-[11px] text-gray-500">
                           โฉนดเลขที่: {land.deed_no || "-"} • ประเภท: {land.srt_land_type || "ที่ดิน รฟท."}
                         </div>
+                        {formatFullAddress(land) !== "-" && (
+                          <div className="text-[10px] text-gray-600 mt-0.5">
+                            ที่ตั้ง: {formatFullAddress(land)}
+                          </div>
+                        )}
                       </td>
                       <td className="p-2.5 border-r border-gray-200">{landResult.useType}</td>
                       <td className="p-2.5 border-r border-gray-200 text-right font-medium">
@@ -218,6 +230,11 @@ export default function TaxInvoiceModal({
                         <div className="text-[11px] text-gray-500">
                           {building.name} ({building.num_fl} ชั้น) • บนแปลง: {building.land_code || "-"}
                         </div>
+                        {formatFullAddress(building) !== "-" && (
+                          <div className="text-[10px] text-gray-600 mt-0.5">
+                            ที่ตั้ง: {formatFullAddress(building)}
+                          </div>
+                        )}
                       </td>
                       <td className="p-2.5 border-r border-gray-200">{bldgResult.useType}</td>
                       <td className="p-2.5 border-r border-gray-200 text-right font-medium">

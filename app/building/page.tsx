@@ -36,10 +36,17 @@ import {
   Printer,
   Receipt,
   Download,
+  MapPin,
 } from "lucide-react";
 import BuildingDetailModal from "@/components/BuildingDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
-import { calculateBuildingTax, calculateBuildingTotalSqm, formatCurrency } from "@/lib/tax";
+import {
+  calculateBuildingTax,
+  calculateBuildingTotalSqm,
+  formatCurrency,
+  formatShortAddress,
+  formatFullAddress,
+} from "@/lib/tax";
 
 export default function BuildingPage() {
   const { t } = useI18n();
@@ -67,6 +74,29 @@ export default function BuildingPage() {
   const [beAge, setBeAge] = useState("");
   const [numFl, setNumFl] = useState<number>(3);
   const [condition, setCondition] = useState("ดี");
+  const [addressNo, setAddressNo] = useState("");
+  const [subdistrict, setSubdistrict] = useState("");
+  const [district, setDistrict] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+
+  const copyAddressFromLand = () => {
+    if (!landCode) {
+      alert("กรุณาเลือกแปลงที่ดินที่ตั้งก่อน");
+      return;
+    }
+    const found = lands.find((l) => l.land_code === landCode);
+    if (found) {
+      if (found.address_no) setAddressNo(found.address_no);
+      if (found.subdistrict) setSubdistrict(found.subdistrict);
+      if (found.district) setDistrict(found.district);
+      if (found.province) setProvince(found.province);
+      if (found.postal_code) setPostalCode(found.postal_code);
+      setMsg({ text: `คัดลอกที่อยู่จากแปลงที่ดิน "${landCode}" สำเร็จ`, tone: "green" });
+    } else {
+      alert(`ไม่พบข้อมูลแปลงที่ดิน ${landCode}`);
+    }
+  };
 
   // Floor details 1..10
   const [activeFloor, setActiveFloor] = useState(1);
@@ -191,6 +221,12 @@ export default function BuildingPage() {
       "รหัสสิ่งปลูกสร้าง (Bldg_Code)",
       "ชื่ออาคาร",
       "แปลงที่ดิน",
+      "สถานที่ตั้ง/เลขที่",
+      "ตำบล/แขวง",
+      "อำเภอ/เขต",
+      "จังหวัด",
+      "รหัสไปรษณีย์",
+      "ที่อยู่เต็ม",
       "จำนวนชั้น",
       "พื้นที่ใช้สอยรวม (ตร.ม.)",
       "ประเภทการใช้งาน",
@@ -206,6 +242,12 @@ export default function BuildingPage() {
         `"${b.bldg_code}"`,
         `"${b.name}"`,
         `"${b.land_code || "-"}"`,
+        `"${b.address_no || "-"}"`,
+        `"${b.subdistrict || "-"}"`,
+        `"${b.district || "-"}"`,
+        `"${b.province || "-"}"`,
+        `"${b.postal_code || "-"}"`,
+        `"${formatFullAddress(b)}"`,
         b.num_fl,
         tx.totalUsableSqm,
         `"${tx.useType}"`,
@@ -237,6 +279,11 @@ export default function BuildingPage() {
     setBeAge(String(new Date().getFullYear() + 543 - 10));
     setNumFl(3);
     setCondition("ดี");
+    setAddressNo("");
+    setSubdistrict("");
+    setDistrict("");
+    setProvince("");
+    setPostalCode("");
 
     setFloors(
       Array.from({ length: 10 }, (_, i) => ({
@@ -272,6 +319,11 @@ export default function BuildingPage() {
     setBeAge(b.be_age || "");
     setNumFl(b.num_fl || 1);
     setCondition(b.bld_condition_type || "ดี");
+    setAddressNo(b.address_no || "");
+    setSubdistrict(b.subdistrict || "");
+    setDistrict(b.district || "");
+    setProvince(b.province || "");
+    setPostalCode(b.postal_code || "");
 
     // Merge existing floors with 10 slots
     const mergedFloors: FloorDetail[] = Array.from({ length: 10 }, (_, i) => {
@@ -318,7 +370,7 @@ export default function BuildingPage() {
           const w = field === "width" ? Number(value) : Number(fl.width);
           const l = field === "length" ? Number(value) : Number(fl.length);
           if (w > 0 && l > 0) {
-            updated.dim = Number((w * l).toFixed(2));
+            updated.dim = Math.round(w * l * 100) / 100;
           }
         }
         return updated;
@@ -333,14 +385,16 @@ export default function BuildingPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setter(reader.result as string);
+    reader.onload = () => {
+      setter(reader.result as string);
+    };
     reader.readAsDataURL(file);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bldgCode.trim()) {
-      setMsg({ text: "กรุณาระบุรหัสสิ่งปลูกสร้าง (Bldg_Code)", tone: "red" });
+      setMsg({ text: "กรุณาระบุรหัสประจำอาคาร (Bldg_Code)", tone: "red" });
       return;
     }
     if (!name.trim()) {
@@ -366,6 +420,11 @@ export default function BuildingPage() {
       num_fl: Number(numFl),
       floors: cleanedFloors,
       bld_condition_type: condition,
+      address_no: addressNo.trim(),
+      subdistrict: subdistrict.trim(),
+      district: district.trim(),
+      province: province.trim(),
+      postal_code: postalCode.trim(),
       picture_f: photoF,
       picture_b: photoB,
       picture_r: photoR,
@@ -584,9 +643,16 @@ export default function BuildingPage() {
                     ) : (
                       buildings.map((b) => (
                         <tr key={b.public_id} className="hover:bg-blue-50/40 transition">
-                          <td className="p-3 font-semibold text-govblue-800 flex items-center gap-2">
-                            <Building2 size={14} className="text-govblue-600" />
-                            <span>{b.bldg_code}</span>
+                          <td className="p-3">
+                            <div className="font-semibold text-govblue-800 flex items-center gap-2">
+                              <Building2 size={14} className="text-govblue-600" />
+                              <span>{b.bldg_code}</span>
+                            </div>
+                            {formatShortAddress(b) !== "-" && (
+                              <div className="text-[11px] font-normal text-gray-500 mt-0.5">
+                                📍 {formatShortAddress(b)}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 text-gray-800 font-medium">{b.name}</td>
                           <td className="p-3">
@@ -706,7 +772,14 @@ export default function BuildingPage() {
                         return (
                           <tr key={b.public_id} className="hover:bg-emerald-50/40 transition">
                             <td className="p-3 text-center text-gray-400">{idx + 1}</td>
-                            <td className="p-3 font-bold text-govblue-900">{b.bldg_code}</td>
+                            <td className="p-3">
+                              <div className="font-bold text-govblue-900">{b.bldg_code}</div>
+                              {formatShortAddress(b) !== "-" && (
+                                <div className="text-[10px] text-gray-500 font-normal">
+                                  {formatShortAddress(b)}
+                                </div>
+                              )}
+                            </td>
                             <td className="p-3 text-gray-800 font-medium">{b.name}</td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 rounded bg-blue-50 text-govblue-800 font-medium text-[11px] border border-blue-200">
@@ -891,6 +964,62 @@ export default function BuildingPage() {
                         <option value="ทรุดโทรม">ทรุดโทรม</option>
                       </Select>
                     </Field>
+
+                    {/* Address Fields */}
+                    <div className="sm:col-span-2 pt-3 mt-1 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-govblue-900 flex items-center gap-1.5">
+                          <MapPin size={14} className="text-rose-600" /> ข้อมูลที่อยู่และสถานที่ตั้งอาคาร (Address & Location)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={copyAddressFromLand}
+                          className="text-[11px] font-semibold text-govblue-700 bg-govblue-50 hover:bg-govblue-100 px-2.5 py-1 rounded border border-govblue-200 transition cursor-pointer"
+                        >
+                          📋 คัดลอกจากแปลงที่ดินที่ตั้ง
+                        </button>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div className="sm:col-span-2">
+                          <Field label="เลขที่ / อาคาร / ห้อง / ถนน / ซอย" hint="เช่น 1 อาคารบริหาร รฟท. หรือ 234/12 อาคารเอ">
+                            <Input
+                              value={addressNo}
+                              onChange={(e) => setAddressNo(e.target.value)}
+                              placeholder="เช่น 1 อาคารบริหาร รฟท."
+                            />
+                          </Field>
+                        </div>
+                        <Field label="ตำบล / แขวง (Subdistrict)" hint="เช่น แขวงรองเมือง หรือ ต.ปากช่อง">
+                          <Input
+                            value={subdistrict}
+                            onChange={(e) => setSubdistrict(e.target.value)}
+                            placeholder="เช่น แขวงรองเมือง"
+                          />
+                        </Field>
+                        <Field label="อำเภอ / เขต (District)" hint="เช่น เขตปทุมวัน หรือ อ.ปากช่อง">
+                          <Input
+                            value={district}
+                            onChange={(e) => setDistrict(e.target.value)}
+                            placeholder="เช่น เขตปทุมวัน"
+                          />
+                        </Field>
+                        <Field label="จังหวัด (Province)" hint="เช่น กรุงเทพมหานคร, นครราชสีมา">
+                          <Input
+                            value={province}
+                            onChange={(e) => setProvince(e.target.value)}
+                            placeholder="เช่น กรุงเทพมหานคร"
+                          />
+                        </Field>
+                        <Field label="รหัสไปรษณีย์ (Postal Code)" hint="5 หลัก เช่น 10330">
+                          <Input
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                            placeholder="เช่น 10330"
+                            maxLength={5}
+                          />
+                        </Field>
+                      </div>
+                    </div>
                   </div>
                 </Card>
               )}

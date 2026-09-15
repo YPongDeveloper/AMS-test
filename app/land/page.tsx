@@ -36,7 +36,13 @@ import {
 } from "lucide-react";
 import LandDetailModal from "@/components/LandDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
-import { calculateLandTax, calculateLandTotalWah, formatCurrency } from "@/lib/tax";
+import {
+  calculateLandTax,
+  calculateLandTotalWah,
+  formatCurrency,
+  formatShortAddress,
+  formatFullAddress,
+} from "@/lib/tax";
 
 export default function LandPage() {
   const { t } = useI18n();
@@ -57,6 +63,11 @@ export default function LandPage() {
   const [landUse, setLandUse] = useState("");
   const [landType, setLandType] = useState("");
   const [deedNo, setDeedNo] = useState("");
+  const [addressNo, setAddressNo] = useState("");
+  const [subdistrict, setSubdistrict] = useState("");
+  const [district, setDistrict] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [rai, setRai] = useState<number | "">(2);
   const [ngan, setNgan] = useState<number | "">(1);
   const [wa, setWa] = useState<number | "">(50);
@@ -171,6 +182,12 @@ export default function LandPage() {
       "เลขที่โฉนด",
       "ประเภท รฟท.",
       "การใช้ประโยชน์",
+      "สถานที่ตั้ง/เลขที่",
+      "ตำบล/แขวง",
+      "อำเภอ/เขต",
+      "จังหวัด",
+      "รหัสไปรษณีย์",
+      "ที่อยู่เต็ม",
       "เนื้อที่ (ไร่-งาน-วา)",
       "เนื้อที่รวม (ตร.ว.)",
       "ราคาประเมินต่อ ตร.ว. (บาท)",
@@ -188,6 +205,12 @@ export default function LandPage() {
         `"${l.deed_no || "-"}"`,
         `"${l.srt_land_type || "-"}"`,
         `"${l.land_use || "-"}"`,
+        `"${l.address_no || "-"}"`,
+        `"${l.subdistrict || "-"}"`,
+        `"${l.district || "-"}"`,
+        `"${l.province || "-"}"`,
+        `"${l.postal_code || "-"}"`,
+        `"${formatFullAddress(l)}"`,
         `"${r}-${n}-${w}"`,
         tx.totalWah,
         tx.appraisalPerWah,
@@ -213,6 +236,11 @@ export default function LandPage() {
     setLandUse("ใช้เพื่อการขนส่ง");
     setLandType("โฉนด");
     setDeedNo("");
+    setAddressNo("");
+    setSubdistrict("");
+    setDistrict("");
+    setProvince("");
+    setPostalCode("");
     setRai(1);
     setNgan(0);
     setWa(0);
@@ -237,6 +265,11 @@ export default function LandPage() {
     setLandUse(l.land_use || "");
     setLandType(l.land_type || "");
     setDeedNo(l.deed_no || "");
+    setAddressNo(l.address_no || "");
+    setSubdistrict(l.subdistrict || "");
+    setDistrict(l.district || "");
+    setProvince(l.province || "");
+    setPostalCode(l.postal_code || "");
     if (l.rai !== undefined && l.rai !== null) {
       setRai(l.rai);
       setNgan(l.ngan ?? 0);
@@ -301,6 +334,10 @@ export default function LandPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("ไฟล์รูปภาพมีขนาดเกิน 2MB กรุณาเลือกภาพใหม่");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setPictureF(reader.result as string);
@@ -311,11 +348,10 @@ export default function LandPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!landCode.trim()) {
-      setMsg({ text: "กรุณาระบุรหัสประจำที่ดิน (Land_Code)", tone: "red" });
+      alert("กรุณาระบุรหัสแปลงที่ดิน");
       return;
     }
     setSaving(true);
-    setMsg(null);
 
     const r = rai === "" ? 0 : Number(rai);
     const n = ngan === "" ? 0 : Number(ngan);
@@ -328,6 +364,11 @@ export default function LandPage() {
       land_use: landUse,
       land_type: landType,
       deed_no: deedNo.trim(),
+      address_no: addressNo.trim(),
+      subdistrict: subdistrict.trim(),
+      district: district.trim(),
+      province: province.trim(),
+      postal_code: postalCode.trim(),
       rai: r,
       ngan: n,
       wa: w,
@@ -527,9 +568,16 @@ export default function LandPage() {
                     ) : (
                       lands.map((l) => (
                         <tr key={l.public_id} className="hover:bg-blue-50/40 transition">
-                          <td className="p-3 font-semibold text-govblue-800 flex items-center gap-2">
-                            <Layers size={14} className="text-govblue-600" />
-                            <span>{l.land_code}</span>
+                          <td className="p-3">
+                            <div className="font-semibold text-govblue-800 flex items-center gap-2">
+                              <Layers size={14} className="text-govblue-600" />
+                              <span>{l.land_code}</span>
+                            </div>
+                            {formatShortAddress(l) !== "-" && (
+                              <div className="text-[11px] text-gray-500 font-normal mt-0.5">
+                                📍 {formatShortAddress(l)}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 text-gray-700">{l.deed_no || "-"}</td>
                           <td className="p-3">
@@ -661,7 +709,14 @@ export default function LandPage() {
                         return (
                           <tr key={l.public_id} className="hover:bg-emerald-50/40 transition">
                             <td className="p-3 text-center text-gray-400">{idx + 1}</td>
-                            <td className="p-3 font-bold text-govblue-900">{l.land_code}</td>
+                            <td className="p-3">
+                              <div className="font-bold text-govblue-900">{l.land_code}</div>
+                              {formatShortAddress(l) !== "-" && (
+                                <div className="text-[10px] text-gray-500 font-normal">
+                                  {formatShortAddress(l)}
+                                </div>
+                              )}
+                            </td>
                             <td className="p-3 text-gray-700">{l.deed_no || "-"}</td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]">
@@ -888,10 +943,57 @@ export default function LandPage() {
               </div>
             </Card>
 
+            {/* Address Section */}
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-govblue-700 mb-3 flex items-center gap-1.5">
+                <MapPin size={16} /> 3. ข้อมูลที่อยู่และสถานที่ตั้ง (Address & Location)
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <Field label="เลขที่ / ที่ตั้ง / ถนน / ซอย (Address No.)" hint="เช่น 1 ถนนรองเมือง หรือ 234/12 ซอยพหลโยธิน 18">
+                    <Input
+                      value={addressNo}
+                      onChange={(e) => setAddressNo(e.target.value)}
+                      placeholder="เช่น 1 ถนนรองเมือง"
+                    />
+                  </Field>
+                </div>
+                <Field label="ตำบล / แขวง (Subdistrict)" hint="เช่น แขวงรองเมือง หรือ ต.ปากช่อง">
+                  <Input
+                    value={subdistrict}
+                    onChange={(e) => setSubdistrict(e.target.value)}
+                    placeholder="เช่น แขวงรองเมือง"
+                  />
+                </Field>
+                <Field label="อำเภอ / เขต (District)" hint="เช่น เขตปทุมวัน หรือ อ.ปากช่อง">
+                  <Input
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    placeholder="เช่น เขตปทุมวัน"
+                  />
+                </Field>
+                <Field label="จังหวัด (Province)" hint="เช่น กรุงเทพมหานคร, นครราชสีมา">
+                  <Input
+                    value={province}
+                    onChange={(e) => setProvince(e.target.value)}
+                    placeholder="เช่น กรุงเทพมหานคร"
+                  />
+                </Field>
+                <Field label="รหัสไปรษณีย์ (Postal Code)" hint="5 หลัก เช่น 10330">
+                  <Input
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="เช่น 10330"
+                    maxLength={5}
+                  />
+                </Field>
+              </div>
+            </Card>
+
             {/* Photo Section */}
             <Card className="p-4">
               <h3 className="text-sm font-semibold text-govblue-700 mb-3">
-                3. รูปถ่ายด้านหน้า (Picture_F)
+                4. รูปถ่ายด้านหน้า (Picture_F)
               </h3>
               <input
                 type="file"

@@ -520,6 +520,11 @@ export default function TasksPage() {
           material_type: "คอนกรีตเสริมเหล็ก",
           num_fl: 2,
           bld_condition_type: "ดี",
+          address_no: "",
+          subdistrict: "",
+          district: "",
+          province: "",
+          postal_code: "",
         },
       ]);
     } else {
@@ -534,6 +539,11 @@ export default function TasksPage() {
           wa: 0,
           width: 20,
           length: 40,
+          address_no: "",
+          subdistrict: "",
+          district: "",
+          province: "",
+          postal_code: "",
         },
       ]);
     }
@@ -551,6 +561,11 @@ export default function TasksPage() {
           material_type: "คอนกรีตเสริมเหล็ก",
           num_fl: 1,
           bld_condition_type: "ดี",
+          address_no: "",
+          subdistrict: "",
+          district: "",
+          province: "",
+          postal_code: "",
         },
       ]);
     } else {
@@ -566,6 +581,11 @@ export default function TasksPage() {
           wa: 0,
           width: 15,
           length: 30,
+          address_no: "",
+          subdistrict: "",
+          district: "",
+          province: "",
+          postal_code: "",
         },
       ]);
     }
@@ -2366,6 +2386,39 @@ export default function TasksPage() {
                                 <option value="ทรุดโทรม">ทรุดโทรม</option>
                               </select>
                             </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
+                              <input
+                                value={item.address_no || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
+                                placeholder="เช่น 123/4"
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
+                              <input
+                                value={item.subdistrict || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
+                              <input
+                                value={item.district || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">จังหวัด</label>
+                              <input
+                                value={item.province || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
                           </div>
                         </div>
                       ))
@@ -2468,6 +2521,39 @@ export default function TasksPage() {
                                 />
                               </div>
                             </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">เลขที่/ที่ตั้ง</label>
+                              <input
+                                value={item.address_no || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "address_no", e.target.value)}
+                                placeholder="เช่น 123/4"
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">ตำบล/แขวง</label>
+                              <input
+                                value={item.subdistrict || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "subdistrict", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">อำเภอ/เขต</label>
+                              <input
+                                value={item.district || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "district", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-500 block">จังหวัด</label>
+                              <input
+                                value={item.province || ""}
+                                onChange={(e) => handleBatchFieldChange(idx, "province", e.target.value)}
+                                className="w-full text-xs p-1.5 border rounded bg-white"
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -2567,6 +2653,7 @@ export default function TasksPage() {
                               <tr>
                                 <th className="p-2.5">รหัสอาคาร</th>
                                 <th className="p-2.5">ชื่ออาคาร</th>
+                                <th className="p-2.5">ที่ตั้ง / สถานที่</th>
                                 <th className="p-2.5">แปลงที่ดิน</th>
                                 <th className="p-2.5">โครงสร้าง</th>
                                 <th className="p-2.5">ชั้น</th>
@@ -2576,6 +2663,7 @@ export default function TasksPage() {
                               <tr>
                                 <th className="p-2.5">รหัสที่ดิน</th>
                                 <th className="p-2.5">เลขที่โฉนด</th>
+                                <th className="p-2.5">ที่ตั้ง / สถานที่</th>
                                 <th className="p-2.5">ประเภท รฟท.</th>
                                 <th className="p-2.5">การใช้ประโยชน์</th>
                                 <th className="p-2.5">เนื้อที่ (ไร่-งาน-วา)</th>
@@ -2590,6 +2678,14 @@ export default function TasksPage() {
                                   <>
                                     <td className="p-2.5 font-bold text-govblue-800">{it.bldg_code || "-"}</td>
                                     <td className="p-2.5 font-medium">{it.name || "-"}</td>
+                                    <td className="p-2.5 text-gray-600 max-w-[200px] truncate" title={[it.address_no, it.subdistrict, it.district, it.province, it.postal_code].filter(Boolean).join(" ")}>
+                                      {(it.subdistrict || it.province || it.address_no) ? (
+                                        <div className="flex items-center gap-1 text-[11px] text-gray-700">
+                                          <span className="text-govblue-600 shrink-0">📍</span>
+                                          <span className="truncate">{[it.address_no, it.subdistrict, it.district, it.province, it.postal_code].filter(Boolean).join(" ")}</span>
+                                        </div>
+                                      ) : "-"}
+                                    </td>
                                     <td className="p-2.5 text-gray-600">{it.land_code || "-"}</td>
                                     <td className="p-2.5 text-gray-600">{it.material_type || "-"}</td>
                                     <td className="p-2.5">{it.num_fl || 1} ชั้น</td>
@@ -2599,6 +2695,14 @@ export default function TasksPage() {
                                   <>
                                     <td className="p-2.5 font-bold text-govblue-800">{it.land_code || "-"}</td>
                                     <td className="p-2.5 text-gray-700">{it.deed_no || "-"}</td>
+                                    <td className="p-2.5 text-gray-600 max-w-[200px] truncate" title={[it.address_no, it.subdistrict, it.district, it.province, it.postal_code].filter(Boolean).join(" ")}>
+                                      {(it.subdistrict || it.province || it.address_no) ? (
+                                        <div className="flex items-center gap-1 text-[11px] text-gray-700">
+                                          <span className="text-govblue-600 shrink-0">📍</span>
+                                          <span className="truncate">{[it.address_no, it.subdistrict, it.district, it.province, it.postal_code].filter(Boolean).join(" ")}</span>
+                                        </div>
+                                      ) : "-"}
+                                    </td>
                                     <td className="p-2.5 text-govblue-700">{it.srt_land_type || "-"}</td>
                                     <td className="p-2.5 text-gray-600">{it.land_use || "-"}</td>
                                     <td className="p-2.5 font-semibold text-gray-800">

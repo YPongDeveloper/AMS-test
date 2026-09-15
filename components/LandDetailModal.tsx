@@ -14,7 +14,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { LandParcel } from "@/lib/api";
-import { calculateLandTax, formatCurrency } from "@/lib/tax";
+import { calculateLandTax, formatCurrency, formatFullAddress } from "@/lib/tax";
 import MapPicker from "@/components/MapPicker";
 
 interface LandDetailModalProps {
@@ -142,6 +142,49 @@ export default function LandDetailModal({
                   ฿{tax.formattedTaxPayable}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Address & Location Card */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+              <MapPin size={15} className="text-rose-600" /> ที่อยู่และสถานที่ตั้ง (Address & Location)
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              <div className="p-2 bg-white rounded-lg border border-gray-200">
+                <span className="text-[10px] text-gray-400 block">เลขที่/ถนน/ซอย</span>
+                <span className="font-semibold text-gray-800 truncate block">
+                  {land.address_no || "-"}
+                </span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-gray-200">
+                <span className="text-[10px] text-gray-400 block">ตำบล/แขวง</span>
+                <span className="font-semibold text-gray-800 truncate block">
+                  {land.subdistrict || "-"}
+                </span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-gray-200">
+                <span className="text-[10px] text-gray-400 block">อำเภอ/เขต</span>
+                <span className="font-semibold text-gray-800 truncate block">
+                  {land.district || "-"}
+                </span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-gray-200">
+                <span className="text-[10px] text-gray-400 block">จังหวัด</span>
+                <span className="font-semibold text-gray-800 truncate block">
+                  {land.province || "-"}
+                </span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-gray-200 col-span-2 sm:col-span-1">
+                <span className="text-[10px] text-gray-400 block">รหัสไปรษณีย์</span>
+                <span className="font-bold font-mono text-govblue-900 truncate block">
+                  {land.postal_code || "-"}
+                </span>
+              </div>
+            </div>
+            <div className="text-[11px] text-gray-600 pt-1 flex items-center gap-1">
+              <span className="text-gray-400">ที่อยู่เต็ม:</span>
+              <span className="font-medium text-gray-800">{formatFullAddress(land)}</span>
             </div>
           </div>
 
