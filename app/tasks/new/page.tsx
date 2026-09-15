@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 import {
   api,
+  API_CONFIGURED,
   TYPE_LABEL,
   type AppUser,
   fetchMyTeam,
@@ -78,6 +79,17 @@ function NewTaskContent() {
         const safeTeam = Array.isArray(myTeam) ? myTeam : [];
         const safeSubordinates = Array.isArray(allSubordinates) ? allSubordinates : [];
         const acceptedMembers = safeTeam.filter((m) => m && m.status === "accepted");
+        // 1. เพิ่มตัวเลือกให้หัวหน้าสั่งงานตัวเองเพื่อลงสำรวจเองได้
+        const selfOption: AppUser = {
+          public_id: me.public_id,
+          username: me.username || "me",
+          display_name: `${me.display_name} (ฉันเอง - ลงพื้นที่สำรวจเอง)`,
+          role: me.role,
+          status: "active",
+          picture_url: me.picture_url || null,
+          created_at: "",
+        };
+
         if (acceptedMembers.length > 0) {
           setIsTeamAssignee(true);
           const teamUsers: AppUser[] = acceptedMembers.map((m) => ({
@@ -89,19 +101,23 @@ function NewTaskContent() {
             picture_url: null,
             created_at: "",
           }));
-          setUsers(teamUsers);
-          if (qAssignee && teamUsers.some((u) => u.public_id === qAssignee)) {
+          const combined = [selfOption, ...teamUsers];
+          setUsers(combined);
+          if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
             setAssignee(qAssignee);
           } else {
-            setAssignee(teamUsers[0]?.public_id || "");
+            setAssignee(teamUsers[0]?.public_id || selfOption.public_id);
           }
         } else {
           setIsTeamAssignee(false);
-          setUsers(safeSubordinates);
-          if (qAssignee && safeSubordinates.some((u) => u.public_id === qAssignee)) {
+          const combined = [selfOption, ...safeSubordinates];
+          setUsers(combined);
+          if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
             setAssignee(qAssignee);
           } else if (safeSubordinates.length > 0) {
-            setAssignee(safeSubordinates[0]?.public_id || "");
+            setAssignee(safeSubordinates[0]?.public_id || selfOption.public_id);
+          } else {
+            setAssignee(selfOption.public_id);
           }
         }
       });
@@ -193,6 +209,41 @@ function NewTaskContent() {
       notifyDataUpdated();
       router.push("/tasks");
     } catch (e) {
+      if (!API_CONFIGURED) {
+        const foundAssignee = users.find((u) => u.public_id === assignee);
+        const newTask = {
+          public_id: "mock-" + Date.now(),
+          code: "TSK-" + String(Math.floor(100000 + Math.random() * 900000)),
+          title: title.trim(),
+          task_type: taskType,
+          description: description.trim(),
+          status: "pending",
+          assignee_public_id: assignee,
+          assignee_name:
+            foundAssignee?.display_name.replace(" (ฉันเอง - ลงพื้นที่สำรวจเอง)", "") ||
+            (assignee === me?.public_id ? me?.display_name || "หัวหน้างานสำรวจ" : "เจ้าหน้าที่สำรวจ"),
+          assigner_public_id: me?.public_id || "mock-leader",
+          assigner_name: me?.display_name || "หัวหน้างานสำรวจ",
+          due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
+          lat: taskType === "batch_entry" ? null : lat,
+          lng: taskType === "batch_entry" ? null : lng,
+          place_name: taskType === "batch_entry" ? null : (placeName.trim() || null),
+          target_type: taskType === "batch_entry" ? batchTargetType : null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          const raw = window.localStorage.getItem("ams_saved_tasks_v5");
+          const existing = raw ? JSON.parse(raw) : [];
+          window.localStorage.setItem(
+            "ams_saved_tasks_v5",
+            JSON.stringify([newTask, ...(Array.isArray(existing) ? existing : [])])
+          );
+        } catch {}
+        notifyDataUpdated();
+        router.push("/tasks");
+        return;
+      }
       setErr((e as Error).message);
       setSaving(false);
     }

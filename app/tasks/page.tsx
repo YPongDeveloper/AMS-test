@@ -1284,6 +1284,43 @@ export default function TasksPage() {
 
     const curIdx = getStepIndex(selectedTask.status);
 
+    const isAssignee = Boolean(
+      me && (
+        selectedTask.assignee_public_id === me.public_id ||
+        selectedTask.assignee_name === me.display_name
+      )
+    );
+
+    // ตรวจสอบสิทธิ์: ขั้นตอน 0 -> 1, 1 -> 2, 2 -> 3 (รับงาน, ลงพื้นที่, ส่งตรวจ) เฉพาะผู้รับมอบหมายงาน (เจ้าของงาน) เท่านั้น
+    if (!isAssignee && targetIdx < 4) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "เฉพาะผู้รับมอบหมายงานเท่านั้นที่มีสิทธิ์ดำเนินการ",
+        message: (
+          <div className="space-y-2 text-left">
+            <p className="text-gray-700 text-center">
+              งานนี้มอบหมายให้คุณ <strong className="text-gray-900 font-semibold">"{selectedTask.assignee_name || "เจ้าหน้าที่สำรวจ"}"</strong> เป็นผู้รับผิดชอบ
+            </p>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+              <AlertCircle size={18} className="text-amber-600 shrink-0" />
+              <span>
+                หัวหน้างานไม่มีสิทธิ์กดรับงานหรือเปลี่ยนสถานะการลงพื้นที่แทนลูกน้อง เฉพาะเจ้าของงานที่เป็นผู้สำรวจจริงเท่านั้นที่สามารถดำเนินการได้
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500 text-center">
+              (หากหัวหน้างานต้องการลงพื้นที่สำรวจเอง สามารถเลือกมอบหมายงานให้ตัวเองได้ตอนสั่งงานใหม่)
+            </p>
+          </div>
+        ),
+        tone: "warning",
+        confirmLabel: "รับทราบ",
+        cancelLabel: "ปิด",
+        onCancel: closeConfirmDialog,
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
     // 1. ถ้าคลิกขั้นตอนเดิม
     if (targetIdx === curIdx) {
       if (selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") {
@@ -2314,6 +2351,40 @@ export default function TasksPage() {
                                       const curIdx = getStepIndex(task.status);
                                       const targetIdx = getStepIndex(nextSt);
 
+                                      // ตรวจสอบสิทธิ์: ผู้รับมอบหมายเท่านั้นที่เปลี่ยนสถานะการลงพื้นที่ได้
+                                      const isTaskAssignee = Boolean(
+                                        me && (
+                                          task.assignee_public_id === me.public_id ||
+                                          task.assignee_name === me.display_name
+                                        )
+                                      );
+
+                                      if (!isTaskAssignee && (nextSt === "accepted" || nextSt === "in_progress" || nextSt === "submitted")) {
+                                        setConfirmDialog({
+                                          isOpen: true,
+                                          title: "เฉพาะผู้รับมอบหมายงานเท่านั้นที่มีสิทธิ์ดำเนินการ",
+                                          message: (
+                                            <div className="space-y-2 text-left">
+                                              <p className="text-gray-700 text-center">
+                                                งานนี้มอบหมายให้คุณ <strong className="text-gray-900 font-semibold">"{task.assignee_name || "เจ้าหน้าที่สำรวจ"}"</strong> เป็นผู้รับผิดชอบ
+                                              </p>
+                                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                                                <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                                                <span>
+                                                  หัวหน้างานไม่มีสิทธิ์กดรับงานหรือเปลี่ยนสถานะการลงพื้นที่แทนลูกน้อง เฉพาะเจ้าของงานที่เป็นผู้สำรวจจริงเท่านั้นที่สามารถดำเนินการได้
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ),
+                                          tone: "warning",
+                                          confirmLabel: "รับทราบ",
+                                          cancelLabel: "ปิด",
+                                          onCancel: closeConfirmDialog,
+                                          onConfirm: closeConfirmDialog,
+                                        });
+                                        return;
+                                      }
+
                                       // ตรวจสอบการกระโดดข้ามขั้นตอน (ห้ามข้าม)
                                       if (targetIdx > curIdx + 1) {
                                         const nextStep = PIPELINE_STEPS[curIdx + 1];
@@ -2518,6 +2589,12 @@ export default function TasksPage() {
 
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
+                  const isTaskAssignee = Boolean(
+                    me && (
+                      selectedTask.assignee_public_id === me.public_id ||
+                      selectedTask.assignee_name === me.display_name
+                    )
+                  );
                   return (
                     <>
                       {/* Mobile View: เรียง Status ละ 1 แถว สบายตา ไม่เบียด Text กระชับ (ตามคำขอของผู้ใช้) */}
@@ -2607,17 +2684,23 @@ export default function TasksPage() {
                                     {idx === 4 ? "เสร็จสมบูรณ์" : "กำลังทำ"}
                                   </span>
                                 ) : isNextImmediate ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAdvancePipeline(idx);
-                                    }}
-                                    className="text-[11px] font-bold text-white bg-govblue-800 hover:bg-govblue-900 active:scale-95 px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 whitespace-nowrap transition"
-                                  >
-                                    <span>ทำขั้นตอนนี้</span>
-                                    <ArrowRight size={11} />
-                                  </button>
+                                  !isTaskAssignee && idx < 3 ? (
+                                    <span className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md whitespace-nowrap flex items-center gap-1 font-medium">
+                                      <Clock size={10} className="text-amber-600" /> รอผู้รับงาน
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAdvancePipeline(idx);
+                                      }}
+                                      className="text-[11px] font-bold text-white bg-govblue-800 hover:bg-govblue-900 active:scale-95 px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 whitespace-nowrap transition"
+                                    >
+                                      <span>ทำขั้นตอนนี้</span>
+                                      <ArrowRight size={11} />
+                                    </button>
+                                  )
                                 ) : (
                                   <span className="text-[10px] text-gray-400 whitespace-nowrap flex items-center gap-1 px-1">
                                     <Lock size={9} /> รอดำเนินการ
@@ -2758,9 +2841,15 @@ export default function TasksPage() {
                                         {idx === 4 ? "สมบูรณ์" : "กำลังทำ"}
                                       </span>
                                     ) : isNextImmediate ? (
-                                      <span className="text-[8px] sm:text-[9px] font-bold text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-govblue-200 transition">
-                                        ถัดไป ➔
-                                      </span>
+                                      !isTaskAssignee && idx < 3 ? (
+                                        <span className="text-[8px] sm:text-[9px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-amber-200">
+                                          รอผู้รับงาน
+                                        </span>
+                                      ) : (
+                                        <span className="text-[8px] sm:text-[9px] font-bold text-govblue-700 bg-govblue-50 group-hover:bg-govblue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap border border-govblue-200 transition">
+                                          ถัดไป ➔
+                                        </span>
+                                      )
                                     ) : (
                                       <span className="text-[8px] sm:text-[9px] text-gray-400 whitespace-nowrap flex items-center gap-0.5">
                                         <Lock size={8} /> รอดำเนินการ
@@ -2780,6 +2869,12 @@ export default function TasksPage() {
                 {/* Contextual Action Box (กล่องแนะนำและดำเนินการขั้นตอนถัดไป + ปุ่มยกเลิกงาน) */}
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
+                  const isTaskAssignee = Boolean(
+                    me && (
+                      selectedTask.assignee_public_id === me.public_id ||
+                      selectedTask.assignee_name === me.display_name
+                    )
+                  );
                   return (
                     <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50/70 p-2.5 sm:p-3 rounded-xl">
                       <div className="flex items-center gap-2 min-w-0">
@@ -2804,18 +2899,18 @@ export default function TasksPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-gray-900 truncate">
-                            {selectedTask.status === "pending" && "ขั้นตอนถัดไป: ยืนยันการรับงาน"}
-                            {selectedTask.status === "accepted" && "ขั้นตอนถัดไป: เริ่มลงพื้นที่สำรวจรังวัด"}
-                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ขั้นตอนถัดไป: กรอกข้อมูลและส่งภาพผลงาน"}
+                            {selectedTask.status === "pending" && (isTaskAssignee ? "ขั้นตอนถัดไป: ยืนยันการรับงาน" : "อยู่ระหว่างรอผู้รับมอบหมายยืนยันรับงาน")}
+                            {selectedTask.status === "accepted" && (isTaskAssignee ? "ขั้นตอนถัดไป: เริ่มลงพื้นที่สำรวจรังวัด" : "อยู่ระหว่างรอผู้รับมอบหมายเริ่มลงพื้นที่")}
+                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && (isTaskAssignee ? "ขั้นตอนถัดไป: กรอกข้อมูลและส่งภาพผลงาน" : "เจ้าหน้าที่กำลังลงพื้นที่ปฏิบัติงานสำรวจ")}
                             {selectedTask.status === "submitted" && (isSup ? "ขั้นตอนถัดไป: ตรวจสอบและอนุมัติผลงาน" : "รอหัวหน้างานตรวจสอบและอนุมัติ")}
                             {selectedTask.status === "done" && "ภารกิจสำรวจเสร็จสมบูรณ์เรียบร้อย"}
                             {selectedTask.status === "cancelled" && "ภารกิจนี้ถูกยกเลิกแล้ว"}
                           </p>
                           <p className="text-[10px] text-gray-500 truncate hidden sm:block">
-                            {selectedTask.status === "pending" && "เมื่อยืนยันรับงาน สถานะจะเปลี่ยนเป็น 'รับงานแล้ว'"}
-                            {selectedTask.status === "accepted" && "กดเริ่มงานเมื่อทีมงานพร้อมลงพื้นที่สำรวจ"}
-                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && "ส่งพิกัด แผนที่ และภาพถ่ายผลงานเพื่อขออนุมัติ"}
-                            {selectedTask.status === "submitted" && (isSup ? "ตรวจสอบความถูกต้องของข้อมูลก่อนอนุมัติ" : "ส่งผลงานเข้าระบบแล้ว รอการตรวจสอบ")}
+                            {selectedTask.status === "pending" && (isTaskAssignee ? "เมื่อยืนยันรับงาน สถานะจะเปลี่ยนเป็น 'รับงานแล้ว'" : `งานนี้มอบหมายให้คุณ ${selectedTask.assignee_name || "เจ้าหน้าที่"} — เฉพาะผู้รับมอบหมายเท่านั้นที่สามารถกดรับงานได้`)}
+                            {selectedTask.status === "accepted" && (isTaskAssignee ? "กดเริ่มงานเมื่อทีมงานพร้อมลงพื้นที่สำรวจ" : `คุณ ${selectedTask.assignee_name || "เจ้าหน้าที่"} ยืนยันรับงานแล้ว อยู่ระหว่างรอเริ่มลงพื้นที่`)}
+                            {(selectedTask.status === "in_progress" || selectedTask.status === "revision_requested") && (isTaskAssignee ? "ส่งพิกัด แผนที่ และภาพถ่ายผลงานเพื่อขออนุมัติ" : `รอคุณ ${selectedTask.assignee_name || "เจ้าหน้าที่"} บันทึกข้อมูลและส่งภาพถ่ายผลงาน`)}
+                            {selectedTask.status === "submitted" && (isSup ? "ตรวจสอบความถูกต้องของข้อมูลก่อนอนุมัติเข้าระบบ" : "ส่งผลงานเข้าระบบแล้ว รอการตรวจสอบ")}
                             {selectedTask.status === "done" && "ผ่านการตรวจสอบและบันทึกเข้าระบบเรียบร้อยแล้ว"}
                             {selectedTask.status === "cancelled" && "ท่านสามารถกู้คืนสถานะเพื่อกลับมาดำเนินงานต่อได้"}
                           </p>
@@ -2826,42 +2921,59 @@ export default function TasksPage() {
                       <div className="flex items-center gap-2 justify-end shrink-0">
                         {/* Primary Next Action Button */}
                         {selectedTask.status !== "cancelled" && curIdx < 4 && (
-                          <button
-                            type="button"
-                            onClick={() => handleAdvancePipeline(curIdx + 1)}
-                            className="px-3 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap"
-                          >
-                            {curIdx === 0 && (
-                              <>
-                                <CheckCircle2 size={13} className="text-govgold-400" />
-                                <span>ยืนยันรับงาน</span>
-                              </>
+                          <>
+                            {/* สำหรับขั้นตอนที่ 0, 1, 2: หากไม่ใช่ผู้รับมอบหมายงาน ให้แสดงสถานะรอผู้รับงาน */}
+                            {curIdx < 3 && !isTaskAssignee && (
+                              <div className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap">
+                                <Clock size={13} className="text-amber-600" />
+                                <span>
+                                  {curIdx === 0 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} รับงาน`}
+                                  {curIdx === 1 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} ลงพื้นที่`}
+                                  {curIdx === 2 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} ส่งงาน`}
+                                </span>
+                              </div>
                             )}
-                            {curIdx === 1 && (
-                              <>
-                                <MapPin size={13} className="text-govgold-400" />
-                                <span>เริ่มลงพื้นที่</span>
-                              </>
+
+                            {/* ถ้าเป็นผู้รับมอบหมายงาน หรือขั้นตอนส่งตรวจ/อนุมัติ */}
+                            {(curIdx >= 3 || isTaskAssignee) && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvancePipeline(curIdx + 1)}
+                                className="px-3 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap"
+                              >
+                                {curIdx === 0 && (
+                                  <>
+                                    <CheckCircle2 size={13} className="text-govgold-400" />
+                                    <span>ยืนยันรับงาน</span>
+                                  </>
+                                )}
+                                {curIdx === 1 && (
+                                  <>
+                                    <MapPin size={13} className="text-govgold-400" />
+                                    <span>เริ่มลงพื้นที่</span>
+                                  </>
+                                )}
+                                {curIdx === 2 && (
+                                  <>
+                                    <FileCheck2 size={13} className="text-govgold-400" />
+                                    <span>ส่งผลงานให้ตรวจ</span>
+                                  </>
+                                )}
+                                {curIdx === 3 && isSup && (
+                                  <>
+                                    <Award size={13} className="text-govgold-400" />
+                                    <span>ตรวจและอนุมัติ</span>
+                                  </>
+                                )}
+                                {curIdx === 3 && !isSup && (
+                                  <>
+                                    <Clock size={13} />
+                                    <span>รอหัวหน้าอนุมัติ</span>
+                                  </>
+                                )}
+                              </button>
                             )}
-                            {curIdx === 2 && (
-                              <>
-                                <FileCheck2 size={13} className="text-govgold-400" />
-                                <span>ส่งผลงานให้ตรวจ</span>
-                              </>
-                            )}
-                            {curIdx === 3 && isSup && (
-                              <>
-                                <Award size={13} className="text-govgold-400" />
-                                <span>ตรวจและอนุมัติ</span>
-                              </>
-                            )}
-                            {curIdx === 3 && !isSup && (
-                              <>
-                                <Clock size={13} />
-                                <span>รอหัวหน้าอนุมัติ</span>
-                              </>
-                            )}
-                          </button>
+                          </>
                         )}
 
                         {/* ยกเว้น ยกเลิก (Cancel Exception Button) */}
