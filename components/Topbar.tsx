@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import Logo from "./Logo";
 import { clearTokens, getCurrentUser, logout, type AppUser } from "@/lib/api";
 import { usePwaInstall } from "@/lib/usePwaInstall";
+import { NotificationCenter } from "./NotificationCenter";
 
 export function Topbar() {
   const { t, lang, setLang } = useI18n();
@@ -145,13 +146,8 @@ export function Topbar() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2 ml-auto">
-          <button
-            aria-label="Notifications"
-            className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600"
-          >
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
-          </button>
+          {/* Notifications */}
+          <NotificationCenter />
 
           {/* Profile + dropdown */}
           <div className="relative" ref={menuRef}>

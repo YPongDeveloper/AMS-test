@@ -201,9 +201,27 @@ function createSampleTasks(baseDateStr?: string): Task[] {
       code: "TK-2569-005",
       title: "ตรวจสอบอาคารสถานีรถไฟประวัติศาสตร์ หัวลำโพง",
       task_type: "inspect",
+      target_type: "building",
       description:
         "ตรวจสอบการอนุรักษ์อาคารสถาปัตยกรรมประวัติศาสตร์ และสำรวจพื้นที่เช่าบริการเชิงพาณิชย์ภายในโถงสถานีรถไฟกรุงเทพ",
-      status: "in_progress",
+      status: "submitted",
+      submission_data: {
+        summary: "ส่งผลสำรวจและตรวจสอบสภาพอาคารสถานีรถไฟประวัติศาสตร์หัวลำโพง พร้อมภาพถ่าย 4 ทิศ และรายละเอียดพื้นที่เช่า",
+        items: [
+          {
+            bldg_code: "BL-2569-088",
+            name: "อาคารสถานีรถไฟกรุงเทพ (หัวลำโพง)",
+            material_type: "คอนกรีตเสริมเหล็ก",
+            num_fl: 2,
+            bld_condition_type: "ดี",
+            address_no: "1 ถ.รองเมือง",
+            subdistrict: "รองเมือง",
+            district: "ปทุมวัน",
+            province: "กรุงเทพมหานคร",
+            postal_code: "10330",
+          },
+        ],
+      },
       assignee_public_id: "usr-normal",
       assignee_name: "เจ้าหน้าที่สำรวจ",
       assigner_public_id: "usr-leader",
@@ -800,6 +818,52 @@ export default function TasksPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me, isSup]);
+
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      loadTasks();
+      if (isSup) {
+        loadTeam();
+        loadRevisionRequests();
+      } else {
+        loadInvitations();
+      }
+    };
+    window.addEventListener("ams_data_updated", handleDataUpdate);
+    return () => window.removeEventListener("ams_data_updated", handleDataUpdate);
+  }, [isSup, loadTasks, loadTeam, loadRevisionRequests, loadInvitations]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const checkParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      const open = params.get("open");
+      const reviewTaskId = params.get("review_task_id");
+      const taskId = params.get("task_id");
+      const tab = params.get("tab");
+
+      if (open === "team") setTeamModalOpen(true);
+      if (open === "requests") setRequestsModalOpen(true);
+      if (tab === "my_tasks" || tab === "assigned_by_me" || tab === "all" || tab === "members") {
+        setActiveTab(tab);
+      }
+      if (reviewTaskId && tasks.length > 0) {
+        const found = tasks.find((t) => t.public_id === reviewTaskId);
+        if (found) {
+          setReviewingTask(found);
+          setReviewFeedback("");
+          setReviewModalOpen(true);
+        }
+      }
+      if (taskId && tasks.length > 0) {
+        const found = tasks.find((t) => t.public_id === taskId);
+        if (found) setSelectedTask(found);
+      }
+    };
+    checkParams();
+    window.addEventListener("popstate", checkParams);
+    return () => window.removeEventListener("popstate", checkParams);
+  }, [tasks]);
 
   async function setStatus(task: Task, status: TaskStatus) {
     setErr("");
