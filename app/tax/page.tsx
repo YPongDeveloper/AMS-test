@@ -804,11 +804,11 @@ export default function TaxPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
               <div>
                 <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-2">
-                  <Landmark size={16} className="text-govblue-700" />
-                  บัญชีรายการภาษีที่ดินและสิ่งปลูกสร้างรวมทั้งพอร์ต (Consolidated Portfolio Tax)
+                  <Landmark size={16} className="text-govblue-700 shrink-0" />
+                  บัญชีภาษีรวมทั้งพอร์ต
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  สรุปรายละเอียดการคำนวณภาษีประจำปี {taxYear} ครอบคลุมทั้งแปลงที่ดิน ({lands.length}) และสิ่งปลูกสร้าง ({buildings.length}) สำหรับฝ่ายการเงินและบัญชี รฟท.
+                  ประจำปี {taxYear} • ที่ดิน {lands.length} แปลง • สิ่งปลูกสร้าง {buildings.length} หลัง
                 </p>
               </div>
 
@@ -824,7 +824,7 @@ export default function TaxPage() {
                   onClick={() => window.print()}
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                 >
-                  <Printer size={13} /> พิมพ์รายงานรวม
+                  <Printer size={13} /> พิมพ์รายงาน
                 </Btn>
               </div>
             </div>
