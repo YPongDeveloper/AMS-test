@@ -49,6 +49,7 @@ export interface Task {
   lat: number | null;
   lng: number | null;
   place_name: string | null;
+  address?: string | null;
   submission_data?: string | any | null;
   supervisor_feedback?: string | null;
   target_type?: "land" | "building" | "both" | null;
@@ -58,6 +59,10 @@ export interface Task {
 
 export interface TaskSubmissionPayload {
   summary?: string;
+  address?: string;
+  place_name?: string;
+  lat?: number | null;
+  lng?: number | null;
   items?: any[];
   lands?: Partial<LandParcel>[];
   buildings?: Partial<Building>[];
@@ -1235,6 +1240,9 @@ export async function submitTaskData(
     if (idx >= 0) {
       list[idx].status = "submitted";
       list[idx].submission_data = data;
+      if (data.address) list[idx].address = data.address;
+      if (data.lat != null) list[idx].lat = data.lat;
+      if (data.lng != null) list[idx].lng = data.lng;
       list[idx].updated_at = new Date().toISOString();
       if (typeof window !== "undefined") {
         window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(list));

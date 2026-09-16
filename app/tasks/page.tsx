@@ -31,6 +31,7 @@ import MapPicker from "@/components/MapPicker";
 import SurveyPolygonMap, { type LatLngPoint, type ThaiAreaResult } from "@/components/SurveyPolygonMap";
 import TasksMasterMap from "@/components/TasksMasterMap";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { searchAddressCoordinates } from "@/lib/geocoding";
 import {
   ClipboardList,
   MapPin,
@@ -804,6 +805,11 @@ export default function TasksPage() {
   const [submissionPhotos, setSubmissionPhotos] = useState<{ id: string; url: string; name: string; caption: string; sizeKb: number }[]>([]);
   const [submissionPolygon, setSubmissionPolygon] = useState<LatLngPoint[]>([]);
   const [submissionArea, setSubmissionArea] = useState<ThaiAreaResult | null>(null);
+  const [submissionAddress, setSubmissionAddress] = useState("");
+  const [submissionLat, setSubmissionLat] = useState<number | null>(null);
+  const [submissionLng, setSubmissionLng] = useState<number | null>(null);
+  const [geocodingSubmission, setGeocodingSubmission] = useState(false);
+  const [geocodeSubmissionMsg, setGeocodeSubmissionMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; name: string; caption?: string } | null>(null);
 
   // GPS Navigation State
@@ -1152,14 +1158,50 @@ export default function TasksPage() {
       } else {
         setSubmissionArea(null);
       }
-    } else {
-      setSubmissionSummary("");
-      setSubmissionPhotos([]);
-      setSubmissionPolygon([]);
-      setSubmissionArea(null);
-      initDefaultBatchItems(task.target_type);
     }
+
+    const initAddr =
+      task.address ||
+      existingData?.address ||
+      task.place_name ||
+      existingData?.place_name ||
+      "";
+    setSubmissionAddress(initAddr);
+    setSubmissionLat(task.lat ?? existingData?.lat ?? null);
+    setSubmissionLng(task.lng ?? existingData?.lng ?? null);
+    setGeocodeSubmissionMsg(null);
+
     setSubmissionModalOpen(true);
+  };
+
+  const handleSubmissionAddressSearch = async () => {
+    const q = submissionAddress.trim();
+    if (!q) return;
+    setGeocodingSubmission(true);
+    setGeocodeSubmissionMsg(null);
+    try {
+      const res = await searchAddressCoordinates(q);
+      if (res) {
+        setSubmissionLat(res.lat);
+        setSubmissionLng(res.lng);
+        setGeocodeSubmissionMsg({
+          text: `ปักหมุดสำเร็จ: ${res.displayName.split(",")[0]} (${res.lat}, ${res.lng}) - หากคลาดเคลื่อน สามารถคลิก/ลากหมุดบนแผนที่เพื่อปรับตำแหน่งเองได้`,
+          tone: "ok",
+        });
+      } else {
+        setGeocodeSubmissionMsg({
+          text: "ไม่พบตำแหน่งจากที่อยู่นี้ กรุณาคลิกปักหมุดบนแผนที่โดยตรง หรือวางพิกัดจาก Google Maps",
+          tone: "err",
+        });
+      }
+    } catch {
+      setGeocodeSubmissionMsg({
+        text: "ค้นหาไม่สำเร็จ กรุณาคลิกปักหมุดบนแผนที่โดยตรง",
+        tone: "err",
+      });
+    } finally {
+      setGeocodingSubmission(false);
+    }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1280,6 +1322,9 @@ export default function TasksPage() {
       const isBldg = submittingTask.target_type === "building";
       await submitTaskData(submittingTask.public_id, {
         summary: submissionSummary.trim() || undefined,
+        address: submissionAddress.trim() || undefined,
+        lat: submissionLat ?? undefined,
+        lng: submissionLng ?? undefined,
         items: batchItems,
         lands: !isBldg ? (batchItems as any) : undefined,
         buildings: isBldg ? (batchItems as any) : undefined,
@@ -2880,10 +2925,10 @@ export default function TasksPage() {
                                   <span className="text-gray-400">ผู้รับ: </span>
                                   <span className="font-medium text-govblue-700">{task.assignee_name || "เจ้าหน้าที่"}</span>
                                 </div>
-                                {task.place_name && (
+                                {(task.address || task.place_name) && (
                                   <div className="col-span-2 flex items-center gap-1 text-xs text-gray-600 truncate mt-0.5">
                                     <MapPin size={12} className="text-rose-500 shrink-0" />
-                                    <span className="truncate">{task.place_name}</span>
+                                    <span className="truncate">{task.address || task.place_name}</span>
                                   </div>
                                 )}
                               </div>
@@ -3801,10 +3846,17 @@ export default function TasksPage() {
                   <MapPin size={15} className="text-rose-500" /> พิกัดและแผนที่ตำแหน่งที่ดิน (Location Map)
                 </h4>
 
-                {selectedTask.place_name && (
+                {(selectedTask.address || selectedTask.place_name) && (
                   <div className="text-xs text-gray-700 mb-2.5 font-medium bg-rose-50/70 border border-rose-200 px-3 py-2 rounded-xl flex items-center gap-2">
                     <MapPin size={14} className="text-rose-500 shrink-0" />
-                    <span>{selectedTask.place_name}</span>
+                    <div>
+                      {selectedTask.address && (
+                        <div className="font-semibold text-gray-900">{selectedTask.address}</div>
+                      )}
+                      {selectedTask.place_name && selectedTask.place_name !== selectedTask.address && (
+                        <div className="text-[11px] text-gray-500">{selectedTask.place_name}</div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -4362,6 +4414,80 @@ export default function TasksPage() {
                     />
                   </div>
 
+                  {/* Address & Interactive Map Pinning */}
+                  <div className="p-3.5 bg-govblue-50/60 border border-govblue-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-govblue-900 flex items-center gap-1.5">
+                        <MapPin size={15} className="text-rose-500" />
+                        <span>ที่อยู่และพิกัดสถานที่สำรวจ (Location & Address)</span>
+                      </label>
+                      {submittingTask.address && (
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ✓ หัวหน้าใส่ที่อยู่ไว้ล่วงหน้าแล้ว
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-700 block mb-1">
+                        ที่อยู่ / ตำแหน่งที่ตั้งแปลงสำรวจ (Address)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={submissionAddress}
+                          onChange={(e) => setSubmissionAddress(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSubmissionAddressSearch();
+                            }
+                          }}
+                          placeholder="เช่น 123/4 ถ.พหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ หรือ สถานีรถไฟอยุธยา"
+                          className="flex-1 text-xs p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSubmissionAddressSearch}
+                          disabled={geocodingSubmission || !submissionAddress.trim()}
+                          className="px-3 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-700 disabled:opacity-50 rounded-lg shrink-0 flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        >
+                          <Search size={14} />
+                          <span>{geocodingSubmission ? "กำลังค้นหา..." : "ค้นหาพิกัด"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {geocodeSubmissionMsg && (
+                      <div
+                        className={`p-2.5 rounded-lg text-xs flex items-start gap-2 ${
+                          geocodeSubmissionMsg.tone === "ok"
+                            ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                            : "bg-amber-50 text-amber-900 border border-amber-200"
+                        }`}
+                      >
+                        <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                        <span>{geocodeSubmissionMsg.text}</span>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-gray-500">
+                      💡 เมื่อใส่ที่อยู่แล้วกด "ค้นหาพิกัด" หมุดจะเลื่อนไปยังตำแหน่งนั้นโดยอัตโนมัติ <strong>หากคลาดเคลื่อน สามารถคลิกหรือลากหมุดบนแผนที่ด้านล่างเพื่อปรับตำแหน่งเองได้</strong>
+                    </p>
+
+                    <div className="pt-1">
+                      <MapPicker
+                        lat={submissionLat}
+                        lng={submissionLng}
+                        onChange={(newLat, newLng) => {
+                          setSubmissionLat(newLat);
+                          setSubmissionLng(newLng);
+                        }}
+                        height="200px"
+                      />
+                    </div>
+                  </div>
+
                   {/* Dynamic Batch Data Items Form */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -4773,8 +4899,8 @@ export default function TasksPage() {
 
                   {/* Satellite Polygon Map Component */}
                   <SurveyPolygonMap
-                    initialLat={submittingTask.lat}
-                    initialLng={submittingTask.lng}
+                    initialLat={submissionLat ?? submittingTask.lat}
+                    initialLng={submissionLng ?? submittingTask.lng}
                     initialPoints={submissionPolygon}
                     onChange={handlePolygonChange}
                     height="380px"
@@ -4817,7 +4943,7 @@ export default function TasksPage() {
                   </div>
 
                   {/* Review Cards Grid */}
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="grid sm:grid-cols-3 gap-3">
                     {/* General Summary Card */}
                     <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1.5">
                       <span className="text-[11px] text-gray-400 font-bold uppercase block">
@@ -4831,6 +4957,23 @@ export default function TasksPage() {
                         <div className="pt-1 text-gray-600 italic">"{submissionSummary}"</div>
                       ) : (
                         <div className="text-gray-400 italic text-[11px]">— ไม่ได้ระบุหมายเหตุ —</div>
+                      )}
+                    </div>
+
+                    {/* Address & Pin Location Card */}
+                    <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200 space-y-1.5">
+                      <span className="text-[11px] text-govblue-800 font-bold uppercase block flex items-center gap-1">
+                        <MapPin size={13} className="text-rose-500" /> ที่อยู่และตำแหน่งพิกัด
+                      </span>
+                      <div className="text-xs font-semibold text-gray-800">
+                        {submissionAddress || submittingTask.address || submittingTask.place_name || "— ไม่ได้ระบุที่อยู่ —"}
+                      </div>
+                      {submissionLat != null && submissionLng != null ? (
+                        <div className="font-mono text-[11px] text-govblue-700 pt-1">
+                          พิกัด: {submissionLat.toFixed(6)}, {submissionLng.toFixed(6)}
+                        </div>
+                      ) : (
+                        <div className="text-gray-400 text-xs italic pt-1">— ไม่ได้ระบุพิกัด —</div>
                       )}
                     </div>
 

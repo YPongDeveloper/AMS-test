@@ -360,7 +360,7 @@ export default function TaxPage() {
         srtType: isBldg ? "สิ่งปลูกสร้าง (ผลสำรวจใหม่)" : "ที่ดินสถานี (ผลสำรวจใหม่)",
         useType: "พาณิชยกรรม / อื่นๆ",
         refInfo: `งานสำรวจ: ${t.code || t.public_id}`,
-        address: t.place_name || "สถานีรถไฟ",
+        address: t.address || subData?.address || t.place_name || "สถานีรถไฟ",
         areaNum: totalWah,
         areaUnit: isBldg ? "ตร.ม." : "ตร.ว.",
         areaFormatted,
@@ -1016,13 +1016,13 @@ export default function TaxPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               label="แปลงที่ดินทั้งหมด"
-              value={`${lands.length} แปลง`}
+              value={`${consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง`}
               hint={`ฐานประเมินรวม ${fmtCurrency(consolidatedStats.totalLandVal)}`}
               tone="blue"
             />
             <StatCard
               label="สิ่งปลูกสร้างทั้งหมด"
-              value={`${buildings.length} หลัง`}
+              value={`${consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง`}
               hint={`ฐานประเมินรวม ${fmtCurrency(consolidatedStats.totalBldgVal)}`}
               tone="green"
             />
@@ -1049,7 +1049,7 @@ export default function TaxPage() {
                   บัญชีภาษีรวมทั้งพอร์ต
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  ประจำปี {taxYear} • ที่ดิน {lands.length} แปลง • สิ่งปลูกสร้าง {buildings.length} หลัง
+                  ประจำปี {taxYear} • ที่ดิน {consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง • สิ่งปลูกสร้าง {consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง (รวมทั้งสิ้น {consolidatedStats.allItems.length} รายการ)
                 </p>
               </div>
 

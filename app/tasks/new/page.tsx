@@ -17,7 +17,8 @@ import {
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
 import MapPicker from "@/components/MapPicker";
-import { ClipboardList, Users, Layers, AlertCircle } from "lucide-react";
+import { searchAddressCoordinates } from "@/lib/geocoding";
+import { ClipboardList, Users, Layers, AlertCircle, Search, MapPin } from "lucide-react";
 
 function NewTaskContent() {
   const { lang } = useI18n();
@@ -37,9 +38,45 @@ function NewTaskContent() {
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [placeName, setPlaceName] = useState("");
+  const [address, setAddress] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeMsg, setGeocodeMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [isTeamAssignee, setIsTeamAssignee] = useState(false);
+
+  const handleAddressSearch = async () => {
+    const q = address.trim() || placeName.trim();
+    if (!q) return;
+    setGeocoding(true);
+    setGeocodeMsg(null);
+    try {
+      const res = await searchAddressCoordinates(q);
+      if (res) {
+        setLat(res.lat);
+        setLng(res.lng);
+        if (!placeName && res.displayName) {
+          setPlaceName(res.displayName.split(",")[0]);
+        }
+        setGeocodeMsg({
+          text: `ปักหมุดสำเร็จ: ${res.displayName.split(",")[0]} (${res.lat}, ${res.lng}) - หากคลาดเคลื่อน สามารถคลิก/ลากหมุดบนแผนที่เพื่อปรับตำแหน่งเองได้`,
+          tone: "ok",
+        });
+      } else {
+        setGeocodeMsg({
+          text: "ไม่พบตำแหน่งจากที่อยู่นี้ กรุณาคลิกปักหมุดบนแผนที่โดยตรง หรือวางพิกัดจาก Google Maps",
+          tone: "err",
+        });
+      }
+    } catch {
+      setGeocodeMsg({
+        text: "ค้นหาไม่สำเร็จ กรุณาคลิกปักหมุดบนแผนที่โดยตรง",
+        tone: "err",
+      });
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
   const requestId = searchParams.get("request_id");
 
@@ -196,6 +233,7 @@ function NewTaskContent() {
           lat: taskType === "batch_entry" ? null : lat,
           lng: taskType === "batch_entry" ? null : lng,
           place_name: taskType === "batch_entry" ? null : (placeName.trim() || null),
+          address: taskType === "batch_entry" ? null : (address.trim() || null),
         },
       });
 
@@ -225,6 +263,7 @@ function NewTaskContent() {
           lat: taskType === "batch_entry" ? null : lat,
           lng: taskType === "batch_entry" ? null : lng,
           place_name: taskType === "batch_entry" ? null : (placeName.trim() || null),
+          address: taskType === "batch_entry" ? null : (address.trim() || null),
           target_type: taskType === "batch_entry" ? batchTargetType : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -393,13 +432,79 @@ function NewTaskContent() {
         </div>
       ) : (
         <div>
-          <label className={labelCls}>{t("พิกัดสถานที่สำรวจ (ชี้เป้าบนแผนที่)", "Location Coordinates")}</label>
-          <input
-            className={inputCls + " mb-2"}
-            value={placeName}
-            onChange={(e) => setPlaceName(e.target.value)}
-            placeholder={t("ชื่อสถานที่ / หมายเลขแปลง / จุดสังเกต (ถ้ามี)", "Place name / parcel code / landmark (optional)")}
-          />
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+              <MapPin size={15} className="text-rose-500" />
+              <span>{t("ที่อยู่และพิกัดสถานที่สำรวจ (Location & Address)", "Location Coordinates & Address")}</span>
+            </label>
+            <span className="text-[11px] text-gray-500">
+              {t("หัวหน้าใส่ที่อยู่ไว้ก่อนได้ พนักงานจะเห็นข้อมูลนี้ทันที", "Supervisor can pre-fill address for surveyor")}
+            </span>
+          </div>
+
+          <div className="space-y-2 mb-3">
+            <div>
+              <label className="text-[11px] font-medium text-gray-600 block mb-1">
+                {t("ที่อยู่ / ตำแหน่งที่ตั้ง (Address)", "Address / Location")}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  className={inputCls}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddressSearch();
+                    }
+                  }}
+                  placeholder={t(
+                    "เช่น 123/4 ถ.พหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ หรือ สถานีรถไฟอยุธยา",
+                    "e.g. 123/4 Phahonyothin Rd, Chatuchak, Bangkok or Ayutthaya Railway Station"
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddressSearch}
+                  disabled={geocoding || (!address.trim() && !placeName.trim())}
+                  className="px-3.5 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-700 disabled:opacity-50 rounded-lg shrink-0 flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                >
+                  <Search size={14} />
+                  <span>{geocoding ? t("กำลังค้นหา...", "Searching...") : t("ค้นหาพิกัด", "Find Pin")}</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-gray-600 block mb-1">
+                {t("ชื่อสถานที่ / หมายเลขแปลง / จุดสังเกต (Place Name)", "Place Name / Parcel Code / Landmark")}
+              </label>
+              <input
+                className={inputCls}
+                value={placeName}
+                onChange={(e) => setPlaceName(e.target.value)}
+                placeholder={t("ตย. สถานีรถไฟกรุงเทพ (หัวลำโพง) หรือ แปลงย่านอยุธยา A-1", "e.g. Ayutthaya Railway Station")}
+              />
+            </div>
+
+            {geocodeMsg && (
+              <div
+                className={`p-2.5 rounded-lg text-xs flex items-start gap-2 ${
+                  geocodeMsg.tone === "ok"
+                    ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                    : "bg-amber-50 text-amber-900 border border-amber-200"
+                }`}
+              >
+                <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                <span>{geocodeMsg.text}</span>
+              </div>
+            )}
+
+            <p className="text-[11px] text-gray-500">
+              💡 เมื่อใส่ที่อยู่แล้วกด "ค้นหาพิกัด" หมุดจะเลื่อนไปยังตำแหน่งนั้นโดยอัตโนมัติ <strong>หากคลาดเคลื่อน สามารถคลิกหรือลากหมุดบนแผนที่เพื่อปรับตำแหน่งเองได้</strong>
+            </p>
+          </div>
+
           <MapPicker lat={lat} lng={lng} onChange={(a, b) => { setLat(a); setLng(b); }} />
         </div>
       )}
