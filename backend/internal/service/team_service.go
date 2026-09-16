@@ -34,6 +34,16 @@ func (s *TeamService) InviteByUsername(ctx context.Context, supervisorClaims *Cl
 		return errors.New("สามารถเชิญได้เฉพาะผู้ใช้ที่มีบทบาทพนักงานสำรวจเท่านั้น")
 	}
 
+	membership, err := s.team.FindMembership(ctx, supervisorClaims.UserID, subordinate.ID)
+	if err == nil && membership != nil {
+		if membership.Status == "accepted" {
+			return errors.New("พนักงานนี้เป็นสมาชิกในสังกัดอยู่แล้ว ไม่สามารถส่งคำเชิญซ้ำได้")
+		}
+		if membership.Status == "pending" {
+			return errors.New("พนักงานนี้มีคำเชิญอยู่แล้วและอยู่ระหว่างรอการตอบรับ")
+		}
+	}
+
 	if err := s.team.Invite(ctx, supervisorClaims.UserID, subordinate.ID); err != nil {
 		return err
 	}

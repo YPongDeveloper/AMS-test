@@ -44,6 +44,18 @@ func scanTeamMember(row interface{ Scan(...any) error }) (*model.TeamMember, err
 	return &m, nil
 }
 
+func (r *TeamRepository) FindMembership(ctx context.Context, supervisorID, subordinateID int64) (*model.TeamMember, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT `+teamCols+teamFrom+`
+		WHERE tm.supervisor_id = $1 AND tm.subordinate_id = $2
+	`, supervisorID, subordinateID)
+	m, err := scanTeamMember(row)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (r *TeamRepository) Invite(ctx context.Context, supervisorID, subordinateID int64) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO team_members (supervisor_id, subordinate_id, status, invited_at, responded_at)

@@ -920,25 +920,95 @@ export default function TasksPage() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteUsername.trim()) return;
+    const cleanUsername = inviteUsername.trim().toLowerCase().replace(/^@/, "");
+    if (!cleanUsername) return;
+
+    // ตรวจสอบทันทีว่ามีในสังกัดหรือมีคำเชิญอยู่แล้วหรือไม่ เพื่อป้องกันการดึงซ้ำ
+    const existing = (Array.isArray(myTeam) ? myTeam : []).find(
+      (m) => (m.subordinate_username || "").toLowerCase() === cleanUsername
+    );
+    if (existing) {
+      if (existing.status === "accepted") {
+        setConfirmDialog({
+          isOpen: true,
+          title: "เป็นสมาชิกในสังกัดอยู่แล้ว",
+          message: `@${cleanUsername} เป็นเจ้าหน้าที่ในสังกัดทีมของคุณอยู่แล้ว ไม่สามารถส่งคำเชิญซ้ำได้`,
+          tone: "warning",
+          confirmLabel: "เข้าใจแล้ว",
+          onConfirm: closeConfirmDialog,
+        });
+        return;
+      } else if (existing.status === "pending") {
+        setConfirmDialog({
+          isOpen: true,
+          title: "มีคำเชิญอยู่แล้ว",
+          message: `@${cleanUsername} มีคำเชิญอยู่แล้วและอยู่ระหว่างรอการตอบรับ ไม่สามารถส่งคำเชิญซ้ำได้`,
+          tone: "warning",
+          confirmLabel: "เข้าใจแล้ว",
+          onConfirm: closeConfirmDialog,
+        });
+        return;
+      }
+    }
+
     setInviting(true);
     try {
-      await inviteToTeam(inviteUsername.trim());
+      await inviteToTeam(cleanUsername);
       setInviteUsername("");
-      setNotice(`ส่งคำเชิญให้ @${inviteUsername.trim()} เข้าร่วมทีมเรียบร้อยแล้ว`);
+      setTeamModalOpen(false);
+      setNotice(`ส่งคำเชิญให้ @${cleanUsername} เข้าร่วมทีมเรียบร้อยแล้ว`);
       await loadTeam();
     } catch (err: any) {
       setConfirmDialog({
         isOpen: true,
-        title: "เกิดข้อผิดพลาดในการส่งคำเชิญ",
+        title: "ไม่สามารถส่งคำเชิญได้",
         message: err.message || "ไม่สามารถส่งคำเชิญได้ กรุณาตรวจสอบชื่อผู้ใช้งาน (Username) และลองใหม่อีกครั้ง",
         tone: "danger",
-        confirmLabel: "รับทราบ",
+        confirmLabel: "เข้าใจแล้ว",
         onConfirm: closeConfirmDialog,
       });
     } finally {
       setInviting(false);
     }
+  };
+
+  const handleCancelInvitation = (id: string, name: string, username?: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "ยืนยันยกเลิกคำขอเชิญเข้าร่วมทีม",
+      message: (
+        <div className="text-left space-y-2.5">
+          <p className="text-center text-gray-700">
+            ท่านต้องการยกเลิกคำขอเชิญคุณ <strong className="text-gray-900 font-semibold">"{name || username || "สมาชิก"}"</strong> {username ? `(@${username})` : ""} ใช่หรือไม่?
+          </p>
+          <div className="bg-amber-50/80 border border-amber-200/70 p-3 rounded-xl text-[11px] text-amber-900 leading-relaxed text-center">
+            คำขอเข้าร่วมทีมจะถูกยกเลิกทันที และพนักงานจะไม่สามารถกดตอบรับคำเชิญนี้ได้อีก
+          </div>
+        </div>
+      ),
+      tone: "danger",
+      confirmLabel: "ยืนยันยกเลิกคำขอ",
+      cancelLabel: "ยกเลิก",
+      onCancel: closeConfirmDialog,
+      onConfirm: async () => {
+        try {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+          await removeTeamMember(id);
+          closeConfirmDialog();
+          setNotice(`ยกเลิกคำขอเชิญ "${name || username || ""}" เรียบร้อยแล้ว`);
+          await loadTeam();
+        } catch (err: any) {
+          setConfirmDialog({
+            isOpen: true,
+            title: "ไม่สามารถยกเลิกคำขอได้",
+            message: err.message || "เกิดข้อผิดพลาดในการยกเลิกคำขอ กรุณาลองใหม่อีกครั้ง",
+            tone: "danger",
+            confirmLabel: "ตกลง",
+            onConfirm: closeConfirmDialog,
+          });
+        }
+      },
+    });
   };
 
   const handleRemoveMember = (id: string, name: string, username?: string) => {
@@ -2610,78 +2680,98 @@ export default function TasksPage() {
                             </div>
                           </div>
 
-                          {/* 4 Actions Required by User */}
+                          {/* Actions: If pending, ONLY show "ยกเลิกคำขอ" button */}
                           <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-auto">
-                            {/* 1. เพิ่มงาน */}
-                            <Link
-                              href={`/tasks/new?assignee=${encodeURIComponent(m.subordinate_public_id)}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-govblue-700 hover:bg-govblue-800 shadow-xs transition"
-                              title={t("มอบหมายงานใหม่ให้พนักงานคนนี้", "Assign new task")}
-                            >
-                              <Plus size={14} className="stroke-[2.5]" />
-                              <span>{t("เพิ่มงาน", "New Task")}</span>
-                            </Link>
+                            {m.status === "pending" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCancelInvitation(
+                                    m.subordinate_public_id,
+                                    m.subordinate_name || m.subordinate_username || "",
+                                    m.subordinate_username
+                                  )
+                                }
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-xs transition"
+                                title={t("ยกเลิกคำขอเชิญเข้าร่วมทีม", "Cancel invitation request")}
+                              >
+                                <X size={14} className="stroke-[2.5]" />
+                                <span>{t("ยกเลิกคำขอ", "Cancel Request")}</span>
+                              </button>
+                            ) : (
+                              <>
+                                {/* 1. เพิ่มงาน */}
+                                <Link
+                                  href={`/tasks/new?assignee=${encodeURIComponent(m.subordinate_public_id)}`}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-govblue-700 hover:bg-govblue-800 shadow-xs transition"
+                                  title={t("มอบหมายงานใหม่ให้พนักงานคนนี้", "Assign new task")}
+                                >
+                                  <Plus size={14} className="stroke-[2.5]" />
+                                  <span>{t("เพิ่มงาน", "New Task")}</span>
+                                </Link>
 
-                            {/* 2. ดูงานที่กำลังทำอยู่ */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setMemberTasksModal({
-                                  isOpen: true,
-                                  member: m,
-                                  mode: "active",
-                                })
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
-                              title={t("ดูงานที่กำลังทำอยู่", "View current tasks")}
-                            >
-                              <Briefcase size={13} className="text-amber-700" />
-                              <span>{t("งานที่ทำอยู่", "Active Tasks")}</span>
-                              {activeTasks.length > 0 && (
-                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
-                                  {activeTasks.length}
-                                </span>
-                              )}
-                            </button>
+                                {/* 2. ดูงานที่กำลังทำอยู่ */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setMemberTasksModal({
+                                      isOpen: true,
+                                      member: m,
+                                      mode: "active",
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+                                  title={t("ดูงานที่กำลังทำอยู่", "View current tasks")}
+                                >
+                                  <Briefcase size={13} className="text-amber-700" />
+                                  <span>{t("งานที่ทำอยู่", "Active Tasks")}</span>
+                                  {activeTasks.length > 0 && (
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
+                                      {activeTasks.length}
+                                    </span>
+                                  )}
+                                </button>
 
-                            {/* 3. ดูประวัติการทำงานของแต่ละคน */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setMemberTasksModal({
-                                  isOpen: true,
-                                  member: m,
-                                  mode: "history",
-                                })
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition"
-                              title={t("ดูประวัติการทำงาน", "View work history")}
-                            >
-                              <History size={13} className="text-gray-600" />
-                              <span>{t("ประวัติงาน", "History")}</span>
-                              {historyTasks.length > 0 && (
-                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-600 text-white">
-                                  {historyTasks.length}
-                                </span>
-                              )}
-                            </button>
+                                {/* 3. ดูประวัติการทำงานของแต่ละคน */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setMemberTasksModal({
+                                      isOpen: true,
+                                      member: m,
+                                      mode: "history",
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition"
+                                  title={t("ดูประวัติการทำงาน", "View work history")}
+                                >
+                                  <History size={13} className="text-gray-600" />
+                                  <span>{t("ประวัติงาน", "History")}</span>
+                                  {historyTasks.length > 0 && (
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-600 text-white">
+                                      {historyTasks.length}
+                                    </span>
+                                  )}
+                                </button>
 
-                            {/* 4. ลบออกจากทีมสังกัด */}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleRemoveMember(
-                                  m.subordinate_public_id,
-                                  m.subordinate_name || m.subordinate_username || "",
-                                  m.subordinate_username
-                                )
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
-                              title={t("ลบออกจากทีมสังกัด", "Remove from team")}
-                            >
-                              <UserMinus size={13} className="text-rose-600" />
-                              <span>{t("ลบออกจากทีม", "Remove")}</span>
-                            </button>
+                                {/* 4. ลบออกจากทีมสังกัด */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRemoveMember(
+                                      m.subordinate_public_id,
+                                      m.subordinate_name || m.subordinate_username || "",
+                                      m.subordinate_username
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                                  title={t("ลบออกจากทีมสังกัด", "Remove from team")}
+                                >
+                                  <UserMinus size={13} className="text-rose-600" />
+                                  <span>{t("ลบออกจากทีม", "Remove")}</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       );
@@ -3936,14 +4026,32 @@ export default function TasksPage() {
                                   ? "✕ ปฏิเสธ"
                                   : "⏳ รอการตอบรับ"}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "", m.subordinate_username)}
-                                className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
-                                title="นำออกจากทีม"
-                              >
-                                <X size={14} />
-                              </button>
+                              {m.status === "pending" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCancelInvitation(
+                                      m.subordinate_public_id,
+                                      m.subordinate_name || m.subordinate_username || "",
+                                      m.subordinate_username
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[11px] font-medium border border-rose-200 transition"
+                                  title="ยกเลิกคำขอ"
+                                >
+                                  <X size={12} className="stroke-[2.5]" />
+                                  <span>ยกเลิกคำขอ</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveMember(m.subordinate_public_id, m.subordinate_name || m.subordinate_username || "", m.subordinate_username)}
+                                  className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition"
+                                  title="นำออกจากทีม"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

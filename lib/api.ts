@@ -864,7 +864,7 @@ export function notifyDataUpdated() {
   }
 }
 
-const TEAM_STORAGE_KEY = "ams_mock_team_members";
+const TEAM_STORAGE_KEY = "ams_mock_team_members_v3";
 
 const DEFAULT_MOCK_TEAM: TeamMember[] = [
   {
@@ -920,7 +920,15 @@ function getLocalTeam(): TeamMember[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= 4) {
-        return parsed.filter((m) => m && typeof m === "object");
+        // ให้แน่ใจว่าสมาชิกหลัก 4 คนเริ่มต้นเป็น accepted เสมอ ไม่ถูกดึงซ้ำเป็น pending
+        return parsed
+          .filter((m) => m && typeof m === "object")
+          .map((m) => {
+            if (["normal", "officer2", "officer3", "officer4"].includes(m.subordinate_username)) {
+              return { ...m, status: "accepted" as const };
+            }
+            return m;
+          });
       }
     }
   } catch {}
@@ -935,30 +943,45 @@ function saveLocalTeam(list: TeamMember[]) {
 }
 
 export async function inviteToTeam(username: string): Promise<void> {
-  if (!API_CONFIGURED) {
-    const local = getLocalTeam();
-    const all = Array.isArray(local) ? [...local] : [];
-    const cur = getCurrentUser();
-    const existing = all.find((m) => m && m.subordinate_username === username);
-    if (existing) {
-      existing.status = "pending";
-      existing.invited_at = new Date().toISOString();
-    } else {
-      all.unshift({
-        supervisor_public_id: cur?.public_id || "mock-leader",
-        supervisor_name: cur?.display_name || "หัวหน้างานสำรวจ",
-        subordinate_public_id: "mock-" + username,
-        subordinate_name: username === "normal" ? "เจ้าหน้าที่สำรวจ (Demo)" : username,
-        subordinate_username: username,
-        status: "pending",
-        invited_at: new Date().toISOString(),
-      });
+  const cleanUsername = username.trim().toLowerCase().replace(/^@/, "");
+  if (!cleanUsername) return;
+
+  const local = getLocalTeam();
+  const existing = local.find(
+    (m) => (m.subordinate_username || "").toLowerCase() === cleanUsername
+  );
+  if (existing) {
+    if (existing.status === "accepted") {
+      throw new Error(`@${cleanUsername} เป็นสมาชิกในสังกัดอยู่แล้ว ไม่สามารถส่งคำเชิญซ้ำได้`);
+    } else if (existing.status === "pending") {
+      throw new Error(`@${cleanUsername} มีคำเชิญอยู่แล้วและอยู่ระหว่างรอการตอบรับ`);
     }
-    saveLocalTeam(all);
+  }
+
+  if (API_CONFIGURED) {
+    await api("/api/team/invite", { method: "POST", json: { username: cleanUsername } });
     notifyDataUpdated();
     return;
   }
-  await api("/api/team/invite", { method: "POST", json: { username } });
+
+  const all = [...local];
+  const cur = getCurrentUser();
+  const allUsers = getLocalUsers();
+  const targetUser = allUsers.find(
+    (u) => (u.username || "").toLowerCase() === cleanUsername
+  );
+
+  all.unshift({
+    supervisor_public_id: cur?.public_id || "usr-leader",
+    supervisor_name: cur?.display_name || "หัวหน้างานสำรวจ",
+    supervisor_username: cur?.username || "leader",
+    subordinate_public_id: targetUser?.public_id || "mock-" + cleanUsername,
+    subordinate_name: targetUser?.display_name || (cleanUsername === "officer5" ? "นายกิตติศักดิ์ ช่างสำรวจอิสระ (รอย้ายเข้าสังกัด)" : cleanUsername),
+    subordinate_username: cleanUsername,
+    status: "pending",
+    invited_at: new Date().toISOString(),
+  });
+  saveLocalTeam(all);
   notifyDataUpdated();
 }
 

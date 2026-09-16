@@ -77,8 +77,18 @@ function NewTaskContent() {
         api<AppUser[]>("/api/users?role=subordinate").catch(() => [] as AppUser[]),
       ]).then(([myTeam, allSubordinates]) => {
         const safeTeam = Array.isArray(myTeam) ? myTeam : [];
-        const safeSubordinates = Array.isArray(allSubordinates) ? allSubordinates : [];
         const acceptedMembers = safeTeam.filter((m) => m && m.status === "accepted");
+        const pendingMember = safeTeam.find(
+          (m) => m && m.status === "pending" && m.subordinate_public_id === qAssignee
+        );
+        if (pendingMember) {
+          setErr(
+            th
+              ? `ไม่สามารถมอบหมายงานให้ ${pendingMember.subordinate_name || pendingMember.subordinate_username} ได้ เนื่องจากยังอยู่ระหว่างรอการตอบรับคำเชิญเข้าร่วมทีม`
+              : `Cannot assign task to ${pendingMember.subordinate_name || pendingMember.subordinate_username}: invitation is still pending acceptance.`
+          );
+        }
+
         // 1. เพิ่มตัวเลือกให้หัวหน้าสั่งงานตัวเองเพื่อลงสำรวจเองได้
         const selfOption: AppUser = {
           public_id: me.public_id,
@@ -90,35 +100,22 @@ function NewTaskContent() {
           created_at: "",
         };
 
-        if (acceptedMembers.length > 0) {
-          setIsTeamAssignee(true);
-          const teamUsers: AppUser[] = acceptedMembers.map((m) => ({
-            public_id: m.subordinate_public_id,
-            username: m.subordinate_username || "",
-            display_name: m.subordinate_name || m.subordinate_username || "สมาชิกทีม",
-            role: "subordinate",
-            status: "active",
-            picture_url: null,
-            created_at: "",
-          }));
-          const combined = [selfOption, ...teamUsers];
-          setUsers(combined);
-          if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
-            setAssignee(qAssignee);
-          } else {
-            setAssignee(teamUsers[0]?.public_id || selfOption.public_id);
-          }
+        setIsTeamAssignee(true);
+        const teamUsers: AppUser[] = acceptedMembers.map((m) => ({
+          public_id: m.subordinate_public_id,
+          username: m.subordinate_username || "",
+          display_name: m.subordinate_name || m.subordinate_username || "สมาชิกทีม",
+          role: "subordinate",
+          status: "active",
+          picture_url: null,
+          created_at: "",
+        }));
+        const combined = [selfOption, ...teamUsers];
+        setUsers(combined);
+        if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
+          setAssignee(qAssignee);
         } else {
-          setIsTeamAssignee(false);
-          const combined = [selfOption, ...safeSubordinates];
-          setUsers(combined);
-          if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
-            setAssignee(qAssignee);
-          } else if (safeSubordinates.length > 0) {
-            setAssignee(safeSubordinates[0]?.public_id || selfOption.public_id);
-          } else {
-            setAssignee(selfOption.public_id);
-          }
+          setAssignee(teamUsers[0]?.public_id || selfOption.public_id);
         }
       });
     }
