@@ -212,8 +212,8 @@ export function Topbar() {
         </div>
       </div>
 
-      {/* Row 3: nav menu (ซ่อนสำหรับพนักงานบัญชี ให้แสดงเฉพาะหน้าคำนวณภาษี) */}
-      {user?.role !== "accountant" && navItems.length > 0 && (
+      {/* Row 3: nav menu (ซ่อนสำหรับพนักงานบัญชี และกรณีที่มีเมนูเดียว) */}
+      {user?.role !== "accountant" && navItems.length > 1 && (
         <nav className="bg-gray-50 border-t border-gray-200">
           <div className="mx-auto max-w-7xl px-2 sm:px-6 flex overflow-x-auto">
             {navItems.map((it) => {

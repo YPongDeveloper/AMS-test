@@ -1743,7 +1743,7 @@ export default function TasksPage() {
                     }`}
                   />
                   {wsOn
-                    ? t("Real-time ออนไลน์", "Realtime connected")
+                    ? t("ออนไลน์", "Online")
                     : t("กำลังเชื่อมต่อระบบ...", "Connecting...")}
                 </span>
               </p>
@@ -2399,7 +2399,7 @@ export default function TasksPage() {
                           : t("ยังไม่มีงานที่ได้รับมอบหมายในวันที่เลือก", "No assigned tasks for this date")}
                       </p>
                       <p className="text-xs text-gray-400 mt-1 mb-4">
-                        งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบ Real-time
+                        งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบอัตโนมัติ
                       </p>
                       <button
                         type="button"
