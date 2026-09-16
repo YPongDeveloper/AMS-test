@@ -1066,13 +1066,13 @@ export default function TaxPage() {
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                   onClick={exportCSV}
                 >
-                  <Download size={13} /> {t("exportCSV")}
+                  <Download size={13} className="shrink-0" /> {t("exportCSV")}
                 </Btn>
                 <Btn
                   onClick={() => setConsolidatedInvoiceOpen(true)}
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                 >
-                  <Printer size={13} /> {t("printReport")}
+                  <Printer size={13} className="shrink-0" /> {t("printReport")}
                 </Btn>
               </div>
             </div>
@@ -1101,7 +1101,7 @@ export default function TaxPage() {
                       : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
                   }`}
                 >
-                  <TreePine size={13} />
+                  <TreePine size={13} className="shrink-0" />
                   {t("landFilter")} ({consolidatedStats.allItems.filter((i) => i.type === "land").length})
                 </button>
                 <button
@@ -1113,7 +1113,7 @@ export default function TaxPage() {
                       : "bg-blue-50 text-blue-800 hover:bg-blue-100"
                   }`}
                 >
-                  <Building2 size={13} />
+                  <Building2 size={13} className="shrink-0" />
                   {t("bldgFilter")} ({consolidatedStats.allItems.filter((i) => i.type === "building").length})
                 </button>
               </div>

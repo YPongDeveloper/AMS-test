@@ -841,14 +841,14 @@ export default function BuildingPage() {
                         onClick={() => setDetailBuilding(b)}
                         className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-govblue-800 bg-govblue-50 hover:bg-govblue-100 rounded-lg border border-govblue-200 transition"
                       >
-                        <Eye size={13} /> <span>ดูรายละเอียด</span>
+                        <Eye size={13} className="shrink-0" /> <span>ดูรายละเอียด</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setTaxInvoiceBuilding(b)}
                         className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-white bg-govblue-800 hover:bg-govblue-900 rounded-lg shadow-2xs transition"
                       >
-                        <Printer size={13} /> <span>พิมพ์ใบภาษี</span>
+                        <Printer size={13} className="shrink-0" /> <span>พิมพ์ใบภาษี</span>
                       </button>
                       <button
                         type="button"
@@ -856,7 +856,7 @@ export default function BuildingPage() {
                         className="inline-flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition"
                         title="สร้างคำร้องขอแก้ไข"
                       >
-                        <AlertCircle size={13} /> <span>ขอแก้ไข</span>
+                        <AlertCircle size={13} className="shrink-0" /> <span>ขอแก้ไข</span>
                       </button>
                       {currentUser?.role === "admin" && (
                         <div className="flex items-center gap-1">
@@ -866,7 +866,7 @@ export default function BuildingPage() {
                             className="p-2 text-govblue-700 hover:bg-govblue-50 rounded-lg border border-gray-200"
                             title="แก้ไข"
                           >
-                            <Edit2 size={13} />
+                            <Edit2 size={13} className="shrink-0" />
                           </button>
                           <button
                             type="button"

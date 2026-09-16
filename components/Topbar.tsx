@@ -274,18 +274,18 @@ export function Topbar() {
                   <img
                     src={user.picture_url}
                     alt=""
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-2 ring-white/30"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover shadow-sm ring-2 ring-white/30 shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govgold-400 to-govgold-600 flex items-center justify-center text-govblue-950 text-sm font-bold shadow-sm ring-2 ring-white/20">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-govgold-400 to-govgold-600 flex items-center justify-center text-govblue-950 text-sm font-bold shadow-sm ring-2 ring-white/20 shrink-0">
                     {user?.display_name ? user.display_name.charAt(0) : <User size={16} />}
                   </div>
                 )}
-                <div className="hidden sm:block text-left leading-tight">
+                <div className="hidden sm:block text-left leading-tight min-w-0">
                   <div className="text-xs font-semibold text-white truncate max-w-[140px]">{displayName}</div>
-                  <div className="text-[10px] text-blue-200">{roleLabel}</div>
+                  <div className="text-[10px] text-blue-200 truncate max-w-[140px]">{roleLabel}</div>
                 </div>
-                <ChevronDown size={14} className={`text-blue-200 transition ${menuOpen ? "rotate-180" : ""}`} />
+                <ChevronDown size={14} className={`text-blue-200 transition shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
               </button>
 
               {menuOpen && (

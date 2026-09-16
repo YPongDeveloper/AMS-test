@@ -372,11 +372,11 @@ export default function AdminPage() {
                         <img
                           src={u.picture_url}
                           alt=""
-                          className="w-11 h-11 rounded-full object-cover ring-2 ring-govblue-200"
+                          className="w-11 h-11 rounded-full object-cover ring-2 ring-govblue-200 shrink-0"
                         />
                       ) : (
                         <div
-                          className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm ${
+                          className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                             u.role === "accountant"
                               ? "bg-emerald-100 text-emerald-700"
                               : u.role === "admin"
@@ -388,13 +388,13 @@ export default function AdminPage() {
                         </div>
                       )}
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-semibold text-gray-900 truncate max-w-[200px] sm:max-w-xs block">
                             {u.display_name}
                           </span>
                           {isSelf && (
-                            <span className="text-[10px] bg-govblue-50 text-govblue-700 px-2 py-0.5 rounded-full font-medium border border-govblue-200">
+                            <span className="text-[10px] bg-govblue-50 text-govblue-700 px-2 py-0.5 rounded-full font-medium border border-govblue-200 shrink-0">
                               {t("คุณเอง", "You")}
                             </span>
                           )}
