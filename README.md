@@ -131,5 +131,10 @@ npm start
 
 ---
 
-## 📄 License
-This project is developed for asset and tax surveying demonstration and enterprise management showcase.
+## 📄 ผู้พัฒนาและสัญญาอนุญาต (Developer & License)
+
+- **Developer**: Mr. Pongsakorn Yimsuk-anan (`mr.pongsakorn yimsuk-anan`)
+- **Role**: Lead Full-Stack Developer & Software Architect
+- **Copyright**: © 2026 Mr. Pongsakorn Yimsuk-anan. All rights reserved.
+- **License**: Proprietary / Private Enterprise Showcase  
+  ระบบนี้พัฒนาขึ้นโดย **Mr. Pongsakorn Yimsuk-anan (Developer)** สำหรับการสาธิตระบบบริหารจัดการทรัพย์สิน การสำรวจภาคสนาม และการคำนวณภาษีที่ดินและสิ่งปลูกสร้าง (State Railway of Thailand Asset & Tax Management System - AMS Showcase) ห้ามทำซ้ำ ดัดแปลง หรือนำไปใช้ในเชิงพาณิชย์โดยไม่ได้รับอนุญาตจากผู้พัฒนา

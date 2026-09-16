@@ -282,19 +282,19 @@ export function Topbar() {
                   </div>
                 )}
                 <div className="hidden sm:block text-left leading-tight min-w-0">
-                  <div className="text-xs font-semibold text-white truncate max-w-[140px]">{displayName}</div>
-                  <div className="text-[10px] text-blue-200 truncate max-w-[140px]">{roleLabel}</div>
+                  <div className="text-xs font-semibold text-white truncate max-w-[180px] md:max-w-[260px] lg:max-w-[360px]">{displayName}</div>
+                  <div className="text-[10px] text-blue-200 truncate max-w-[180px] md:max-w-[260px] lg:max-w-[360px]">{roleLabel}</div>
                 </div>
                 <ChevronDown size={14} className={`text-blue-200 transition shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100 text-gray-800">
+                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100 text-gray-800">
                   {/* User Header */}
                   <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
-                    <div className="text-sm font-bold text-gray-900 truncate">{displayName}</div>
-                    <div className="text-xs text-govblue-700 font-medium flex items-center gap-1 mt-0.5">
-                      <RoleIcon size={13} className="text-govblue-600" />
+                    <div className="text-sm font-bold text-gray-900 leading-snug break-words">{displayName}</div>
+                    <div className="text-xs text-govblue-700 font-medium flex items-center gap-1 mt-1 flex-wrap">
+                      <RoleIcon size={13} className="text-govblue-600 shrink-0" />
                       <span>{roleLabel}</span>
                       <span className="text-gray-400 font-normal">(@{user?.username || "user"})</span>
                     </div>
