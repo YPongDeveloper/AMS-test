@@ -28,6 +28,8 @@ import {
   saveCurrentUser,
   updateUser,
   resetUserPassword,
+  loginWithPassword,
+  API_CONFIGURED,
   logout,
   type AppUser,
 } from "@/lib/api";
@@ -53,6 +55,8 @@ export function Topbar() {
 
   // Password Modal State
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -144,12 +148,16 @@ export function Topbar() {
     setPasswordError(null);
     setPasswordNotice(null);
 
+    if (!currentPassword) {
+      setPasswordError(th ? "กรุณากรอกรหัสผ่านปัจจุบัน" : "Please enter your current password");
+      return;
+    }
     if (!newPassword) {
       setPasswordError(th ? "กรุณาระบุรหัสผ่านใหม่" : "Please enter a new password");
       return;
     }
     if (newPassword.length < 4) {
-      setPasswordError(th ? "รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร" : "Password must be at least 4 characters");
+      setPasswordError(th ? "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร" : "Password must be at least 4 characters");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -159,8 +167,18 @@ export function Topbar() {
 
     setPasswordSaving(true);
     try {
+      if (API_CONFIGURED && user.username) {
+        try {
+          await loginWithPassword(user.username, currentPassword);
+        } catch {
+          setPasswordError(th ? "รหัสผ่านปัจจุบันไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง" : "Current password is incorrect. Please try again.");
+          setPasswordSaving(false);
+          return;
+        }
+      }
       await resetUserPassword(user.public_id, newPassword);
       setPasswordNotice(th ? "เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว" : "Password changed successfully");
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setTimeout(() => {
@@ -504,6 +522,31 @@ export function Topbar() {
               <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200 text-xs text-gray-600 flex items-center justify-between">
                 <span>{th ? "บัญชีผู้ใช้:" : "Account:"}</span>
                 <span className="font-bold text-gray-900 font-mono">@{user?.username}</span>
+              </div>
+
+              {/* Current Password */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-xs">
+                  {th ? "รหัสผ่านปัจจุบัน" : "Current Password"}
+                  <span className="text-rose-500 ml-0.5">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder={th ? "กรอกรหัสผ่านปัจจุบันเพื่อยืนยันตัวตน" : "Enter your current password"}
+                    required
+                    className="w-full px-3 py-2 pr-9 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    {showCurrentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
 
               {/* New Password */}

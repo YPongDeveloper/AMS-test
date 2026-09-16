@@ -34,6 +34,7 @@ import {
 import LandDetailModal from "@/components/LandDetailModal";
 import BuildingDetailModal from "@/components/BuildingDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
+import ConsolidatedTaxInvoiceModal from "@/components/ConsolidatedTaxInvoiceModal";
 import SurveyAreaModal, { type SurveyAreaModalData } from "@/components/SurveyAreaModal";
 import { computePolygonAreaSqm } from "@/components/SurveyPolygonMap";
 import {
@@ -98,6 +99,7 @@ export default function TaxPage() {
   const [detailBuilding, setDetailBuilding] = useState<Building | null>(null);
   const [taxInvoiceLand, setTaxInvoiceLand] = useState<LandParcel | null>(null);
   const [taxInvoiceBuilding, setTaxInvoiceBuilding] = useState<Building | null>(null);
+  const [consolidatedInvoiceOpen, setConsolidatedInvoiceOpen] = useState(false);
   const [surveyModalData, setSurveyModalData] = useState<SurveyAreaModalData | null>(null);
 
   // Revision Request Modal State (ทำเรื่องขอแก้ไข / สำรวจใหม่)
@@ -1020,8 +1022,8 @@ export default function TaxPage() {
       ) : (
         /* โหมดรายงานสรุปภาพรวมทั้งพอร์ต (Consolidated Portfolio Tax Report) */
         <div className="space-y-4">
-          {/* Top 4 Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Top 4 Stat Cards (Hidden on mobile) */}
+          <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               label={t("totalLandParcels")}
               value={`${consolidatedStats.allItems.filter((i) => i.type === "land").length} ${t("unitParcel")}`}
@@ -1056,14 +1058,9 @@ export default function TaxPage() {
                   <Landmark size={16} className="text-govblue-700 shrink-0" />
                   {t("taxLedgerTitle")}
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {lang === "en"
-                    ? `Tax Year ${taxYear === "2569" ? "2026" : taxYear} • ${consolidatedStats.allItems.filter((i) => i.type === "land").length} Land parcels • ${consolidatedStats.allItems.filter((i) => i.type === "building").length} Buildings (Total ${consolidatedStats.allItems.length} items)`
-                    : `ประจำปี ${taxYear} • ที่ดิน ${consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง • สิ่งปลูกสร้าง ${consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง (รวมทั้งสิ้น ${consolidatedStats.allItems.length} รายการ)`}
-                </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
                 <Btn
                   variant="secondary"
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
@@ -1072,7 +1069,7 @@ export default function TaxPage() {
                   <Download size={13} /> {t("exportCSV")}
                 </Btn>
                 <Btn
-                  onClick={() => window.print()}
+                  onClick={() => setConsolidatedInvoiceOpen(true)}
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                 >
                   <Printer size={13} /> {t("printReport")}
@@ -1438,6 +1435,20 @@ export default function TaxPage() {
         onClose={() => setTaxInvoiceBuilding(null)}
         targetType="building"
         building={taxInvoiceBuilding}
+      />
+
+      {/* Consolidated Tax Invoice Modal for Whole Portfolio */}
+      <ConsolidatedTaxInvoiceModal
+        isOpen={consolidatedInvoiceOpen}
+        onClose={() => setConsolidatedInvoiceOpen(false)}
+        taxYear={taxYear}
+        items={consolidatedStats.allItems}
+        totalLandVal={consolidatedStats.totalLandVal}
+        totalBldgVal={consolidatedStats.totalBldgVal}
+        totalBase={consolidatedStats.totalBase}
+        totalLandTx={consolidatedStats.totalLandTx}
+        totalBldgTx={consolidatedStats.totalBldgTx}
+        grandTotalTx={consolidatedStats.grandTotalTx}
       />
 
       {/* Survey Area & Photos Modal */}

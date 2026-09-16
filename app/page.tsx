@@ -30,13 +30,7 @@ export default function LoginPage() {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const r = sp.get("reason");
-      if (r === "unauthenticated") {
-        setReasonMsg(
-          lang === "th"
-            ? "กรุณาเข้าสู่ระบบก่อนทำรายการ (ตรวจไม่พบ Access Token / Refresh Token)"
-            : "Please sign in first (Access Token / Refresh Token missing)"
-        );
-      } else if (r === "session_expired") {
+      if (r === "session_expired") {
         setReasonMsg(
           lang === "th"
             ? "เซสชันการใช้งานของคุณหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่เพื่อความปลอดภัย"
@@ -45,7 +39,7 @@ export default function LoginPage() {
       } else if (r === "unauthorized") {
         setReasonMsg(
           lang === "th"
-            ? "บัญชีของคุณไม่มีสิทธิ์เข้าถึงหน้านั้น (Broken Access Control Protected)"
+            ? "บัญชีของคุณไม่มีสิทธิ์เข้าถึงหน้านั้น"
             : "Access denied: your role does not have permission for that resource."
         );
       }
