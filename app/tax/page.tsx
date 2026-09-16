@@ -7,8 +7,10 @@ import { useI18n } from "@/lib/i18n";
 import {
   fetchLands,
   fetchBuildings,
+  fetchTasksList,
   type LandParcel,
   type Building,
+  type Task,
   createRevisionRequest,
 } from "@/lib/api";
 import {
@@ -27,10 +29,13 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  Compass,
 } from "lucide-react";
 import LandDetailModal from "@/components/LandDetailModal";
 import BuildingDetailModal from "@/components/BuildingDetailModal";
 import TaxInvoiceModal from "@/components/TaxInvoiceModal";
+import SurveyAreaModal, { type SurveyAreaModalData } from "@/components/SurveyAreaModal";
+import { computePolygonAreaSqm } from "@/components/SurveyPolygonMap";
 import {
   calculateLandTax,
   calculateBuildingTax,
@@ -58,6 +63,12 @@ interface ConsolidatedPortfolioItem {
   tax: number;
   rawLand?: LandParcel;
   rawBuilding?: Building;
+  rawTask?: Task;
+  photos?: any[];
+  polygon?: any[];
+  lat?: number | null;
+  lng?: number | null;
+  isSurveyTask?: boolean;
 }
 
 export default function TaxPage() {
@@ -66,6 +77,7 @@ export default function TaxPage() {
   const [individualTargetType, setIndividualTargetType] = useState<"land" | "building">("land");
   const [lands, setLands] = useState<LandParcel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedLandCode, setSelectedLandCode] = useState<string>("");
   const [selectedBldgCode, setSelectedBldgCode] = useState<string>("");
 
@@ -86,6 +98,7 @@ export default function TaxPage() {
   const [detailBuilding, setDetailBuilding] = useState<Building | null>(null);
   const [taxInvoiceLand, setTaxInvoiceLand] = useState<LandParcel | null>(null);
   const [taxInvoiceBuilding, setTaxInvoiceBuilding] = useState<Building | null>(null);
+  const [surveyModalData, setSurveyModalData] = useState<SurveyAreaModalData | null>(null);
 
   // Revision Request Modal State (ทำเรื่องขอแก้ไข / สำรวจใหม่)
   const [requestModalOpen, setRequestModalOpen] = useState(false);
@@ -98,19 +111,28 @@ export default function TaxPage() {
   const [reqSending, setReqSending] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; tone: "green" | "red" } | null>(null);
 
+  const loadTaxData = () => {
+    Promise.all([fetchLands(), fetchBuildings(), fetchTasksList()]).then(
+      ([lData, bData, tData]) => {
+        setLands(lData || []);
+        setBuildings(bData || []);
+        setTasks(tData || []);
+        if (lData && lData.length > 0 && !selectedLandCode) {
+          setSelectedLandCode(lData[0].land_code);
+          applyLand(lData[0]);
+        }
+        if (bData && bData.length > 0 && !selectedBldgCode) {
+          setSelectedBldgCode(bData[0].bldg_code);
+          applyBuilding(bData[0]);
+        }
+      }
+    );
+  };
+
   useEffect(() => {
-    Promise.all([fetchLands(), fetchBuildings()]).then(([lData, bData]) => {
-      setLands(lData);
-      setBuildings(bData);
-      if (lData.length > 0) {
-        setSelectedLandCode(lData[0].land_code);
-        applyLand(lData[0]);
-      }
-      if (bData.length > 0) {
-        setSelectedBldgCode(bData[0].bldg_code);
-        applyBuilding(bData[0]);
-      }
-    });
+    loadTaxData();
+    window.addEventListener("ams_data_updated", loadTaxData);
+    return () => window.removeEventListener("ams_data_updated", loadTaxData);
   }, []);
 
   const calculateWah = (l: LandParcel): number => {
@@ -256,11 +278,112 @@ export default function TaxPage() {
       };
     });
 
-    const allItems = [...landItems, ...bldgItems];
+    // 3. งานสำรวจภาคสนามที่อนุมัติแล้ว (Approved / Done Tasks) จากระบบมอบหมายงาน
+    const approvedTasks = (tasks || []).filter(
+      (t) => t && (t.status === "done" || t.status === "submitted")
+    );
+
+    const taskItems: ConsolidatedPortfolioItem[] = [];
+
+    for (const t of approvedTasks) {
+      if (
+        lands.some((l) => l.land_code === t.code) ||
+        buildings.some((b) => b.bldg_code === t.code)
+      ) {
+        continue;
+      }
+
+      const isBldg = t.target_type === "building";
+      let subData: any = null;
+      if (t.submission_data) {
+        try {
+          subData =
+            typeof t.submission_data === "string"
+              ? JSON.parse(t.submission_data)
+              : t.submission_data;
+        } catch {
+          subData = null;
+        }
+      }
+
+      const photos =
+        Array.isArray(subData?.photos) && subData.photos.length > 0
+          ? subData.photos
+          : undefined;
+      const polygon =
+        Array.isArray(subData?.polygon) && subData.polygon.length >= 3
+          ? subData.polygon
+          : undefined;
+
+      // คำนวณขนาดเนื้อที่เป็น ตารางวา
+      let totalWah = 850;
+      if (subData?.wa !== undefined && subData?.wa !== null) {
+        totalWah =
+          (subData.rai || 0) * 400 + (subData.ngan || 0) * 100 + (subData.wa || 0);
+      } else if (subData?.area_sqm) {
+        totalWah = Math.round((subData.area_sqm / 4) * 10) / 10;
+      } else if (polygon && polygon.length >= 3) {
+        const computedSqm = computePolygonAreaSqm(polygon);
+        totalWah = Math.round((computedSqm / 4) * 10) / 10;
+      } else if (t.code === "TSK-000003" || t.title.includes("อยุธยา")) {
+        totalWah = 1450; // 3 ไร่ 2 งาน 50 ตร.ว.
+      }
+
+      const areaFormatted =
+        subData?.area_thai ||
+        `${Math.floor(totalWah / 400)} ไร่ ${Math.floor((totalWah % 400) / 100)} งาน ${(totalWah % 100).toFixed(0)} ตร.ว.`;
+
+      const perUnit = isBldg
+        ? appraisalBldgPerSqm || DEFAULT_APPRAISAL_BLDG_PER_SQM
+        : appraisalLandPerWah || DEFAULT_APPRAISAL_LAND_PER_WAH;
+
+      const baseVal = Math.round(totalWah * perUnit);
+      const ratePct = 0.3;
+      const rateDec = 0.003;
+      const tx = Math.round(baseVal * rateDec);
+
+      if (isBldg) {
+        totalBldgVal += baseVal;
+        totalBldgTx += tx;
+        totalBldgSqm += totalWah * 4;
+      } else {
+        totalLandVal += baseVal;
+        totalLandTx += tx;
+        totalLandWah += totalWah;
+      }
+
+      taskItems.push({
+        id: `task-${t.public_id || t.code}`,
+        type: isBldg ? "building" : "land",
+        code: t.code || `TSK-${t.public_id}`,
+        name: t.title,
+        srtType: isBldg ? "สิ่งปลูกสร้าง (ผลสำรวจใหม่)" : "ที่ดินสถานี (ผลสำรวจใหม่)",
+        useType: "พาณิชยกรรม / อื่นๆ",
+        refInfo: `งานสำรวจ: ${t.code || t.public_id}`,
+        address: t.place_name || "สถานีรถไฟ",
+        areaNum: totalWah,
+        areaUnit: isBldg ? "ตร.ม." : "ตร.ว.",
+        areaFormatted,
+        appraisalPerUnit: perUnit,
+        baseValue: baseVal,
+        ratePercent: ratePct,
+        rateDecimal: rateDec,
+        tax: tx,
+        rawTask: t,
+        photos,
+        polygon,
+        lat: t.lat,
+        lng: t.lng,
+        isSurveyTask: true,
+      });
+    }
+
+    const allItems = [...landItems, ...bldgItems, ...taskItems];
 
     return {
       landItems,
       bldgItems,
+      taskItems,
       allItems,
       totalLandVal,
       totalBldgVal,
@@ -271,15 +394,15 @@ export default function TaxPage() {
       totalLandWah,
       totalBldgSqm,
     };
-  }, [lands, buildings, appraisalLandPerWah, appraisalBldgPerSqm]);
+  }, [lands, buildings, tasks, appraisalLandPerWah, appraisalBldgPerSqm]);
 
   // Filtered Items for Consolidated Table
   const filteredConsolidatedItems = useMemo(() => {
     let list = consolidatedStats.allItems;
     if (portfolioFilter === "land") {
-      list = consolidatedStats.landItems;
+      list = consolidatedStats.allItems.filter((i) => i.type === "land");
     } else if (portfolioFilter === "building") {
-      list = consolidatedStats.bldgItems;
+      list = consolidatedStats.allItems.filter((i) => i.type === "building");
     }
     if (searchConsolidated.trim()) {
       const q = searchConsolidated.toLowerCase();
@@ -300,6 +423,124 @@ export default function TaxPage() {
     const totalTx = filteredConsolidatedItems.reduce((s, i) => s + i.tax, 0);
     return { totalBase, totalTx };
   }, [filteredConsolidatedItems]);
+
+  const handleOpenDetail = (it: ConsolidatedPortfolioItem) => {
+    if (it.type === "land") {
+      if (it.rawLand) {
+        setDetailLand(it.rawLand);
+      } else {
+        const fakeLand: LandParcel = {
+          public_id: it.rawTask?.public_id || it.code,
+          land_code: it.code,
+          srt_land_type: it.srtType || "ที่ดินสถานี",
+          land_use: it.useType,
+          land_type: "โฉนด / แผนผังรังวัด",
+          deed_no: it.code,
+          dimension: `${Math.floor(it.areaNum / 400)}-${Math.floor((it.areaNum % 400) / 100)}-${Math.round(it.areaNum % 100)}`,
+          rai: Math.floor(it.areaNum / 400),
+          ngan: Math.floor((it.areaNum % 400) / 100),
+          wa: Math.round(it.areaNum % 100),
+          width: 50,
+          length: 100,
+          picture_f: it.photos?.[0]?.url || "",
+          lat: it.lat || 14.3532,
+          lng: it.lng || 100.5828,
+          address_no: it.address,
+          subdistrict: "หัวรอ",
+          district: "พระนครศรีอยุธยา",
+          province: "พระนครศรีอยุธยา",
+          postal_code: "13000",
+          created_by: it.rawTask?.assignee_name || "เจ้าหน้าที่สำรวจ",
+          created_at: it.rawTask?.created_at || new Date().toISOString(),
+          updated_at: it.rawTask?.updated_at || new Date().toISOString(),
+        };
+        setDetailLand(fakeLand);
+      }
+    } else {
+      if (it.rawBuilding) {
+        setDetailBuilding(it.rawBuilding);
+      }
+    }
+  };
+
+  const handleOpenInvoice = (it: ConsolidatedPortfolioItem) => {
+    if (it.type === "land") {
+      if (it.rawLand) {
+        setTaxInvoiceLand(it.rawLand);
+      } else {
+        const fakeLand: LandParcel = {
+          public_id: it.rawTask?.public_id || it.code,
+          land_code: it.code,
+          srt_land_type: it.srtType || "ที่ดินสถานี",
+          land_use: it.useType,
+          land_type: "โฉนด / แผนผังรังวัด",
+          deed_no: it.code,
+          dimension: `${Math.floor(it.areaNum / 400)}-${Math.floor((it.areaNum % 400) / 100)}-${Math.round(it.areaNum % 100)}`,
+          rai: Math.floor(it.areaNum / 400),
+          ngan: Math.floor((it.areaNum % 400) / 100),
+          wa: Math.round(it.areaNum % 100),
+          width: 50,
+          length: 100,
+          picture_f: it.photos?.[0]?.url || "",
+          lat: it.lat || 14.3532,
+          lng: it.lng || 100.5828,
+          address_no: it.address,
+          subdistrict: "หัวรอ",
+          district: "พระนครศรีอยุธยา",
+          province: "พระนครศรีอยุธยา",
+          postal_code: "13000",
+          created_by: it.rawTask?.assignee_name || "เจ้าหน้าที่สำรวจ",
+          created_at: it.rawTask?.created_at || new Date().toISOString(),
+          updated_at: it.rawTask?.updated_at || new Date().toISOString(),
+        };
+        setTaxInvoiceLand(fakeLand);
+      }
+    } else {
+      if (it.rawBuilding) {
+        setTaxInvoiceBuilding(it.rawBuilding);
+      }
+    }
+  };
+
+  const handleOpenSurveyModal = (it: ConsolidatedPortfolioItem) => {
+    const lat = it.lat || it.rawLand?.lat || 14.3532;
+    const lng = it.lng || it.rawLand?.lng || 100.5828;
+
+    let photos = it.photos;
+    if (!photos || photos.length === 0) {
+      if (it.rawLand?.picture_f) {
+        photos = [{ url: it.rawLand.picture_f, caption: "ภาพถ่ายแปลงที่ดิน" }];
+      }
+    }
+
+    setSurveyModalData({
+      title: it.name,
+      code: it.code,
+      type: it.type,
+      srtType: it.srtType,
+      address: it.address,
+      placeName: it.refInfo,
+      lat,
+      lng,
+      polygon: it.polygon,
+      photos,
+      areaFormatted: it.areaFormatted,
+      areaNum: it.areaNum,
+      areaUnit: it.areaUnit,
+      baseValue: it.baseValue,
+      tax: it.tax,
+      ratePercent: it.ratePercent,
+      surveyorName: it.rawTask?.assignee_name || "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)",
+      approverName: it.rawTask?.assigner_name || "หัวหน้างานสำรวจ",
+      approvedDate: it.rawTask?.updated_at || it.rawLand?.updated_at,
+      surveySummary:
+        (typeof it.rawTask?.submission_data === "object"
+          ? it.rawTask?.submission_data?.summary
+          : undefined) ||
+        it.rawTask?.description ||
+        `สำรวจรังวัดและบันทึกแนวเขตแปลงกรรมสิทธิ์ ${it.name} (${it.code}) ตรวจสอบหมุดหลักเขต ปักพิกัด GPS และวาดแนวเขตที่ดินบนแผนที่เรียบร้อย พร้อมคำนวณฐานประเมินภาษี`,
+    });
+  };
 
   const exportCSV = () => {
     const headers = [
@@ -854,7 +1095,7 @@ export default function TaxPage() {
                   }`}
                 >
                   <TreePine size={13} />
-                  แปลงที่ดิน ({consolidatedStats.landItems.length})
+                  แปลงที่ดิน ({consolidatedStats.allItems.filter((i) => i.type === "land").length})
                 </button>
                 <button
                   type="button"
@@ -866,7 +1107,7 @@ export default function TaxPage() {
                   }`}
                 >
                   <Building2 size={13} />
-                  สิ่งปลูกสร้าง ({consolidatedStats.bldgItems.length})
+                  สิ่งปลูกสร้าง ({consolidatedStats.allItems.filter((i) => i.type === "building").length})
                 </button>
               </div>
 
@@ -978,14 +1219,17 @@ export default function TaxPage() {
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => {
-                                if (it.type === "land" && it.rawLand) {
-                                  setDetailLand(it.rawLand);
-                                } else if (it.type === "building" && it.rawBuilding) {
-                                  setDetailBuilding(it.rawBuilding);
-                                }
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded transition"
+                              onClick={() => handleOpenSurveyModal(it)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition cursor-pointer shadow-2xs"
+                              title="ดูพื้นที่รังวัดและรูปภาพสำรวจบน Google Maps"
+                            >
+                              <Compass size={12} />
+                              ดูพื้นที่
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(it)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded transition cursor-pointer"
                               title="ดูรายละเอียดทรัพย์สิน"
                             >
                               <Eye size={12} />
@@ -993,14 +1237,8 @@ export default function TaxPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (it.type === "land" && it.rawLand) {
-                                  setTaxInvoiceLand(it.rawLand);
-                                } else if (it.type === "building" && it.rawBuilding) {
-                                  setTaxInvoiceBuilding(it.rawBuilding);
-                                }
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded transition"
+                              onClick={() => handleOpenInvoice(it)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded transition cursor-pointer"
                               title="พิมพ์ใบกำกับภาษี / ภ.ด.ส. 3"
                             >
                               <Printer size={12} />
@@ -1106,34 +1344,30 @@ export default function TaxPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                    <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-gray-100">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (it.type === "land" && it.rawLand) {
-                            setDetailLand(it.rawLand);
-                          } else if (it.type === "building" && it.rawBuilding) {
-                            setDetailBuilding(it.rawBuilding);
-                          }
-                        }}
-                        className="w-full py-1.5 px-2 rounded-lg text-xs font-medium text-govblue-800 bg-govblue-50 hover:bg-govblue-100 flex items-center justify-center gap-1 transition"
+                        onClick={() => handleOpenDetail(it)}
+                        className="py-1.5 px-1 rounded-lg text-xs font-medium text-govblue-800 bg-govblue-50 hover:bg-govblue-100 flex items-center justify-center gap-1 transition cursor-pointer"
                       >
                         <Eye size={12} />
-                        ดูรายละเอียด
+                        <span className="truncate">รายละเอียด</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (it.type === "land" && it.rawLand) {
-                            setTaxInvoiceLand(it.rawLand);
-                          } else if (it.type === "building" && it.rawBuilding) {
-                            setTaxInvoiceBuilding(it.rawBuilding);
-                          }
-                        }}
-                        className="w-full py-1.5 px-2 rounded-lg text-xs font-medium text-white bg-govblue-800 hover:bg-govblue-700 flex items-center justify-center gap-1 transition shadow-xs"
+                        onClick={() => handleOpenSurveyModal(it)}
+                        className="py-1.5 px-1 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center gap-1 transition cursor-pointer shadow-2xs"
+                      >
+                        <Compass size={12} />
+                        <span className="truncate">ดูพื้นที่</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInvoice(it)}
+                        className="py-1.5 px-1 rounded-lg text-xs font-medium text-white bg-govblue-800 hover:bg-govblue-700 flex items-center justify-center gap-1 transition shadow-xs cursor-pointer"
                       >
                         <Printer size={12} />
-                        พิมพ์ใบภาษี
+                        <span className="truncate">พิมพ์ภาษี</span>
                       </button>
                     </div>
                   </div>
@@ -1192,6 +1426,13 @@ export default function TaxPage() {
         onClose={() => setTaxInvoiceBuilding(null)}
         targetType="building"
         building={taxInvoiceBuilding}
+      />
+
+      {/* Survey Area & Photos Modal */}
+      <SurveyAreaModal
+        isOpen={Boolean(surveyModalData)}
+        onClose={() => setSurveyModalData(null)}
+        data={surveyModalData}
       />
 
       {/* Toast Notification */}

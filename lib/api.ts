@@ -1310,23 +1310,53 @@ export async function reviewTask(
 }
 
 export async function fetchTasksList(): Promise<Task[]> {
+  let serverTasks: Task[] = [];
   if (API_CONFIGURED) {
     try {
       const res = await api<Task[]>("/api/tasks");
-      if (Array.isArray(res) && res.length > 0) return res;
+      if (Array.isArray(res)) serverTasks = res;
     } catch {}
   }
+
+  let localTasks: Task[] = [];
   if (typeof window !== "undefined") {
-    const cached = window.localStorage.getItem(TASK_STORAGE_KEY) || window.localStorage.getItem("ams_saved_tasks_v5");
+    const cached =
+      window.localStorage.getItem(TASK_STORAGE_KEY) ||
+      window.localStorage.getItem("ams_saved_tasks_v6") ||
+      window.localStorage.getItem("ams_saved_tasks_v5");
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
-          return parsed.filter((t) => t && typeof t === "object" && t.public_id);
+          localTasks = parsed.filter((t) => t && typeof t === "object" && t.public_id);
         }
       } catch {}
     }
   }
-  return [];
+
+  // Merge server and local tasks (prefer local if status is done or newer updated_at)
+  const taskMap = new Map<string, Task>();
+  for (const t of serverTasks) {
+    if (t && t.public_id) {
+      taskMap.set(t.public_id, t);
+      if (t.code) taskMap.set(t.code, t);
+    }
+  }
+  for (const t of localTasks) {
+    if (t && t.public_id) {
+      const existing = taskMap.get(t.public_id) || (t.code ? taskMap.get(t.code) : null);
+      if (
+        !existing ||
+        t.status === "done" ||
+        (t.updated_at && (!existing.updated_at || t.updated_at >= existing.updated_at))
+      ) {
+        taskMap.set(t.public_id, t);
+        if (t.code) taskMap.set(t.code, t);
+      }
+    }
+  }
+
+  const result = Array.from(new Set(taskMap.values()));
+  return result;
 }
 
