@@ -278,12 +278,12 @@ export function loginDemo(role: Role = "supervisor"): AppUser {
   const mockUser: AppUser = {
     public_id:
       role === "admin"
-        ? "mock-admin"
+        ? "u-admin"
         : role === "supervisor"
-        ? "mock-leader"
+        ? "usr-leader"
         : role === "accountant"
-        ? "mock-accountant"
-        : "mock-officer",
+        ? "u-acc"
+        : "usr-normal",
     username:
       role === "admin"
         ? "admin"
@@ -294,12 +294,12 @@ export function loginDemo(role: Role = "supervisor"): AppUser {
         : "normal",
     display_name:
       role === "admin"
-        ? "ผู้ดูแลระบบ (Demo)"
+        ? "ผู้ดูแลระบบสูงสุด"
         : role === "supervisor"
-        ? "หัวหน้างานสำรวจ (Demo)"
+        ? "หัวหน้างานสำรวจ"
         : role === "accountant"
-        ? "พนักงานบัญชีและการเงิน (Demo)"
-        : "เจ้าหน้าที่สำรวจ (Demo)",
+        ? "พนักงานบัญชีและการเงิน"
+        : "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)",
     picture_url: null,
     role,
     status: "active",
@@ -313,18 +313,28 @@ export function loginDemo(role: Role = "supervisor"): AppUser {
 
 const USERS_CACHE_KEY = "ams_mock_users_list";
 
+const DEFAULT_MOCK_USERS: AppUser[] = [
+  { public_id: "u-admin", username: "admin", display_name: "ผู้ดูแลระบบสูงสุด", picture_url: null, role: "admin", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-leader", username: "leader", display_name: "หัวหน้างานสำรวจ", picture_url: null, role: "supervisor", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-normal", username: "normal", display_name: "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-officer2", username: "officer2", display_name: "น.ส.วิภาดา รังวัดไว (เจ้าหน้าที่สำรวจ 2)", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-officer3", username: "officer3", display_name: "นายธนกร ตรวจสอบการช่าง (เจ้าหน้าที่สำรวจ 3)", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-officer4", username: "officer4", display_name: "นายปิยะพงษ์ ผังเมืองรังวัด (เจ้าหน้าที่สำรวจ 4)", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+  { public_id: "usr-officer5", username: "officer5", display_name: "นายกิตติศักดิ์ ช่างสำรวจอิสระ (รอย้ายเข้าสังกัด)", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
+  { public_id: "u-acc", username: "accountant", display_name: "พนักงานบัญชีและการเงิน", picture_url: null, role: "accountant", status: "active", created_at: new Date().toISOString() },
+];
+
 function getLocalUsers(): AppUser[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return DEFAULT_MOCK_USERS;
   try {
     const raw = window.localStorage.getItem(USERS_CACHE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 7) return parsed;
+    }
   } catch {}
-  return [
-    { public_id: "u-admin", username: "admin", display_name: "ผู้ดูแลระบบสูงสุด", picture_url: null, role: "admin", status: "active", created_at: new Date().toISOString() },
-    { public_id: "u-sup", username: "leader", display_name: "หัวหน้างานสำรวจ", picture_url: null, role: "supervisor", status: "active", created_at: new Date().toISOString() },
-    { public_id: "u-sub", username: "normal", display_name: "เจ้าหน้าที่สำรวจภาคสนาม", picture_url: null, role: "subordinate", status: "active", created_at: new Date().toISOString() },
-    { public_id: "u-acc", username: "accountant", display_name: "พนักงานบัญชีและการเงิน", picture_url: null, role: "accountant", status: "active", created_at: new Date().toISOString() },
-  ];
+  saveLocalUsers(DEFAULT_MOCK_USERS);
+  return DEFAULT_MOCK_USERS;
 }
 
 function saveLocalUsers(us: AppUser[]) {
@@ -849,27 +859,66 @@ export function notifyDataUpdated() {
 
 const TEAM_STORAGE_KEY = "ams_mock_team_members";
 
+const DEFAULT_MOCK_TEAM: TeamMember[] = [
+  {
+    supervisor_public_id: "usr-leader",
+    supervisor_name: "หัวหน้างานสำรวจ",
+    supervisor_username: "leader",
+    subordinate_public_id: "usr-normal",
+    subordinate_name: "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)",
+    subordinate_username: "normal",
+    status: "accepted",
+    invited_at: new Date(Date.now() - 86400000 * 7).toISOString(),
+    responded_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+  },
+  {
+    supervisor_public_id: "usr-leader",
+    supervisor_name: "หัวหน้างานสำรวจ",
+    supervisor_username: "leader",
+    subordinate_public_id: "usr-officer2",
+    subordinate_name: "น.ส.วิภาดา รังวัดไว (เจ้าหน้าที่สำรวจ 2)",
+    subordinate_username: "officer2",
+    status: "accepted",
+    invited_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+    responded_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+  },
+  {
+    supervisor_public_id: "usr-leader",
+    supervisor_name: "หัวหน้างานสำรวจ",
+    supervisor_username: "leader",
+    subordinate_public_id: "usr-officer3",
+    subordinate_name: "นายธนกร ตรวจสอบการช่าง (เจ้าหน้าที่สำรวจ 3)",
+    subordinate_username: "officer3",
+    status: "accepted",
+    invited_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    responded_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    supervisor_public_id: "usr-leader",
+    supervisor_name: "หัวหน้างานสำรวจ",
+    supervisor_username: "leader",
+    subordinate_public_id: "usr-officer4",
+    subordinate_name: "นายปิยะพงษ์ ผังเมืองรังวัด (เจ้าหน้าที่สำรวจ 4)",
+    subordinate_username: "officer4",
+    status: "accepted",
+    invited_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    responded_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+  },
+];
+
 function getLocalTeam(): TeamMember[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return DEFAULT_MOCK_TEAM;
   try {
     const raw = window.localStorage.getItem(TEAM_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter((m) => m && typeof m === "object");
+      if (Array.isArray(parsed) && parsed.length >= 4) {
+        return parsed.filter((m) => m && typeof m === "object");
+      }
     }
   } catch {}
-  return [
-    {
-      supervisor_public_id: "mock-leader",
-      supervisor_name: "หัวหน้างานสำรวจ (Demo)",
-      subordinate_public_id: "mock-officer",
-      subordinate_name: "เจ้าหน้าที่สำรวจ (Demo)",
-      subordinate_username: "normal",
-      status: "accepted",
-      invited_at: new Date(Date.now() - 86400000).toISOString(),
-      responded_at: new Date(Date.now() - 80000000).toISOString(),
-    },
-  ];
+  saveLocalTeam(DEFAULT_MOCK_TEAM);
+  return DEFAULT_MOCK_TEAM;
 }
 
 function saveLocalTeam(list: TeamMember[]) {
@@ -1132,13 +1181,15 @@ export async function assignRevisionRequest(requestPublicId: string, taskPublicI
 
 // ---- Task Data Submit & Review APIs ----
 
+const TASK_STORAGE_KEY = "ams_saved_tasks_v6";
+
 export async function submitTaskData(
   taskPublicId: string,
   data: TaskSubmissionPayload
 ): Promise<Task> {
   if (!API_CONFIGURED) {
     // Local mock update
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("ams_saved_tasks_v5") : null;
+    const saved = typeof window !== "undefined" ? (window.localStorage.getItem(TASK_STORAGE_KEY) || window.localStorage.getItem("ams_saved_tasks_v5")) : null;
     let list: Task[] = saved ? JSON.parse(saved) : [];
     const idx = list.findIndex((t) => t.public_id === taskPublicId);
     if (idx >= 0) {
@@ -1146,7 +1197,7 @@ export async function submitTaskData(
       list[idx].submission_data = data;
       list[idx].updated_at = new Date().toISOString();
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
+        window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(list));
       }
       notifyDataUpdated();
       return list[idx];
@@ -1167,7 +1218,7 @@ export async function reviewTask(
   feedback?: string
 ): Promise<Task> {
   if (!API_CONFIGURED) {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("ams_saved_tasks_v5") : null;
+    const saved = typeof window !== "undefined" ? (window.localStorage.getItem(TASK_STORAGE_KEY) || window.localStorage.getItem("ams_saved_tasks_v5")) : null;
     let list: Task[] = saved ? JSON.parse(saved) : [];
     const idx = list.findIndex((t) => t.public_id === taskPublicId);
     if (idx >= 0) {
@@ -1203,7 +1254,7 @@ export async function reviewTask(
       }
       task.updated_at = new Date().toISOString();
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("ams_saved_tasks_v5", JSON.stringify(list));
+        window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(list));
       }
       notifyDataUpdated();
       return task;
@@ -1226,7 +1277,7 @@ export async function fetchTasksList(): Promise<Task[]> {
     } catch {}
   }
   if (typeof window !== "undefined") {
-    const cached = window.localStorage.getItem("ams_saved_tasks_v5");
+    const cached = window.localStorage.getItem(TASK_STORAGE_KEY) || window.localStorage.getItem("ams_saved_tasks_v5");
     if (cached) {
       try {
         const parsed = JSON.parse(cached);

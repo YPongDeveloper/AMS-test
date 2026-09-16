@@ -233,10 +233,10 @@ function NewTaskContent() {
           updated_at: new Date().toISOString(),
         };
         try {
-          const raw = window.localStorage.getItem("ams_saved_tasks_v5");
+          const raw = window.localStorage.getItem("ams_saved_tasks_v6") || window.localStorage.getItem("ams_saved_tasks_v5");
           const existing = raw ? JSON.parse(raw) : [];
           window.localStorage.setItem(
-            "ams_saved_tasks_v5",
+            "ams_saved_tasks_v6",
             JSON.stringify([newTask, ...(Array.isArray(existing) ? existing : [])])
           );
         } catch {}
