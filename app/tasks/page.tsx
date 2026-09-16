@@ -60,6 +60,7 @@ import {
   Search,
   Lock,
   FileCheck2,
+  FileText,
   Award,
   Briefcase,
   History,
@@ -2890,13 +2891,13 @@ export default function TasksPage() {
 
                             {/* Footer Action Bar */}
                             <div
-                              className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                              className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {/* Modern Dropdown Status Selector with Dot Indicator */}
-                              <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto">
+                              <div className="flex items-center gap-1.5 min-w-0">
                                 <span className="text-xs text-gray-400 shrink-0">สถานะ:</span>
-                                <div className="relative flex items-center flex-1 sm:flex-initial">
+                                <div className="relative inline-flex items-center shrink-0">
                                   <span className={`w-2 h-2 rounded-full absolute left-2.5 z-10 pointer-events-none ${statusDot}`} />
                                   <select
                                     value={task.status}
@@ -3054,13 +3055,13 @@ export default function TasksPage() {
                                 </div>
                               </div>
 
-                              {/* Action buttons (ถ้ามีปุ่มแอ็กชัน เช่น ตรวจงาน หรือ ส่งผลงาน) */}
+                              {/* Action buttons (ถ้ามีปุ่มแอ็กชัน เช่น ตรวจงาน หรือ กรอกข้อมูล) */}
                               {((isSup && task.status === "submitted") ||
                                 (!isSup &&
                                   (task.status === "accepted" ||
                                     task.status === "in_progress" ||
                                     task.status === "revision_requested"))) && (
-                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0">
+                                <div className="flex items-center justify-end shrink-0">
                                   {isSup && task.status === "submitted" && (
                                     <button
                                       type="button"
@@ -3068,7 +3069,7 @@ export default function TasksPage() {
                                         e.stopPropagation();
                                         openReviewModal(task);
                                       }}
-                                      className="flex-1 sm:flex-initial text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
+                                      className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
                                     >
                                       <CheckCircle2 size={13} />
                                       <span>ตรวจงาน</span>
@@ -3084,10 +3085,10 @@ export default function TasksPage() {
                                           e.stopPropagation();
                                           openSubmissionModal(task);
                                         }}
-                                        className="flex-1 sm:flex-initial text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
+                                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
                                       >
-                                        <Plus size={13} />
-                                        <span>ส่งผลงาน</span>
+                                        <FileText size={13} />
+                                        <span>กรอกข้อมูล</span>
                                       </button>
                                     )}
                                 </div>
