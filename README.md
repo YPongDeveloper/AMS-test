@@ -133,8 +133,9 @@ npm start
 
 ## 📄 ผู้พัฒนาและสัญญาอนุญาต (Developer & License)
 
-- **Developer**: Mr. Pongsakorn Yimsuk-anan (`mr.pongsakorn yimsuk-anan`)
-- **Role**: Lead Full-Stack Developer & Software Architect
+- **Developer**: Mr. Pongsakorn Yimsuk-anan (mr.pongsakorn yimsuk-anan)
+- **Role**: Full-Stack Developer & Software Architect
+- **Model AI and Tool**: Antigravity ide ตกเเต่ง เเละเสริมความปลอดภัย , Minimax code  จัดหาข้อมูล ช่วยคิดเเผนงาน, ZCode โครงสร้าง เเละ ระบบการทำงาน ช่วยจัดเตรียมทรัพยากร
 - **Copyright**: © 2026 Mr. Pongsakorn Yimsuk-anan. All rights reserved.
 - **License**: Proprietary / Private Enterprise Showcase  
-  ระบบนี้พัฒนาขึ้นโดย **Mr. Pongsakorn Yimsuk-anan (Developer)** สำหรับการสาธิตระบบบริหารจัดการทรัพย์สิน การสำรวจภาคสนาม และการคำนวณภาษีที่ดินและสิ่งปลูกสร้าง (State Railway of Thailand Asset & Tax Management System - AMS Showcase) ห้ามทำซ้ำ ดัดแปลง หรือนำไปใช้ในเชิงพาณิชย์โดยไม่ได้รับอนุญาตจากผู้พัฒนา
+  ระบบนี้พัฒนาขึ้นโดย **Mr. Pongsakorn Yimsuk-anan (Developer)** สำหรับการสาธิตระบบบริหารจัดการทรัพย์สิน การสำรวจภาคสนาม และการคำนวณภาษีที่ดินและสิ่งปลูกสร้าง (State Railway of Thailand Asset & Tax Management System - AMS Showcase) เพื่อการทำเเบบทดสอบ เท่านั้นห้ามทำซ้ำ ดัดแปลง หรือนำไปใช้ในเชิงพาณิชย์โดยไม่ได้รับอนุญาตจากผู้พัฒนา
