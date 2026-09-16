@@ -2475,18 +2475,20 @@ export default function TasksPage() {
         <div className="max-w-6xl mx-auto space-y-5 w-full min-w-0">
           {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm w-full min-w-0">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-lg bg-govblue-50 text-govblue-800">
-                  <ClipboardList size={22} />
-                </span>
-                <h1 className="text-xl sm:text-2xl font-bold text-govblue-900">
-                  {isSup
-                    ? t("ระบบมอบหมายและติดตามงาน", "Task Management & Assignment")
-                    : t("งานของฉัน", "My Tasks")}
-                </h1>
+            <div className="w-full sm:w-auto flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="p-2 rounded-lg bg-govblue-50 text-govblue-800 shrink-0">
+                    <ClipboardList size={22} />
+                  </span>
+                  <h1 className="text-xl sm:text-2xl font-bold text-govblue-900 truncate">
+                    {isSup
+                      ? t("ระบบมอบหมายและติดตามงาน", "Task Management & Assignment")
+                      : t("งานของฉัน", "My Tasks")}
+                  </h1>
+                </div>
                 {!isOnline && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 shadow-2xs">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 shadow-2xs shrink-0 ml-auto">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                     offline
                   </span>
