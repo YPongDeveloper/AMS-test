@@ -204,12 +204,12 @@ export function Topbar() {
 
   return (
     <>
-      <header className="bg-govblue-900 border-b border-govblue-950 sticky top-0 z-30 shadow-md text-white">
+      <header className="bg-govblue-900 border-b border-govblue-950 sticky top-0 z-30 shadow-md text-white w-full">
         {/* Main Header Bar (Navy Blue Theme) */}
-        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3">
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
           {/* Brand */}
-          <Link href={homeHref} className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0 group">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow-sm text-govgold-400 group-hover:bg-white/15 transition">
+          <Link href={homeHref} className="flex items-center gap-2 sm:gap-3 shrink min-w-0 group">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow-sm text-govgold-400 group-hover:bg-white/15 transition shrink-0">
               <Logo className="w-6 h-6 sm:w-7 sm:h-7 text-govgold-400" />
             </div>
             <div className="min-w-0">
@@ -223,7 +223,7 @@ export function Topbar() {
           </Link>
 
           {/* Right actions: Notification -> Language Switcher -> Profile */}
-          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
             {/* 1. Notifications Center */}
             <NotificationCenter currentUser={user} theme="dark" />
 

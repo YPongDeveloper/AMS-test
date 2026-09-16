@@ -2108,9 +2108,9 @@ export default function TasksPage() {
       )}
 
       {me && (
-        <div className="max-w-6xl mx-auto space-y-5">
+        <div className="max-w-6xl mx-auto space-y-5 w-full min-w-0">
           {/* Header Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm w-full min-w-0">
             <div>
               <div className="flex items-center gap-2">
                 <span className="p-2 rounded-lg bg-govblue-50 text-govblue-800">
@@ -2387,8 +2387,8 @@ export default function TasksPage() {
           </div>
 
           {/* Navigation Tabs (สำหรับหัวหน้า / เจ้าหน้าที่) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-2">
-            <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-2 w-full min-w-0">
+            <div className="flex items-center gap-2 overflow-x-auto w-full min-w-0 pb-1">
               {isSup ? (
                 <>
                   <button
@@ -2467,16 +2467,17 @@ export default function TasksPage() {
           </div>
 
           {/* Date Navigation & View Mode Switcher Toolbar (คัดกรองงานในวันนั้นๆ & สลับดูแผนที่รวม) */}
+          {/* Date Navigation & View Mode Switcher Toolbar (คัดกรองงานในวันนั้นๆ & สลับดูแผนที่รวม) */}
           {activeTab !== "members" && (
-            <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 w-full min-w-0">
               {/* Date Navigator */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
                 <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 shrink-0">
                   <Calendar size={15} className="text-govblue-700" />
                   <span>{t("ภารกิจประจำวัน:", "Daily Tasks:")}</span>
                 </span>
 
-                <div className="inline-flex items-center bg-gray-50 border border-gray-300 rounded-lg overflow-hidden shadow-xs">
+                <div className="inline-flex items-center bg-gray-50 border border-gray-300 rounded-lg overflow-hidden shadow-xs shrink-0">
                   {/* Prev Day Button */}
                   <button
                     type="button"
@@ -2495,7 +2496,7 @@ export default function TasksPage() {
                       setSelectedDate(e.target.value);
                       setFilterByDate(true);
                     }}
-                    className="bg-transparent text-xs font-semibold text-gray-800 px-2.5 py-1.5 focus:outline-none border-x border-gray-200 cursor-pointer"
+                    className="bg-transparent text-xs font-semibold text-gray-800 px-2 py-1.5 focus:outline-none border-x border-gray-200 cursor-pointer max-w-[130px] sm:max-w-none"
                   />
 
                   {/* Next Day Button */}
@@ -2516,7 +2517,7 @@ export default function TasksPage() {
                     setSelectedDate(getTodayStr());
                     setFilterByDate(true);
                   }}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition shrink-0 ${
                     selectedDate === getTodayStr() && filterByDate
                       ? "bg-govblue-50 border-govblue-300 text-govblue-800 font-semibold shadow-2xs"
                       : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -2527,11 +2528,11 @@ export default function TasksPage() {
               </div>
 
               {/* View Mode Switcher: Cards vs Master Map */}
-              <div className="flex items-center gap-1.5 self-end md:self-auto shrink-0 bg-gray-100 p-1 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5 self-stretch md:self-auto shrink-0 bg-gray-100 p-1 rounded-xl border border-gray-200 w-full md:w-auto">
                 <button
                   type="button"
                   onClick={() => setViewMode("list")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                     viewMode === "list"
                       ? "bg-white text-govblue-900 shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
@@ -2547,14 +2548,17 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("map")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                  className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                     viewMode === "map"
                       ? "bg-govblue-800 text-white shadow-sm"
                       : "text-gray-700 hover:text-govblue-900"
                   }`}
                 >
                   <Map size={15} />
-                  <span>{t("แผนที่รวมจุดในงานต่างๆ", "Master Route Map")}</span>
+                  <span>
+                    <span className="hidden sm:inline">{t("แผนที่รวมจุดในงานต่างๆ", "Master Route Map")}</span>
+                    <span className="sm:hidden">{t("แผนที่รวมจุดงาน", "Master Map")}</span>
+                  </span>
                   <span
                     className={`ml-0.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                       viewMode === "map" ? "bg-white/25 text-white" : "bg-govblue-100 text-govblue-800"
@@ -3050,37 +3054,44 @@ export default function TasksPage() {
                                 </div>
                               </div>
 
-                              {/* Action buttons */}
-                              <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0">
-                                {isSup && task.status === "submitted" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openReviewModal(task)}
-                                    className="flex-1 sm:flex-initial text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
-                                  >
-                                    <CheckCircle2 size={13} />
-                                    <span>ตรวจงาน</span>
-                                  </button>
-                                )}
-                                {!isSup && (task.status === "accepted" || task.status === "in_progress" || task.status === "revision_requested") && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openSubmissionModal(task)}
-                                    className="flex-1 sm:flex-initial text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
-                                  >
-                                    <Plus size={13} />
-                                    <span>ส่งผลงาน</span>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedTask(task)}
-                                  className="flex-1 sm:flex-initial text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center justify-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer"
-                                >
-                                  <span>ดูรายละเอียด</span>
-                                  <ArrowRight size={13} />
-                                </button>
-                              </div>
+                              {/* Action buttons (ถ้ามีปุ่มแอ็กชัน เช่น ตรวจงาน หรือ ส่งผลงาน) */}
+                              {((isSup && task.status === "submitted") ||
+                                (!isSup &&
+                                  (task.status === "accepted" ||
+                                    task.status === "in_progress" ||
+                                    task.status === "revision_requested"))) && (
+                                <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0">
+                                  {isSup && task.status === "submitted" && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openReviewModal(task);
+                                      }}
+                                      className="flex-1 sm:flex-initial text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
+                                    >
+                                      <CheckCircle2 size={13} />
+                                      <span>ตรวจงาน</span>
+                                    </button>
+                                  )}
+                                  {!isSup &&
+                                    (task.status === "accepted" ||
+                                      task.status === "in_progress" ||
+                                      task.status === "revision_requested") && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openSubmissionModal(task);
+                                        }}
+                                        className="flex-1 sm:flex-initial text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
+                                      >
+                                        <Plus size={13} />
+                                        <span>ส่งผลงาน</span>
+                                      </button>
+                                    )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

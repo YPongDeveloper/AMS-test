@@ -117,9 +117,9 @@ export function Page({ children, allowedRoles }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50/50">
+    <div className="min-h-screen flex flex-col bg-gray-50/50 overflow-x-hidden max-w-full">
       <Topbar />
-      <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 py-4 sm:py-6">{children}</main>
+      <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 py-4 sm:py-6 min-w-0 overflow-x-hidden">{children}</main>
       <footer className="border-t border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl px-3 sm:px-6 py-3 text-xs text-gray-500">
           © 2569 ระบบจัดการคำนวนภาษี
