@@ -2160,7 +2160,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {API_CONFIGURED && !loading && serverDown && (
+      {API_CONFIGURED && !loading && serverDown && !me && (
         <div className="py-16 text-center max-w-md mx-auto">
           <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto">
             <Radio size={26} className="text-amber-600" />
@@ -2206,6 +2206,29 @@ export default function TasksPage() {
 
       {me && (
         <div className="max-w-6xl mx-auto space-y-5 w-full min-w-0">
+          {serverDown && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:px-4 flex items-center justify-between text-xs text-amber-800 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span>
+                  {t(
+                    "เซิร์ฟเวอร์หลังบ้านกำลังเริ่มต้นทำงาน (ระบบกำลังเชื่อมต่อใหม่อัตโนมัติ...)",
+                    "Server is waking up (auto-reconnecting...)"
+                  )}
+                </span>
+              </div>
+              <button
+                onClick={retry}
+                className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-medium transition shrink-0 ml-2"
+              >
+                {t("ลองใหม่", "Retry")}
+              </button>
+            </div>
+          )}
+
           {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm w-full min-w-0">
             <div>

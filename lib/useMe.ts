@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   api,
   API_CONFIGURED,
@@ -15,8 +15,9 @@ export function useMe() {
   const [loading, setLoading] = useState(API_CONFIGURED && !getCurrentUser());
   const [needLogin, setNeedLogin] = useState(false);
   const [serverDown, setServerDown] = useState(false);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const bootstrap = useCallback(async () => {
+  const bootstrap = useCallback(async (isRetry = false) => {
     if (!API_CONFIGURED) {
       setLoading(false);
       return;
@@ -33,6 +34,10 @@ export function useMe() {
       setMe(user);
       setNeedLogin(false);
       setServerDown(false);
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
     } catch (e) {
       const msg = (e as Error).message || "";
       if (msg.includes("401") || msg.includes("unauthorized")) {
@@ -40,6 +45,11 @@ export function useMe() {
         setNeedLogin(true);
       } else {
         setServerDown(true);
+        // Automatic background retry if server is waking up (e.g. Render cold start)
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => {
+          bootstrap(true);
+        }, 5000);
       }
     } finally {
       setLoading(false);
@@ -48,11 +58,24 @@ export function useMe() {
 
   useEffect(() => {
     bootstrap();
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
   }, [bootstrap]);
+
+  // Keep-alive heartbeat ping every 10 minutes while page is open to prevent Render sleep
+  useEffect(() => {
+    if (!API_CONFIGURED) return;
+    const interval = setInterval(() => {
+      api<{ status: string }>("/health", { skipAuthCheck: true }).catch(() => {});
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const retry = useCallback(async () => {
     setLoading(true);
     setServerDown(false);
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     await bootstrap();
   }, [bootstrap]);
 
