@@ -1305,10 +1305,25 @@ export default function TasksPage() {
 
     try {
       const data = await api<Task[]>("/api/tasks");
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length >= 20) {
         setTasks(data);
         if (typeof window !== "undefined") {
           window.localStorage.setItem(cacheKey, JSON.stringify(data));
+        }
+        return;
+      } else if (Array.isArray(data) && data.length > 0) {
+        // ประสานข้อมูลระหว่างเซิร์ฟเวอร์และข้อมูลตัวอย่าง 26 รายการของระบบ
+        const fresh = createSampleTasks(todayStr);
+        const serverIds = new Set(data.map((t) => t.public_id));
+        const merged = [...data];
+        for (const t of fresh) {
+          if (!serverIds.has(t.public_id)) {
+            merged.push(t);
+          }
+        }
+        setTasks(merged);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(cacheKey, JSON.stringify(merged));
         }
         return;
       }
@@ -1335,7 +1350,7 @@ export default function TasksPage() {
         }
       }
 
-      // สร้างชุดข้อมูลใหม่สำหรับวันนี้ทันที (26 รายการ)
+      // ฝังชุดข้อมูลงาน 26 รายการไว้ในระบบทันที
       const fresh = createSampleTasks(todayStr);
       setTasks(fresh);
       window.localStorage.setItem(cacheKey, JSON.stringify(fresh));
@@ -1344,75 +1359,74 @@ export default function TasksPage() {
     }
   }, []);
 
-  const handleReloadSampleTasks = () => {
-    const todayStr = getTodayStr();
-    const fresh = createSampleTasks(todayStr);
-    setTasks(fresh);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("ams_saved_tasks_v6", JSON.stringify(fresh));
-      window.localStorage.removeItem("ams_saved_tasks_v5");
-      window.localStorage.removeItem("ams_saved_tasks");
-    }
-    setNotice(th ? "รีเซ็ตและโหลดข้อมูลตัวอย่างงานประจำวันนี้เรียบร้อยแล้ว (26 รายการ)" : "Sample tasks for today reloaded (26 tasks)");
-    setTimeout(() => setNotice(""), 4000);
-  };
-
   const loadUsers = useCallback(async () => {
+    const fallbackUsers: AppUser[] = [
+      {
+        public_id: "usr-leader",
+        username: "leader",
+        display_name: "หัวหน้างานสำรวจ",
+        picture_url: null,
+        role: "supervisor",
+        created_at: new Date().toISOString(),
+      },
+      {
+        public_id: "usr-normal",
+        username: "normal",
+        display_name: "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)",
+        picture_url: null,
+        role: "subordinate",
+        created_at: new Date().toISOString(),
+      },
+      {
+        public_id: "usr-officer2",
+        username: "officer2",
+        display_name: "น.ส.วิภาดา รังวัดไว (เจ้าหน้าที่สำรวจ 2)",
+        picture_url: null,
+        role: "subordinate",
+        created_at: new Date().toISOString(),
+      },
+      {
+        public_id: "usr-officer3",
+        username: "officer3",
+        display_name: "นายธนกร ตรวจสอบการช่าง (เจ้าหน้าที่สำรวจ 3)",
+        picture_url: null,
+        role: "subordinate",
+        created_at: new Date().toISOString(),
+      },
+      {
+        public_id: "usr-officer4",
+        username: "officer4",
+        display_name: "นายปิยะพงษ์ ผังเมืองรังวัด (เจ้าหน้าที่สำรวจ 4)",
+        picture_url: null,
+        role: "subordinate",
+        created_at: new Date().toISOString(),
+      },
+      {
+        public_id: "usr-officer5",
+        username: "officer5",
+        display_name: "นายกิตติศักดิ์ ช่างสำรวจอิสระ (รอย้ายเข้าสังกัด)",
+        picture_url: null,
+        role: "subordinate",
+        created_at: new Date().toISOString(),
+      },
+    ];
+
     try {
       const res = await api<AppUser[]>("/api/users");
-      setUsers(Array.isArray(res) ? res : []);
+      if (Array.isArray(res) && res.length > 0) {
+        const existing = new Set(res.map((u) => u.username));
+        const merged = [...res];
+        for (const u of fallbackUsers) {
+          if (!existing.has(u.username)) {
+            merged.push(u);
+          }
+        }
+        setUsers(merged);
+        return;
+      }
+      setUsers(fallbackUsers);
     } catch {
-      // Mock users fallback
-      setUsers([
-        {
-          public_id: "usr-leader",
-          username: "leader",
-          display_name: "หัวหน้างานสำรวจ",
-          picture_url: null,
-          role: "supervisor",
-          created_at: new Date().toISOString(),
-        },
-        {
-          public_id: "usr-normal",
-          username: "normal",
-          display_name: "นายสมศักดิ์ สำรวจดี (เจ้าหน้าที่สำรวจ 1)",
-          picture_url: null,
-          role: "subordinate",
-          created_at: new Date().toISOString(),
-        },
-        {
-          public_id: "usr-officer2",
-          username: "officer2",
-          display_name: "น.ส.วิภาดา รังวัดไว (เจ้าหน้าที่สำรวจ 2)",
-          picture_url: null,
-          role: "subordinate",
-          created_at: new Date().toISOString(),
-        },
-        {
-          public_id: "usr-officer3",
-          username: "officer3",
-          display_name: "นายธนกร ตรวจสอบการช่าง (เจ้าหน้าที่สำรวจ 3)",
-          picture_url: null,
-          role: "subordinate",
-          created_at: new Date().toISOString(),
-        },
-        {
-          public_id: "usr-officer4",
-          username: "officer4",
-          display_name: "นายปิยะพงษ์ ผังเมืองรังวัด (เจ้าหน้าที่สำรวจ 4)",
-          picture_url: null,
-          role: "subordinate",
-          created_at: new Date().toISOString(),
-        },
-        {
-          public_id: "usr-officer5",
-          username: "officer5",
-          display_name: "นายกิตติศักดิ์ ช่างสำรวจอิสระ (รอย้ายเข้าสังกัด)",
-          picture_url: null,
-          role: "subordinate",
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setUsers(fallbackUsers);
     }
   }, []);
 
@@ -2700,17 +2714,9 @@ export default function TasksPage() {
                           ? t("ยังไม่มีงานที่คุณสั่ง — กดปุ่ม “+ สั่งงานใหม่” เพื่อเริ่มต้น", "No tasks assigned by you yet")
                           : t("ยังไม่มีงานที่ได้รับมอบหมายในวันที่เลือก", "No assigned tasks for this date")}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1 mb-4">
-                        งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบอัตโนมัติ
+                      <p className="text-xs text-gray-400 mt-1">
+                        {t("งานที่สั่งจะได้รับการอัปเดตและแจ้งเตือนทันทีแบบอัตโนมัติ", "Assigned tasks will be updated and notified in real-time automatically")}
                       </p>
-                      <button
-                        type="button"
-                        onClick={handleReloadSampleTasks}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-govblue-700 hover:bg-govblue-800 text-white shadow-sm transition"
-                      >
-                        <RotateCcw size={14} />
-                        <span>{t("โหลดข้อมูลตัวอย่างงานวันนี้ (26 รายการ)", "Load Today's Sample Tasks (26 Tasks)")}</span>
-                      </button>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

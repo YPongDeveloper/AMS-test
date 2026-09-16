@@ -348,7 +348,14 @@ export async function fetchUsers(role?: string): Promise<AppUser[]> {
     return role ? all.filter((u) => u.role === role) : all;
   }
   try {
-    return await api<AppUser[]>(role ? `/api/users?role=${encodeURIComponent(role)}` : "/api/users");
+    const serverUsers = await api<AppUser[]>(role ? `/api/users?role=${encodeURIComponent(role)}` : "/api/users");
+    const merged = Array.isArray(serverUsers) ? [...serverUsers] : [];
+    for (const u of DEFAULT_MOCK_USERS) {
+      if (!merged.some((m) => m.username === u.username)) {
+        merged.push(u);
+      }
+    }
+    return role ? merged.filter((u) => u.role === role) : merged;
   } catch {
     const all = getLocalUsers();
     return role ? all.filter((u) => u.role === role) : all;
@@ -962,7 +969,17 @@ export async function fetchMyTeam(): Promise<TeamMember[]> {
   }
   try {
     const res = await api<TeamMember[]>("/api/team/members");
-    return Array.isArray(res) ? res : [];
+    const list = Array.isArray(res) ? res : [];
+    if (list.filter((m) => m && m.status === "accepted").length < 4) {
+      const merged = [...list];
+      for (const m of DEFAULT_MOCK_TEAM) {
+        if (!merged.some((x) => x.subordinate_username === m.subordinate_username)) {
+          merged.push(m);
+        }
+      }
+      return merged;
+    }
+    return list;
   } catch {
     const local = getLocalTeam();
     return Array.isArray(local) ? local : [];
