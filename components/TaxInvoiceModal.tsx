@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
-import { X, Printer, Landmark, QrCode, FileText, CheckCircle2 } from "lucide-react";
+import React, { useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { X, Printer, Landmark, QrCode, FileText, CheckCircle2, ShieldAlert } from "lucide-react";
 import { LandParcel, Building } from "@/lib/api";
 import {
   calculateLandTax,
@@ -28,6 +29,11 @@ export default function TaxInvoiceModal({
   building,
 }: TaxInvoiceModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -39,14 +45,16 @@ export default function TaxInvoiceModal({
 
     const origOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("tax-invoice-modal-open");
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = origOverflow;
+      document.body.classList.remove("tax-invoice-modal-open");
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const isLand = targetType === "land" && Boolean(land);
   const isBuilding = targetType === "building" && Boolean(building);
@@ -71,13 +79,119 @@ export default function TaxInvoiceModal({
   const ratePercent = isLand && landResult ? landResult.taxRatePercent : bldgResult ? bldgResult.taxRatePercent : 0.3;
   const useType = isLand && landResult ? landResult.useType : bldgResult ? bldgResult.useType : "พาณิชยกรรม / อื่นๆ";
 
+  /**
+   * สั่งพิมพ์เอกสารผ่าน Isolated Iframe
+   * เพื่อให้พิมพ์เฉพาะตัวเอกสารแบบ ภ.ด.ส. จริงๆ เท่านั้น
+   * ปราศจากองค์ประกอบหน้าเว็บ ช่องกรอกข้อความ เมนู หรือหัวเว็บ 100%
+   */
   const handlePrint = () => {
-    window.print();
+    const printElement = printRef.current;
+    if (!printElement) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.name = "tax_invoice_print_frame";
+    iframe.style.position = "fixed";
+    iframe.style.top = "-9999px";
+    iframe.style.left = "-9999px";
+    iframe.style.width = "210mm";
+    iframe.style.height = "297mm";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // รวบรวม Stylesheets ทั้งหมดจากระบบหลัก
+    let stylesHtml = "";
+    document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
+      stylesHtml += node.outerHTML;
+    });
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="th">
+        <head>
+          <meta charset="utf-8">
+          <title>ใบแจ้งการประเมินภาษีที่ดินและสิ่งปลูกสร้าง (แบบ ภ.ด.ส. ๖/๗) - ${docCode}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+          ${stylesHtml}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 12mm 15mm 12mm 15mm;
+            }
+            @media print {
+              html, body {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              .no-print,
+              button {
+                display: none !important;
+              }
+              table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+              }
+              th, td {
+                border: 1px solid #94a3b8 !important;
+              }
+            }
+            body {
+              font-family: 'Sarabun', 'TH Sarabun New', sans-serif;
+              color: #0f172a;
+              background: #ffffff;
+              padding: 0;
+              margin: 0;
+            }
+            .document-sheet {
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="document-sheet">
+            ${printElement.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error("Print error:", err);
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 3000);
+      }
+    }, 400);
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150 print:p-0 print:bg-white print:static print:block"
+      id="tax-invoice-modal-portal"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150 print:p-0 print:bg-white print:static print:block"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -116,38 +230,38 @@ export default function TaxInvoiceModal({
           ref={printRef}
           className="p-4 sm:p-10 text-gray-900 bg-white leading-relaxed font-sans text-xs sm:text-sm print:p-6 print:text-black overflow-y-auto flex-1 min-h-0"
         >
-          {/* Official Letterhead */}
+          {/* Official Letterhead - ตราสัญลักษณ์และหัวหน่วยงานทางการ */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b-2 border-govblue-900 pb-4 sm:pb-5 mb-5 sm:mb-6">
             <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-govblue-900 text-govgold-400 flex items-center justify-center font-bold text-xl sm:text-2xl shadow-sm border-2 border-govgold-500 shrink-0">
-                <Landmark size={26} className="sm:w-8 sm:h-8" />
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-govblue-900 text-govgold-400 flex items-center justify-center font-bold text-xl sm:text-2xl shadow-sm border-2 border-govgold-500 shrink-0">
+                <Landmark size={28} className="sm:w-8 sm:h-8" />
               </div>
               <div>
                 <h1 className="text-base sm:text-xl font-black tracking-tight text-govblue-950">
-                  ระบบจัดการคำนวนภาษี
-                </h1>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium">
                   สำนักงานบริหารจัดการภาษีและทรัพย์สิน
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-700 font-semibold">
+                  ฝ่ายการเงินและบัญชี • ระบบบริหารจัดการคำนวณและประเมินภาษี
                 </p>
                 <p className="text-[11px] text-gray-500">
-                  ฝ่ายการเงินและบัญชี
+                  ที่ตั้ง: 1 ถนนรองเมือง แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330
                 </p>
               </div>
             </div>
             <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100 flex items-center justify-between sm:block">
-              <div className="inline-block bg-govblue-50 border border-govblue-200 px-2.5 sm:px-3 py-1 rounded-lg text-govblue-900 font-bold text-[11px] sm:text-xs uppercase tracking-wider mb-0 sm:mb-1">
+              <div className="inline-block bg-govblue-50 border border-govblue-200 px-3 py-1 rounded-lg text-govblue-900 font-bold text-xs uppercase tracking-wider mb-0 sm:mb-1">
                 แบบ ภ.ด.ส. ๖ / ภ.ด.ส. ๗
               </div>
-              <p className="text-[11px] text-gray-500">ปีภาษี ๒๕๖๙ (2026)</p>
+              <p className="text-[11px] text-gray-500 font-medium">ประจำปีภาษี ๒๕๖๙ (2026)</p>
             </div>
           </div>
 
-          {/* Document Title */}
-          <div className="text-center my-4">
-            <h2 className="text-base sm:text-lg font-bold text-govblue-900 uppercase">
-              ใบแจ้งการประเมินภาษีที่ดินและสิ่งปลูกสร้าง / ใบกำกับภาษีอย่างย่อ
+          {/* Document Title - ชื่อแบบแจ้งการประเมินทางการ */}
+          <div className="text-center my-4 sm:my-5">
+            <h2 className="text-base sm:text-lg font-black text-govblue-950 uppercase tracking-wide">
+              ใบแจ้งการประเมินภาษีที่ดินและสิ่งปลูกสร้าง
             </h2>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-600 font-medium mt-0.5">
               ตามพระราชบัญญัติภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. ๒๕๖๒
             </p>
           </div>
@@ -306,44 +420,49 @@ export default function TaxInvoiceModal({
             <span className="font-bold text-govblue-900 text-xs sm:text-sm">({thaiBahtText(taxPayable)})</span>
           </div>
 
-          {/* Payment Instructions & QR Mock */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-xl bg-gray-50/60 mb-6 text-xs">
+          {/* Payment Instructions & QR Mock - ระเบียบการชำระเงินและช่องทางการชำระ */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border border-slate-300 rounded-xl bg-slate-50/70 mb-5 text-xs">
             <div className="sm:col-span-2 space-y-2">
-              <h4 className="font-bold text-govblue-900 flex items-center gap-1">
-                <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> วิธีการชำระเงินและเงื่อนไข
+              <h4 className="font-bold text-govblue-950 flex items-center gap-1.5">
+                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> ระเบียบและวิธีการชำระภาษี
               </h4>
-              <p className="text-gray-600 leading-relaxed">
-                1. สามารถชำระเงินได้ที่ <strong>ฝ่ายการเงินและบัญชี สำนักงานบริหารจัดการภาษีและทรัพย์สิน</strong> ทุกวันทำการ
+              <p className="text-gray-700 leading-relaxed">
+                ๑. สามารถชำระเงินได้ที่ <strong>ฝ่ายการเงินและบัญชี สำนักงานบริหารจัดการภาษีและทรัพย์สิน</strong> ในวันและเวลาราชการ
               </p>
-              <p className="text-gray-600 leading-relaxed">
-                2. ชำระผ่านเคาน์เตอร์ธนาคารกรุงไทย ทุกสาขา หรือ สแกนชำระผ่านระบบ PromptPay Cross-Bank Bill Payment
+              <p className="text-gray-700 leading-relaxed">
+                ๒. สามารถนำเอกสารฉบับนี้ไปชำระผ่านเคาน์เตอร์ธนาคาร หรือ สแกนชำระผ่านระบบ PromptPay Cross-Bank Bill Payment
               </p>
-              <p className="text-[11px] text-gray-500 italic">
-                * หากพ้นกำหนดระยะเวลาที่ระบุไว้ในหนังสือนี้ จะต้องชำระเบี้ยปรับและเงินเพิ่มตามที่กฎหมายกำหนด
+              <p className="text-[11px] text-amber-800 flex items-center gap-1 font-medium">
+                <ShieldAlert size={13} className="shrink-0" /> หากพ้นกำหนดวันที่ ๓๐ เมษายน ๒๕๖๙ จะต้องชำระเบี้ยปรับและเงินเพิ่มตาม พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง
+              </p>
+              <p className="text-[11px] text-gray-500 italic pt-1 border-t border-slate-200">
+                * สิทธิการคัดค้าน: หากเห็นว่าการประเมินภาษีนี้ไม่ถูกต้อง ให้มีสิทธิยื่นคำร้องคัดค้านต่อผู้บริหารท้องถิ่นภายใน ๓๐ วัน นับแต่วันที่ได้รับหนังสือแจ้งประเมินนี้
               </p>
             </div>
-            <div className="flex flex-col items-center justify-center border-t sm:border-t-0 sm:border-l border-gray-200 pt-3 sm:pt-0 sm:pl-3">
-              <div className="w-24 h-24 bg-white border border-gray-300 rounded-lg flex flex-col items-center justify-center p-2 shadow-2xs">
-                <QrCode size={56} className="text-gray-800" />
-                <span className="text-[9px] font-bold text-govblue-900 mt-1">PromptPay QR</span>
+            <div className="flex flex-col items-center justify-center border-t sm:border-t-0 sm:border-l border-slate-300 pt-3 sm:pt-0 sm:pl-3">
+              <div className="w-24 h-24 bg-white border border-slate-400 rounded-lg flex flex-col items-center justify-center p-2 shadow-2xs">
+                <QrCode size={56} className="text-gray-900" />
+                <span className="text-[9px] font-bold text-govblue-950 mt-1">PromptPay QR</span>
               </div>
-              <span className="text-[10px] text-gray-500 mt-1 font-mono">Ref: {docCode.slice(-8)}</span>
+              <span className="text-[10px] text-gray-600 mt-1 font-mono">Ref: {docCode.slice(-8)}</span>
             </div>
           </div>
 
-          {/* Signature Block */}
+          {/* Signature Block - ลายมือชื่อเจ้าหน้าที่ผู้ประเมิน */}
           <div className="grid grid-cols-2 gap-4 sm:gap-8 text-center pt-4 sm:pt-6 mt-4 text-xs">
             <div>
               <div className="h-8 sm:h-10"></div>
-              <p className="border-b border-gray-400 w-32 sm:w-44 mx-auto mb-1"></p>
+              <p className="border-b border-gray-400 w-36 sm:w-48 mx-auto mb-1"></p>
               <p className="font-bold text-gray-800 text-[11px] sm:text-xs">(........................................................)</p>
-              <p className="text-[10px] sm:text-[11px] text-gray-500">เจ้าพนักงานประเมินภาษี</p>
+              <p className="text-[11px] text-gray-600 font-medium">เจ้าพนักงานประเมินภาษี</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">วันที่ ......../......../๒๕๖๙</p>
             </div>
             <div>
               <div className="h-8 sm:h-10"></div>
-              <p className="border-b border-gray-400 w-32 sm:w-44 mx-auto mb-1"></p>
+              <p className="border-b border-gray-400 w-36 sm:w-48 mx-auto mb-1"></p>
               <p className="font-bold text-gray-800 text-[11px] sm:text-xs">(........................................................)</p>
-              <p className="text-[10px] sm:text-[11px] text-gray-500">ผู้อำนวยการฝ่ายบริหารจัดการภาษีและทรัพย์สิน</p>
+              <p className="text-[11px] text-gray-600 font-medium">ผู้อำนวยการฝ่ายบริหารจัดการภาษีและทรัพย์สิน</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">วันที่ ......../......../๒๕๖๙</p>
             </div>
           </div>
         </div>
@@ -351,7 +470,7 @@ export default function TaxInvoiceModal({
         {/* Modal Footer (Hidden during print) */}
         <div className="px-4 sm:px-6 py-3 bg-gray-100 border-t border-gray-200 flex items-center justify-between shrink-0 sticky bottom-0 z-20 print:hidden">
           <span className="text-[11px] sm:text-xs text-gray-500 hidden sm:inline">
-            เอกสารนี้จัดพิมพ์โดยระบบจัดการคำนวนภาษี (Tax Management System)
+            เอกสารฉบับนี้จัดทำและออกโดยระบบบริหารจัดการคำนวณและประเมินภาษี (แบบ ภ.ด.ส. ทางการ)
           </span>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
@@ -366,11 +485,13 @@ export default function TaxInvoiceModal({
               onClick={handlePrint}
               className="flex-1 sm:flex-initial px-4 sm:px-5 py-2 sm:py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
-              <Printer size={15} /> สั่งพิมพ์ใบประเมิน / ใบเสร็จ
+              <Printer size={15} /> สั่งพิมพ์ใบประเมินภาษี (A4)
             </button>
           </div>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

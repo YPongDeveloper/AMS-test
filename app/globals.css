@@ -37,3 +37,69 @@ html, body {
   }
 }
 
+/* =========================================================================
+   Print Styles: ใบแจ้งการประเมินภาษีที่ดินและสิ่งปลูกสร้าง (แบบ ภ.ด.ส.)
+   ซ่อนแถบเมนู หน้าเว็บ และฟอร์มกรอกข้อมูลทั้งหมดเมื่อสั่งพิมพ์เอกสาร
+   ========================================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 12mm;
+  }
+
+  /* ซ่อนทุกองค์ประกอบของหน้าเว็บหลักเมื่อเปิดหน้าต่างพิมพ์ใบประเมิน */
+  body.tax-invoice-modal-open > *:not(#tax-invoice-modal-portal) {
+    display: none !important;
+  }
+
+  body.tax-invoice-modal-open {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.tax-invoice-modal-open #tax-invoice-modal-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.tax-invoice-modal-open #tax-invoice-modal-portal > div {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.tax-invoice-modal-open #tax-invoice-printable {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* บังคับซ่อนปุ่มและ Toolbar ทั้งหมดในโหมดพิมพ์ */
+  .no-print,
+  .print\\:hidden,
+  button {
+    display: none !important;
+  }
+}
+
+
