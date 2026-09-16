@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "@/lib/i18n";
 import { RegisterSW } from "@/components/RegisterSW";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
   title: "ระบบจัดการคำนวนภาษี",
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <I18nProvider>
           {children}
           <RegisterSW />
+          <Analytics />
         </I18nProvider>
       </body>
     </html>
