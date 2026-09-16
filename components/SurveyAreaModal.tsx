@@ -174,11 +174,11 @@ export default function SurveyAreaModal({ isOpen, onClose, data }: SurveyAreaMod
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-4 sm:px-6 pt-2.5 border-b border-gray-200 flex items-center gap-2 shrink-0 bg-white">
+        <div className="px-4 sm:px-6 pt-2.5 border-b border-gray-200 flex items-center gap-2 shrink-0 bg-white overflow-x-auto whitespace-nowrap scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab("map")}
-            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer shrink-0 ${
               activeTab === "map"
                 ? "border-govblue-800 text-govblue-900"
                 : "border-transparent text-gray-500 hover:text-gray-900"
@@ -190,7 +190,7 @@ export default function SurveyAreaModal({ isOpen, onClose, data }: SurveyAreaMod
           <button
             type="button"
             onClick={() => setActiveTab("photos")}
-            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer shrink-0 ${
               activeTab === "photos"
                 ? "border-govblue-800 text-govblue-900"
                 : "border-transparent text-gray-500 hover:text-gray-900"
@@ -202,7 +202,7 @@ export default function SurveyAreaModal({ isOpen, onClose, data }: SurveyAreaMod
           <button
             type="button"
             onClick={() => setActiveTab("info")}
-            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer shrink-0 ${
               activeTab === "info"
                 ? "border-govblue-800 text-govblue-900"
                 : "border-transparent text-gray-500 hover:text-gray-900"
