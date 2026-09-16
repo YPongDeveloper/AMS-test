@@ -15,6 +15,7 @@ import {
   type TaskStatus,
   type TeamMember,
   type RevisionRequest,
+  type TaskSubmissionPayload,
   inviteToTeam,
   fetchMyTeam,
   fetchMyInvitations,
@@ -24,6 +25,12 @@ import {
   submitTaskData,
   reviewTask,
 } from "@/lib/api";
+import {
+  isDeviceOnline,
+  getOfflineQueue,
+  enqueueOfflineItem,
+  syncOfflineQueue,
+} from "@/lib/offlineSync";
 import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
@@ -43,6 +50,8 @@ import {
   PlayCircle,
   Check,
   AlertCircle,
+  WifiOff,
+  RefreshCw,
   ExternalLink,
   Calendar,
   Layers,
@@ -752,6 +761,11 @@ export default function TasksPage() {
   const [err, setErr] = useState("");
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Offline & Synchronization States
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState<boolean>(false);
+
   // Custom Confirmation & Alert Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -1385,38 +1399,109 @@ export default function TasksPage() {
       return;
     }
 
+    const payload: TaskSubmissionPayload = {
+      summary: submissionSummary.trim() || undefined,
+      address: submissionAddress.trim() || undefined,
+      lat: submissionLat ?? undefined,
+      lng: submissionLng ?? undefined,
+      items: batchItems,
+      lands: !isBldg ? (batchItems as any) : undefined,
+      buildings: isBldg ? (batchItems as any) : undefined,
+      photos: submissionPhotos,
+      polygon: submissionPolygon,
+      area_sqm: submissionArea?.sqm,
+      area_thai: submissionArea?.formattedThai,
+      rai: submissionArea?.rai,
+      ngan: submissionArea?.ngan,
+      wa: submissionArea?.wa,
+    };
+
+    if (!isDeviceOnline()) {
+      // 1. เข้าคิวออฟไลน์เพื่อรอซิงค์เมื่อออนไลน์
+      enqueueOfflineItem({
+        type: "submission",
+        taskId: submittingTask.public_id,
+        taskTitle: submittingTask.title,
+        submissionPayload: payload,
+      });
+
+      // 2. อัปเดตข้อมูลและสถานะลงใน Local Tasks ทันที
+      setTasks((prev) => {
+        const next = prev.map((t) =>
+          t.public_id === submittingTask.public_id
+            ? { ...t, status: "submitted" as TaskStatus, submission_data: payload }
+            : t
+        );
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("ams_saved_tasks_v6", JSON.stringify(next));
+        }
+        return next;
+      });
+
+      setSubmissionModalOpen(false);
+      if (selectedTask?.public_id === submittingTask.public_id) {
+        setSelectedTask((prev) => (prev ? { ...prev, status: "submitted", submission_data: payload } : null));
+      }
+
+      setConfirmDialog({
+        isOpen: true,
+        title: "บันทึกผลงานในโหมดออฟไลน์สำเร็จ",
+        message: `ระบบได้จัดเก็บข้อมูลการสำรวจและภาพถ่ายของงาน "${submittingTask.title}" ไว้ในเครื่องเรียบร้อยแล้ว เนื่องจากขณะนี้ไม่มีสัญญาณอินเทอร์เน็ต ระบบจะทำการส่งมอบงานให้หัวหน้างานตรวจสอบโดยอัตโนมัติทันทีที่เชื่อมต่ออินเทอร์เน็ต`,
+        tone: "primary",
+        confirmLabel: "เข้าใจแล้ว",
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
     setSubmittingData(true);
     try {
-      const isBldg = submittingTask.target_type === "building";
-      await submitTaskData(submittingTask.public_id, {
-        summary: submissionSummary.trim() || undefined,
-        address: submissionAddress.trim() || undefined,
-        lat: submissionLat ?? undefined,
-        lng: submissionLng ?? undefined,
-        items: batchItems,
-        lands: !isBldg ? (batchItems as any) : undefined,
-        buildings: isBldg ? (batchItems as any) : undefined,
-        photos: submissionPhotos,
-        polygon: submissionPolygon,
-        area_sqm: submissionArea?.sqm,
-        area_thai: submissionArea?.formattedThai,
-        rai: submissionArea?.rai,
-        ngan: submissionArea?.ngan,
-        wa: submissionArea?.wa,
-      });
+      await submitTaskData(submittingTask.public_id, payload);
       setSubmissionModalOpen(false);
-      setNotice(`ส่งข้อมูลงาน "${submittingTask.title}" ให้หัวหน้างานตรวจสอบเรียบร้อยแล้ว`);
       await loadTasks();
       if (selectedTask?.public_id === submittingTask.public_id) {
         setSelectedTask(null);
       }
-    } catch (err: any) {
       setConfirmDialog({
         isOpen: true,
-        title: "เกิดข้อผิดพลาดในการส่งข้อมูล",
-        message: err.message || "ไม่สามารถบันทึกและส่งข้อมูลงานได้ กรุณาลองใหม่อีกครั้ง",
-        tone: "danger",
+        title: "ส่งมอบงานสำเร็จ",
+        message: `ส่งข้อมูลงาน "${submittingTask.title}" ให้หัวหน้างานตรวจสอบเรียบร้อยแล้ว`,
+        tone: "primary",
         confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
+    } catch (err: any) {
+      // หากส่งไม่สำเร็จเนื่องจากเน็ตหลุดหรือขัดข้อง ให้บันทึกออฟไลน์ทันที
+      enqueueOfflineItem({
+        type: "submission",
+        taskId: submittingTask.public_id,
+        taskTitle: submittingTask.title,
+        submissionPayload: payload,
+      });
+
+      setTasks((prev) => {
+        const next = prev.map((t) =>
+          t.public_id === submittingTask.public_id
+            ? { ...t, status: "submitted" as TaskStatus, submission_data: payload }
+            : t
+        );
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("ams_saved_tasks_v6", JSON.stringify(next));
+        }
+        return next;
+      });
+
+      setSubmissionModalOpen(false);
+      if (selectedTask?.public_id === submittingTask.public_id) {
+        setSelectedTask((prev) => (prev ? { ...prev, status: "submitted", submission_data: payload } : null));
+      }
+
+      setConfirmDialog({
+        isOpen: true,
+        title: "บันทึกผลงานในโหมดออฟไลน์",
+        message: `สัญญาณอินเทอร์เน็ตขัดข้อง ข้อมูลและภาพถ่ายของงาน "${submittingTask.title}" ได้รับการบันทึกไว้ในเครื่องเรียบร้อยแล้ว และจะถูกส่งขึ้นระบบอัตโนมัติเมื่อออนไลน์`,
+        tone: "warning",
+        confirmLabel: "เข้าใจแล้ว",
         onConfirm: closeConfirmDialog,
       });
     } finally {
@@ -1630,21 +1715,16 @@ export default function TasksPage() {
       (e) => {
         if (!mounted) return;
         loadTasks();
-        if (noticeTimer.current) clearTimeout(noticeTimer.current);
         if (e.type === "task.new") {
+          if (noticeTimer.current) clearTimeout(noticeTimer.current);
           setNotice(
             th
               ? `ได้รับมอบหมายงานใหม่: ${e.task.title} — สั่งโดย ${e.task.assigner_name}`
               : `New task assigned: ${e.task.title}`
           );
-        } else {
-          setNotice(
-            th
-              ? `งาน ${e.task.code || ""} อัปเดตสถานะเป็น: ${STATUS_LABEL[e.task.status]}`
-              : `Task ${e.task.code || ""} updated: ${e.task.status}`
-          );
+          noticeTimer.current = setTimeout(() => setNotice(""), 6000);
         }
-        noticeTimer.current = setTimeout(() => setNotice(""), 6000);
+        // ไม่ต้องแสดงข้อความแจ้งเตือนเปลี่ยนสถานะทุกครั้ง เพื่อความสะอาดของหน้าจอ
       },
       setWsOn
     );
@@ -1669,6 +1749,62 @@ export default function TasksPage() {
     window.addEventListener("ams_data_updated", handleDataUpdate);
     return () => window.removeEventListener("ams_data_updated", handleDataUpdate);
   }, [isSup, loadTasks, loadTeam, loadRevisionRequests, loadInvitations]);
+
+  // ระบบตรวจจับสถานะเครือข่าย Online/Offline และ Auto-Sync ข้อมูลที่ค้างไว้
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setIsOnline(isDeviceOnline());
+    setOfflineQueueCount(getOfflineQueue().length);
+
+    const handleOnline = async () => {
+      setIsOnline(true);
+      setIsSyncingOffline(true);
+      try {
+        const res = await syncOfflineQueue();
+        if (res.synced > 0) {
+          await loadTasks();
+        }
+      } finally {
+        setIsSyncingOffline(false);
+        setOfflineQueueCount(getOfflineQueue().length);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    const handleQueueChanged = () => {
+      setOfflineQueueCount(getOfflineQueue().length);
+    };
+
+    const handleOfflineSynced = (e: any) => {
+      const detail = e.detail;
+      if (detail?.synced > 0) {
+        setNotice(`ซิงค์ข้อมูลที่บันทึกไว้ในโหมดออฟไลน์เข้าสู่ระบบสำเร็จ (${detail.synced} รายการ)`);
+        if (noticeTimer.current) clearTimeout(noticeTimer.current);
+        noticeTimer.current = setTimeout(() => setNotice(""), 5000);
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("ams_offline_queue_changed", handleQueueChanged);
+    window.addEventListener("ams_offline_synced", handleOfflineSynced);
+
+    // หากออนไลน์อยู่แล้วและมีคิวตกค้าง ให้เริ่มซิงค์อัตโนมัติ
+    if (isDeviceOnline() && getOfflineQueue().length > 0) {
+      handleOnline();
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("ams_offline_queue_changed", handleQueueChanged);
+      window.removeEventListener("ams_offline_synced", handleOfflineSynced);
+    };
+  }, [loadTasks]);
 
   const clearUrlParam = useCallback((paramKey: string) => {
     if (typeof window === "undefined") return;
@@ -1840,22 +1976,59 @@ export default function TasksPage() {
 
   async function setStatus(task: Task, status: TaskStatus) {
     setErr("");
+
+    // 1. Optimistic Update ใน Local State และ LocalStorage ทันที เพื่อให้ UI เปลี่ยนแปลงอย่างรวดเร็ว
+    setTasks((prev) => {
+      const next = prev.map((t) => (t.public_id === task.public_id ? { ...t, status } : t));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ams_saved_tasks_v6", JSON.stringify(next));
+      }
+      return next;
+    });
+
+    // ซิงค์ modal ที่เปิดอยู่ด้วย
+    setSelectedTask((prev) => (prev && prev.public_id === task.public_id ? { ...prev, status } : prev));
+
+    // 2. หากออฟไลน์ (ไม่มีเน็ต) ให้จัดเก็บเข้าคิวออฟไลน์และแจ้งเตือนผู้ใช้
+    if (!isDeviceOnline()) {
+      enqueueOfflineItem({
+        type: "status",
+        taskId: task.public_id,
+        taskTitle: task.title,
+        status,
+      });
+      setConfirmDialog({
+        isOpen: true,
+        title: "บันทึกในโหมดออฟไลน์",
+        message: `คุณกำลังอยู่ในโหมดออฟไลน์ (ไม่มีอินเทอร์เน็ต) — ระบบได้บันทึกการเปลี่ยนสถานะเป็น "${STATUS_LABEL[status]}" ไว้ในเครื่องเรียบร้อยแล้ว และจะทำการซิงค์เข้าสู่ระบบอัตโนมัติเมื่อเชื่อมต่ออินเทอร์เน็ต`,
+        tone: "warning",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    // 3. หากออนไลน์ ให้ส่งไปยัง Backend
     try {
       await api<Task>(`/api/tasks/${task.public_id}/status`, { method: "PATCH", json: { status } });
       loadTasks();
     } catch {
-      // อัปเดตใน Local State หาก API ล้มเหลวหรือออฟไลน์
-      setTasks((prev) => {
-        const next = prev.map((t) => (t.public_id === task.public_id ? { ...t, status } : t));
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("ams_saved_tasks_v6", JSON.stringify(next));
-        }
-        return next;
+      // หาก API ขัดข้องหรือเน็ตหลุด ให้เข้าคิวออฟไลน์อัตโนมัติ
+      enqueueOfflineItem({
+        type: "status",
+        taskId: task.public_id,
+        taskTitle: task.title,
+        status,
+      });
+      setConfirmDialog({
+        isOpen: true,
+        title: "บันทึกในโหมดออฟไลน์",
+        message: `ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ในขณะนี้ ระบบได้บันทึกสถานะงานไว้ในเครื่องเรียบร้อยแล้ว และจะซิงค์ข้อมูลให้อัตโนมัติเมื่อสัญญาณอินเทอร์เน็ตกลับมา`,
+        tone: "warning",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
       });
     }
-
-    // ซิงค์ modal ที่เปิดอยู่ด้วย
-    setSelectedTask((prev) => (prev && prev.public_id === task.public_id ? { ...prev, status } : prev));
   }
 
   async function changeRole(publicId: string, role: string) {
@@ -2390,6 +2563,55 @@ export default function TasksPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Offline Mode Banner */}
+          {!isOnline && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50/90 text-amber-950 text-xs sm:text-sm p-3.5 flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <WifiOff size={18} className="text-amber-600 shrink-0" />
+                <div className="leading-relaxed">
+                  <strong className="font-bold">โหมดออฟไลน์ (ไม่มีสัญญาณอินเทอร์เน็ต):</strong>{" "}
+                  <span className="text-amber-900">
+                    ท่านสามารถรับงาน บันทึกผลสำรวจ และส่งมอบงานได้ตามปกติ ระบบจะจัดเก็บไว้ในเครื่องและซิงค์ข้อมูลให้อัตโนมัติเมื่อต่อเน็ต
+                  </span>
+                </div>
+              </div>
+              {offlineQueueCount > 0 && (
+                <span className="px-2.5 py-1 bg-amber-200 text-amber-900 rounded-full font-bold text-xs shrink-0 whitespace-nowrap">
+                  รอซิงค์ {offlineQueueCount} รายการ
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Pending Sync Banner (เมื่อออนไลน์แล้วแต่ยังมีคิวค้างอยู่) */}
+          {isOnline && offlineQueueCount > 0 && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 text-blue-900 text-xs sm:text-sm p-3 flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <RefreshCw size={16} className={`text-blue-600 shrink-0 ${isSyncingOffline ? "animate-spin" : ""}`} />
+                <span>
+                  มีข้อมูลที่บันทึกไว้ขณะออฟไลน์ ({offlineQueueCount} รายการ) กำลังซิงค์เข้าสู่ระบบ...
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSyncingOffline(true);
+                  try {
+                    const res = await syncOfflineQueue();
+                    if (res.synced > 0) await loadTasks();
+                  } finally {
+                    setIsSyncingOffline(false);
+                    setOfflineQueueCount(getOfflineQueue().length);
+                  }
+                }}
+                disabled={isSyncingOffline}
+                className="px-3.5 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white rounded-lg font-semibold text-xs transition cursor-pointer shrink-0 disabled:opacity-50 shadow-2xs"
+              >
+                {isSyncingOffline ? "กำลังซิงค์..." : "ซิงค์ข้อมูลตอนนี้"}
+              </button>
             </div>
           )}
 
