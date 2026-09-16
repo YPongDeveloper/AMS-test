@@ -1,6 +1,13 @@
 ﻿// Payload obfuscation and secure envelope for hiding API data in browser DevTools
+//
+// IMPORTANT: This is devtool obfuscation (XOR + base64), NOT real security.
+// The secret is bundled in client JS either way — anyone with DevTools can
+// read it. For real API protection, use HTTPS + server-side auth.
+//
+// Set NEXT_PUBLIC_GATEWAY_SECRET in Vercel env to enable obfuscation.
+// If not set, payload will be base64-only (still works, just not hidden).
 
-const GATEWAY_SECRET = "ams-sec-b57f89d3a4c1e028b49e6f2177c8e9";
+const GATEWAY_SECRET = process.env.NEXT_PUBLIC_GATEWAY_SECRET || "";
 
 // Encrypt / Mask payload into an opaque token
 export function encryptPayload(data: unknown): string {
