@@ -1731,21 +1731,6 @@ export default function TasksPage() {
                     ? t("ผู้ดูแลระบบ", "Administrator")
                     : t("เจ้าหน้าที่สำรวจภาคสนาม", "Field Survey Officer")}
                 </span>
-                <span>•</span>
-                <span
-                  className={`inline-flex items-center gap-1.5 ${
-                    wsOn ? "text-emerald-600 font-medium" : "text-gray-400"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      wsOn ? "bg-emerald-500 animate-pulse" : "bg-gray-300"
-                    }`}
-                  />
-                  {wsOn
-                    ? t("ออนไลน์", "Online")
-                    : t("กำลังเชื่อมต่อระบบ...", "Connecting...")}
-                </span>
               </p>
             </div>
 

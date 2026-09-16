@@ -78,7 +78,13 @@ function timeAgo(isoString: string, lang: "th" | "en" = "th"): string {
   }
 }
 
-export function NotificationCenter({ currentUser }: { currentUser?: AppUser | null }) {
+export function NotificationCenter({
+  currentUser,
+  theme = "light",
+}: {
+  currentUser?: AppUser | null;
+  theme?: "light" | "dark";
+}) {
   const { lang } = useI18n();
   const th = lang === "th";
   const router = useRouter();
@@ -566,14 +572,22 @@ export function NotificationCenter({ currentUser }: { currentUser?: AppUser | nu
         aria-label={th ? "การแจ้งเตือน" : "Notifications"}
         className={`relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl transition ${
           open
-            ? "bg-govblue-50 text-govblue-800 shadow-inner"
+            ? theme === "dark"
+              ? "bg-white/20 text-white shadow-inner"
+              : "bg-govblue-50 text-govblue-800 shadow-inner"
+            : theme === "dark"
+            ? "text-blue-100 hover:text-white hover:bg-white/10"
             : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
         }`}
       >
         <Bell size={19} />
 
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs ring-2 ring-white animate-in zoom-in-50">
+          <span
+            className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs ring-2 ${
+              theme === "dark" ? "ring-govblue-900" : "ring-white"
+            } animate-in zoom-in-50`}
+          >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
