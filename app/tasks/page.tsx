@@ -2138,36 +2138,6 @@ export default function TasksPage() {
                 >
                   {t("วันนี้", "Today")}
                 </button>
-
-                {/* Toggle All Days vs Specific Day */}
-                <button
-                  type="button"
-                  onClick={() => setFilterByDate(!filterByDate)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition ${
-                    !filterByDate
-                      ? "bg-amber-50 border-amber-300 text-amber-800 font-semibold"
-                      : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  {!filterByDate ? t("แสดงทุกวัน (ไม่จำกัด)", "Showing All Days") : t("แสดงงานทุกวัน", "Show All Days")}
-                </button>
-
-                {/* Reload Sample Tasks Button */}
-                <button
-                  type="button"
-                  onClick={handleReloadSampleTasks}
-                  title="โหลดข้อมูลตัวอย่างงานวันนี้ใหม่ (14 งาน)"
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-govblue-200 bg-govblue-50/80 hover:bg-govblue-100 text-govblue-800 font-medium transition flex items-center gap-1 shadow-2xs"
-                >
-                  <RotateCcw size={13} className="text-govblue-700" />
-                  <span>{t("โหลดตัวอย่างวันนี้", "Load Sample Today")}</span>
-                </button>
-
-                {filterByDate && (
-                  <span className="text-[11px] text-gray-500 hidden lg:inline ml-1 font-medium">
-                    ({formatThaiDate(selectedDate)})
-                  </span>
-                )}
               </div>
 
               {/* View Mode Switcher: Cards vs Master Map */}
