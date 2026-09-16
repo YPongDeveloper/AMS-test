@@ -651,7 +651,7 @@ export default function TaxPage() {
         <div>
           <SectionHeader title={t("taxTitle")} />
           <p className="text-xs text-gray-500 mt-0.5">
-            ระบบคำนวณและประเมินภาษีที่ดินและสิ่งปลูกสร้าง (พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. 2562)
+            พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. 2562
           </p>
         </div>
 
@@ -710,7 +710,7 @@ export default function TaxPage() {
                     }`}
                   >
                     <TreePine size={14} />
-                    <span>🌱 แปลงที่ดิน</span>
+                    <span>แปลงที่ดิน</span>
                   </button>
 
                   <button
@@ -726,7 +726,7 @@ export default function TaxPage() {
                     }`}
                   >
                     <Building2 size={14} />
-                    <span>🏢 สิ่งปลูกสร้าง / สถานที่</span>
+                    <span>สิ่งปลูกสร้าง / สถานที่</span>
                   </button>
                 </div>
               </div>
@@ -1491,11 +1491,11 @@ export default function TaxPage() {
                   <span className="flex items-center gap-1.5">
                     {reqTargetType === "land" ? (
                       <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800">
-                        🌱 แปลงที่ดิน
+                        แปลงที่ดิน
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800">
-                        🏢 สิ่งปลูกสร้าง
+                        สิ่งปลูกสร้าง
                       </span>
                     )}
                     <span>{reqTargetCode}</span>
