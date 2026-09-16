@@ -72,7 +72,7 @@ interface ConsolidatedPortfolioItem {
 }
 
 export default function TaxPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [activeTab, setActiveTab] = useState<"individual" | "consolidated">("consolidated");
   const [individualTargetType, setIndividualTargetType] = useState<"land" | "building">("land");
   const [lands, setLands] = useState<LandParcel[]>([]);
@@ -651,7 +651,7 @@ export default function TaxPage() {
         <div>
           <SectionHeader title={t("taxTitle")} />
           <p className="text-xs text-gray-500 mt-0.5">
-            พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. 2562
+            {t("taxSub")}
           </p>
         </div>
 
@@ -667,7 +667,7 @@ export default function TaxPage() {
             }`}
           >
             <Layers size={14} />
-            สรุปภาพรวมทั้งพอร์ต (Consolidated)
+            {t("tabConsolidated")}
           </button>
           <button
             type="button"
@@ -679,7 +679,7 @@ export default function TaxPage() {
             }`}
           >
             <Calculator size={14} />
-            คำนวณรายแห่ง (Individual)
+            {t("tabIndividual")}
           </button>
         </div>
       </div>
@@ -692,7 +692,7 @@ export default function TaxPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
                 <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-1.5">
                   <Calculator size={16} className="text-govblue-700" />
-                  1. เลือกประเภททรัพย์สิน
+                  {t("step1SelectType")}
                 </h3>
 
                 {/* Property Type Toggle Buttons on same row */}
@@ -710,7 +710,7 @@ export default function TaxPage() {
                     }`}
                   >
                     <TreePine size={14} />
-                    <span>แปลงที่ดิน</span>
+                    <span>{t("landFilter")}</span>
                   </button>
 
                   <button
@@ -726,7 +726,7 @@ export default function TaxPage() {
                     }`}
                   >
                     <Building2 size={14} />
-                    <span>สิ่งปลูกสร้าง / สถานที่</span>
+                    <span>{t("bldgFilter")} / {lang === "en" ? "Structure" : "สถานที่"}</span>
                   </button>
                 </div>
               </div>
@@ -736,18 +736,18 @@ export default function TaxPage() {
                 /* ฟอร์มคำนวณภาษีแปลงที่ดิน */
                 <div className="space-y-4">
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <Field label="เลือกแปลงที่ดิน (จากระบบสำรวจ)" hint="เลือกแปลงที่ดินที่ต้องการประเมิน">
+                    <Field label={t("selectLandHint")} hint={lang === "en" ? "Select the parcel to assess" : "เลือกแปลงที่ดินที่ต้องการประเมิน"}>
                       <Select value={selectedLandCode} onChange={(e) => onSelectLand(e.target.value)}>
-                        <option value="">— เลือกแปลงที่ดิน —</option>
+                        <option value="">{lang === "en" ? "— Select Land Parcel —" : "— เลือกแปลงที่ดิน —"}</option>
                         {lands.map((l) => (
                           <option key={l.public_id} value={l.land_code}>
-                            {l.land_code} (โฉนด: {l.deed_no || "-"} • {l.srt_land_type || "แปลงที่ดิน"})
+                            {l.land_code} ({lang === "en" ? "Deed: " : "โฉนด: "}{l.deed_no || "-"} • {l.srt_land_type || (lang === "en" ? "Land Parcel" : "แปลงที่ดิน")})
                           </option>
                         ))}
                       </Select>
                     </Field>
 
-                    <Field label="ปีภาษี">
+                    <Field label={t("taxYear")}>
                       <Select value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
                         <option value="2569">2569 (2026)</option>
                         <option value="2568">2568 (2025)</option>
@@ -755,16 +755,16 @@ export default function TaxPage() {
                       </Select>
                     </Field>
 
-                    <Field label="ประเภทการใช้ประโยชน์ตาม พ.ร.บ.">
+                    <Field label={t("landUseLawType")}>
                       <Select value={landUseType} onChange={(e) => setLandUseType(e.target.value)}>
-                        <option value="พาณิชยกรรม / อื่นๆ">พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)</option>
-                        <option value="ที่อยู่อาศัย">ที่อยู่อาศัย (อัตรา 0.02%)</option>
-                        <option value="เกษตรกรรม">เกษตรกรรม (อัตรา 0.01%)</option>
-                        <option value="ที่ดินรกร้างว่างเปล่า">รกร้างว่างเปล่า (อัตรา 0.3%)</option>
+                        <option value="พาณิชยกรรม / อื่นๆ">{lang === "en" ? "Commercial / Other (0.3%)" : "พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)"}</option>
+                        <option value="ที่อยู่อาศัย">{lang === "en" ? "Residential (0.02%)" : "ที่อยู่อาศัย (อัตรา 0.02%)"}</option>
+                        <option value="เกษตรกรรม">{lang === "en" ? "Agricultural (0.01%)" : "เกษตรกรรม (อัตรา 0.01%)"}</option>
+                        <option value="ที่ดินรกร้างว่างเปล่า">{lang === "en" ? "Vacant / Unused Land (0.3%)" : "รกร้างว่างเปล่า (อัตรา 0.3%)"}</option>
                       </Select>
                     </Field>
 
-                    <Field label="ขนาดพื้นที่ดิน (ตร.ว.)" hint="คำนวณจาก ไร่-งาน-วา อัตโนมัติ">
+                    <Field label={t("landAreaWah")} hint={lang === "en" ? "Calculated from Rai-Ngan-Wah" : "คำนวณจาก ไร่-งาน-วา อัตโนมัติ"}>
                       <Input
                         type="number"
                         value={landAreaWah}
@@ -772,7 +772,7 @@ export default function TaxPage() {
                       />
                     </Field>
 
-                    <Field label="ราคาประเมินที่ดิน (บาท/ตร.ว.)">
+                    <Field label={t("landAppraisalRate")}>
                       <Input
                         type="number"
                         value={appraisalLandPerWah}
@@ -787,19 +787,22 @@ export default function TaxPage() {
                       <div className="flex items-center justify-between font-semibold">
                         <span className="flex items-center gap-1.5">
                           <TreePine size={14} className="text-emerald-700" />
-                          ข้อมูลแปลงที่ดิน: {currentSelectedLand.land_code}
+                          {lang === "en" ? "Land Parcel: " : "ข้อมูลแปลงที่ดิน: "}{currentSelectedLand.land_code}
                         </span>
-                        <span className="text-emerald-700 font-mono">โฉนด: {currentSelectedLand.deed_no || "-"}</span>
+                        <span className="text-emerald-700 font-mono">{lang === "en" ? "Deed: " : "โฉนด: "}{currentSelectedLand.deed_no || "-"}</span>
                       </div>
                       <div className="flex items-center gap-1 text-emerald-800 text-[11px]">
                         <MapPin size={12} className="shrink-0 text-emerald-600" />
-                        <span>ที่ตั้ง: {formatShortAddress(currentSelectedLand)}</span>
+                        <span>{lang === "en" ? "Location: " : "ที่ตั้ง: "}{formatShortAddress(currentSelectedLand)}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-emerald-700 pt-1 border-t border-emerald-200/50">
-                        <span>ประเภท: {currentSelectedLand.srt_land_type || "-"}</span>
+                        <span>{lang === "en" ? "Type: " : "ประเภท: "}{currentSelectedLand.srt_land_type || "-"}</span>
                         <span>•</span>
                         <span>
-                          เนื้อที่ตามทะเบียน: {currentSelectedLand.rai || 0} ไร่ {currentSelectedLand.ngan || 0} งาน {currentSelectedLand.wa || 0} ตร.ว.
+                          {lang === "en"
+                            ? `Registered Area: ${currentSelectedLand.rai || 0} Rai ${currentSelectedLand.ngan || 0} Ngan ${currentSelectedLand.wa || 0} Sq.wah`
+                            : `เนื้อที่ตามทะเบียน: ${currentSelectedLand.rai || 0} ไร่ ${currentSelectedLand.ngan || 0} งาน ${currentSelectedLand.wa || 0} ตร.ว.`
+                          }
                         </span>
                       </div>
                     </div>
@@ -809,9 +812,9 @@ export default function TaxPage() {
                 /* ฟอร์มคำนวณภาษีสิ่งปลูกสร้าง / สถานที่ */
                 <div className="space-y-4">
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <Field label="เลือกสิ่งปลูกสร้าง / สถานที่ (จากระบบสำรวจ)" hint="เลือกอาคารที่ต้องการประเมิน">
+                    <Field label={t("selectBldgHint")} hint={lang === "en" ? "Select the building to assess" : "เลือกอาคารที่ต้องการประเมิน"}>
                       <Select value={selectedBldgCode} onChange={(e) => onSelectBldg(e.target.value)}>
-                        <option value="">— เลือกสิ่งปลูกสร้าง —</option>
+                        <option value="">{lang === "en" ? "— Select Building —" : "— เลือกสิ่งปลูกสร้าง —"}</option>
                         {buildings.map((b) => (
                           <option key={b.public_id} value={b.bldg_code}>
                             {b.bldg_code} ({b.name})
@@ -820,7 +823,7 @@ export default function TaxPage() {
                       </Select>
                     </Field>
 
-                    <Field label="ปีภาษี">
+                    <Field label={t("taxYear")}>
                       <Select value={taxYear} onChange={(e) => setTaxYear(e.target.value)}>
                         <option value="2569">2569 (2026)</option>
                         <option value="2568">2568 (2025)</option>
@@ -828,16 +831,16 @@ export default function TaxPage() {
                       </Select>
                     </Field>
 
-                    <Field label="ประเภทการใช้ประโยชน์ตาม พ.ร.บ.">
+                    <Field label={t("landUseLawType")}>
                       <Select value={landUseType} onChange={(e) => setLandUseType(e.target.value)}>
-                        <option value="พาณิชยกรรม / อื่นๆ">พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)</option>
-                        <option value="ที่อยู่อาศัย">ที่อยู่อาศัย (อัตรา 0.02%)</option>
-                        <option value="เกษตรกรรม">เกษตรกรรม (อัตรา 0.01%)</option>
-                        <option value="ที่ดินรกร้างว่างเปล่า">รกร้างว่างเปล่า (อัตรา 0.3%)</option>
+                        <option value="พาณิชยกรรม / อื่นๆ">{lang === "en" ? "Commercial / Other (0.3%)" : "พาณิชยกรรม / อื่นๆ (อัตรา 0.3%)"}</option>
+                        <option value="ที่อยู่อาศัย">{lang === "en" ? "Residential (0.02%)" : "ที่อยู่อาศัย (อัตรา 0.02%)"}</option>
+                        <option value="เกษตรกรรม">{lang === "en" ? "Agricultural (0.01%)" : "เกษตรกรรม (อัตรา 0.01%)"}</option>
+                        <option value="ที่ดินรกร้างว่างเปล่า">{lang === "en" ? "Vacant / Unused Land (0.3%)" : "รกร้างว่างเปล่า (อัตรา 0.3%)"}</option>
                       </Select>
                     </Field>
 
-                    <Field label="พื้นที่อาคารรวม (ตร.ม.)" hint="รวมทุกชั้นของอาคาร">
+                    <Field label={t("bldgAreaSqm")} hint={lang === "en" ? "Combined area of all floors" : "รวมทุกชั้นของอาคาร"}>
                       <Input
                         type="number"
                         value={bldgAreaSqm}
@@ -845,7 +848,7 @@ export default function TaxPage() {
                       />
                     </Field>
 
-                    <Field label="ราคาประเมินอาคาร (บาท/ตร.ม.)">
+                    <Field label={t("bldgAppraisalRate")}>
                       <Input
                         type="number"
                         value={appraisalBldgPerSqm}
@@ -883,69 +886,72 @@ export default function TaxPage() {
 
             <Card className="p-4 sm:p-5">
               <h3 className="text-sm font-semibold text-govblue-700 mb-3 flex items-center gap-1.5">
-                <Calculator size={16} /> 2. รายละเอียดการประเมินภาษี (พ.ร.บ. ภาษีที่ดินฯ พ.ศ. 2562)
+                <Calculator size={16} /> {t("step2AssessDetails")}
               </h3>
               <div className="text-[11px] text-gray-500 mb-3 leading-relaxed">
-                สูตร: ภาษี = ฐานภาษี (ราคาประเมินทุนทรัพย์) × อัตราภาษีตามประเภทการใช้ประโยชน์
+                {lang === "en"
+                  ? "Formula: Tax = Tax Base (Appraised Value) × Tax Rate by Property Use"
+                  : "สูตร: ภาษี = ฐานภาษี (ราคาประเมินทุนทรัพย์) × อัตราภาษีตามประเภทการใช้ประโยชน์"
+                }
               </div>
               <div className="space-y-2 text-xs divide-y divide-gray-100">
                 {isLandTarget ? (
                   <>
                     <Row
-                      label="ขนาดพื้นที่ดิน"
-                      value={`${landAreaWah.toLocaleString()} ตารางวา`}
+                      label={lang === "en" ? "Land Area" : "ขนาดพื้นที่ดิน"}
+                      value={`${landAreaWah.toLocaleString()} ${lang === "en" ? "Sq.wah" : "ตารางวา"}`}
                     />
                     <Row
-                      label="ราคาประเมินที่ดินต่อหน่วย"
-                      value={`${fmtCurrency(appraisalLandPerWah)} / ตร.ว.`}
+                      label={lang === "en" ? "Land Appraisal Rate" : "ราคาประเมินที่ดินต่อหน่วย"}
+                      value={`${fmtCurrency(appraisalLandPerWah)} / ${lang === "en" ? "sq.wah" : "ตร.ว."}`}
                       tone="muted"
                     />
                     <Row
-                      label="มูลค่าฐานภาษีที่ดิน (เนื้อที่ × ราคาประเมิน)"
+                      label={lang === "en" ? "Land Tax Base (Area × Rate)" : "มูลค่าฐานภาษีที่ดิน (เนื้อที่ × ราคาประเมิน)"}
                       value={fmtCurrency(currentBaseValue)}
                     />
                     <Row
-                      label="ประเภทการใช้ประโยชน์"
+                      label={lang === "en" ? "Utilization Type" : "ประเภทการใช้ประโยชน์"}
                       value={landUseType}
                       tone="muted"
                     />
                     <Row
-                      label="อัตราภาษีที่ดินตามกฎหมาย"
+                      label={lang === "en" ? "Statutory Tax Rate" : "อัตราภาษีที่ดินตามกฎหมาย"}
                       value={`${(currentRate * 100).toFixed(2)}%`}
                       tone="muted"
                     />
                     <Row
-                      label="ภาษีที่ดินที่ต้องชำระประจำปี"
+                      label={lang === "en" ? "Annual Land Tax Payable" : "ภาษีที่ดินที่ต้องชำระประจำปี"}
                       value={fmtCurrency(currentTax)}
                     />
                   </>
                 ) : (
                   <>
                     <Row
-                      label="พื้นที่ใช้สอยอาคารรวม"
-                      value={`${bldgAreaSqm.toLocaleString()} ตารางเมตร`}
+                      label={lang === "en" ? "Total Usable Area" : "พื้นที่ใช้สอยอาคารรวม"}
+                      value={`${bldgAreaSqm.toLocaleString()} ${lang === "en" ? "sq.m." : "ตารางเมตร"}`}
                     />
                     <Row
-                      label="ราคาประเมินสิ่งปลูกสร้างต่อหน่วย"
-                      value={`${fmtCurrency(appraisalBldgPerSqm)} / ตร.ม.`}
+                      label={lang === "en" ? "Building Appraisal Rate" : "ราคาประเมินสิ่งปลูกสร้างต่อหน่วย"}
+                      value={`${fmtCurrency(appraisalBldgPerSqm)} / ${lang === "en" ? "sq.m." : "ตร.ม."}`}
                       tone="muted"
                     />
                     <Row
-                      label="มูลค่าฐานภาษีสิ่งปลูกสร้าง (พื้นที่ × ราคาประเมิน)"
+                      label={lang === "en" ? "Building Tax Base (Area × Rate)" : "มูลค่าฐานภาษีสิ่งปลูกสร้าง (พื้นที่ × ราคาประเมิน)"}
                       value={fmtCurrency(currentBaseValue)}
                     />
                     <Row
-                      label="ประเภทการใช้ประโยชน์"
+                      label={lang === "en" ? "Utilization Type" : "ประเภทการใช้ประโยชน์"}
                       value={landUseType}
                       tone="muted"
                     />
                     <Row
-                      label="อัตราภาษีสิ่งปลูกสร้างตามกฎหมาย"
+                      label={lang === "en" ? "Statutory Tax Rate" : "อัตราภาษีสิ่งปลูกสร้างตามกฎหมาย"}
                       value={`${(currentRate * 100).toFixed(2)}%`}
                       tone="muted"
                     />
                     <Row
-                      label="ภาษีสิ่งปลูกสร้างที่ต้องชำระประจำปี"
+                      label={lang === "en" ? "Annual Building Tax Payable" : "ภาษีสิ่งปลูกสร้างที่ต้องชำระประจำปี"}
                       value={fmtCurrency(currentTax)}
                     />
                   </>
@@ -956,31 +962,31 @@ export default function TaxPage() {
 
           <div className="space-y-3">
             <StatCard
-              label={isLandTarget ? "ฐานประเมินทุนทรัพย์ที่ดิน" : "ฐานประเมินทุนทรัพย์สิ่งปลูกสร้าง"}
+              label={isLandTarget ? t("taxLandValue") : t("taxBldgValue")}
               value={fmtCurrency(currentBaseValue)}
               hint={
                 isLandTarget
-                  ? `${landAreaWah.toLocaleString()} ตร.ว. × ${fmtCurrency(appraisalLandPerWah)}`
-                  : `${bldgAreaSqm.toLocaleString()} ตร.ม. × ${fmtCurrency(appraisalBldgPerSqm)}`
+                  ? `${landAreaWah.toLocaleString()} ${lang === "en" ? "sq.wah" : "ตร.ว."} × ${fmtCurrency(appraisalLandPerWah)}`
+                  : `${bldgAreaSqm.toLocaleString()} ${lang === "en" ? "sq.m." : "ตร.ม."} × ${fmtCurrency(appraisalBldgPerSqm)}`
               }
               tone={isLandTarget ? "blue" : "gold"}
             />
             <StatCard
-              label={`อัตราภาษีประจำปี (${landUseType})`}
+              label={lang === "en" ? `Annual Tax Rate (${landUseType})` : `อัตราภาษีประจำปี (${landUseType})`}
               value={`${(currentRate * 100).toFixed(2)}%`}
-              hint="ตาม พ.ร.บ. ภาษีที่ดินและสิ่งปลูกสร้าง พ.ศ. 2562"
+              hint={t("taxSub")}
               tone="green"
             />
 
             <Card className="p-4 bg-gradient-to-br from-govblue-800 to-govblue-700 text-white shadow-lg">
               <div className="text-xs uppercase tracking-wider opacity-80 flex items-center gap-1">
-                <CircleDollarSign size={14} /> ภาษีที่ต้องชำระประจำปี ({isLandTarget ? "ที่ดิน" : "สิ่งปลูกสร้าง"})
+                <CircleDollarSign size={14} /> {lang === "en" ? `Annual Tax Payable (${isLandTarget ? "Land" : "Building"})` : `ภาษีที่ต้องชำระประจำปี (${isLandTarget ? "ที่ดิน" : "สิ่งปลูกสร้าง"})`}
               </div>
               <div className="text-3xl font-bold mt-2 text-govgold-400 font-mono">
                 {fmtCurrency(currentTax)}
               </div>
               <div className="text-[11px] opacity-80 mt-1">
-                ประจำปีภาษี {taxYear} • {isLandTarget ? selectedLandCode : selectedBldgCode}
+                {lang === "en" ? `Tax Year ${taxYear === "2569" ? "2026" : taxYear} • ` : `ประจำปีภาษี ${taxYear} • `}{isLandTarget ? selectedLandCode : selectedBldgCode}
               </div>
               <div className="mt-4 flex flex-col gap-2">
                 <Btn
@@ -988,24 +994,26 @@ export default function TaxPage() {
                   variant="secondary"
                   className="!bg-govgold-500 !text-govblue-900 !border-0 hover:!bg-govgold-400 justify-center font-semibold text-xs py-2"
                 >
-                  <Printer size={14} /> พิมพ์ใบแจ้งประเมินภาษี (ภ.ด.ส. 3)
+                  <Printer size={14} /> {t("btnPrintInvoice")}
                 </Btn>
                 <Btn
                   onClick={openDetailModalForIndividual}
                   variant="secondary"
                   className="!bg-white/10 !text-white !border-white/20 hover:!bg-white/20 justify-center text-xs py-1.5"
                 >
-                  <Eye size={13} /> ดูรายละเอียดเชิงลึก
+                  <Eye size={13} /> {t("btnDeepDetails")}
                 </Btn>
               </div>
             </Card>
 
             <Card className="p-3 text-[11px] text-gray-500">
               <div className="flex items-center gap-1 font-semibold text-govblue-700 mb-1">
-                <FileText size={12} /> อ้างอิงข้อกำหนดการประเมินภาษี
+                <FileText size={12} /> {t("taxRefNotes")}
               </div>
-              ข้อมูล{isLandTarget ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}เชื่อมโยงจากฐานข้อมูลสำรวจ
-              สามารถนำไปใช้ในกระบวนการจัดเก็บรายได้และการยื่นแบบประเมินภาษีต่อไป
+              {lang === "en"
+                ? `Data for ${isLandTarget ? "land parcel" : "building"} linked from the survey database can be used in revenue collection and tax filing.`
+                : `ข้อมูล${isLandTarget ? "แปลงที่ดิน" : "สิ่งปลูกสร้าง"}เชื่อมโยงจากฐานข้อมูลสำรวจ สามารถนำไปใช้ในกระบวนการจัดเก็บรายได้และการยื่นแบบประเมินภาษีต่อไป`
+              }
             </Card>
           </div>
         </div>
@@ -1015,27 +1023,27 @@ export default function TaxPage() {
           {/* Top 4 Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
-              label="แปลงที่ดินทั้งหมด"
-              value={`${consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง`}
-              hint={`ฐานประเมินรวม ${fmtCurrency(consolidatedStats.totalLandVal)}`}
+              label={t("totalLandParcels")}
+              value={`${consolidatedStats.allItems.filter((i) => i.type === "land").length} ${t("unitParcel")}`}
+              hint={`${lang === "en" ? "Total assessed base" : "ฐานประเมินรวม"} ${fmtCurrency(consolidatedStats.totalLandVal)}`}
               tone="blue"
             />
             <StatCard
-              label="สิ่งปลูกสร้างทั้งหมด"
-              value={`${consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง`}
-              hint={`ฐานประเมินรวม ${fmtCurrency(consolidatedStats.totalBldgVal)}`}
+              label={t("totalBuildings")}
+              value={`${consolidatedStats.allItems.filter((i) => i.type === "building").length} ${t("unitBldg")}`}
+              hint={`${lang === "en" ? "Total assessed base" : "ฐานประเมินรวม"} ${fmtCurrency(consolidatedStats.totalBldgVal)}`}
               tone="green"
             />
             <StatCard
-              label="ฐานภาษีรวมทั้งพอร์ต"
+              label={t("totalPortfolioTaxBase")}
               value={fmtCurrency(consolidatedStats.totalBase)}
-              hint="ที่ดิน + สิ่งปลูกสร้างทุกแห่ง"
+              hint={t("allLandsAndBuildings")}
               tone="gold"
             />
             <StatCard
-              label="ประมาณการภาษีรวมทั้งสิ้น"
+              label={t("totalEstimatedTax")}
               value={fmtCurrency(consolidatedStats.grandTotalTx)}
-              hint={`ที่ดิน ${fmtCurrency(consolidatedStats.totalLandTx)} + อาคาร ${fmtCurrency(consolidatedStats.totalBldgTx)}`}
+              hint={lang === "en" ? `Land ${fmtCurrency(consolidatedStats.totalLandTx)} + Building ${fmtCurrency(consolidatedStats.totalBldgTx)}` : `ที่ดิน ${fmtCurrency(consolidatedStats.totalLandTx)} + อาคาร ${fmtCurrency(consolidatedStats.totalBldgTx)}`}
               tone="blue"
             />
           </div>
@@ -1046,10 +1054,12 @@ export default function TaxPage() {
               <div>
                 <h3 className="text-sm font-bold text-govblue-900 flex items-center gap-2">
                   <Landmark size={16} className="text-govblue-700 shrink-0" />
-                  บัญชีภาษีรวมทั้งพอร์ต
+                  {t("taxLedgerTitle")}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  ประจำปี {taxYear} • ที่ดิน {consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง • สิ่งปลูกสร้าง {consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง (รวมทั้งสิ้น {consolidatedStats.allItems.length} รายการ)
+                  {lang === "en"
+                    ? `Tax Year ${taxYear === "2569" ? "2026" : taxYear} • ${consolidatedStats.allItems.filter((i) => i.type === "land").length} Land parcels • ${consolidatedStats.allItems.filter((i) => i.type === "building").length} Buildings (Total ${consolidatedStats.allItems.length} items)`
+                    : `ประจำปี ${taxYear} • ที่ดิน ${consolidatedStats.allItems.filter((i) => i.type === "land").length} แปลง • สิ่งปลูกสร้าง ${consolidatedStats.allItems.filter((i) => i.type === "building").length} หลัง (รวมทั้งสิ้น ${consolidatedStats.allItems.length} รายการ)`}
                 </p>
               </div>
 
@@ -1059,13 +1069,13 @@ export default function TaxPage() {
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                   onClick={exportCSV}
                 >
-                  <Download size={13} /> ส่งออก CSV
+                  <Download size={13} /> {t("exportCSV")}
                 </Btn>
                 <Btn
                   onClick={() => window.print()}
                   className="text-xs py-1.5 px-3 flex items-center gap-1.5"
                 >
-                  <Printer size={13} /> พิมพ์รายงาน
+                  <Printer size={13} /> {t("printReport")}
                 </Btn>
               </div>
             </div>
@@ -1083,7 +1093,7 @@ export default function TaxPage() {
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
-                  ทั้งหมด ({consolidatedStats.allItems.length})
+                  {t("allFilter")} ({consolidatedStats.allItems.length})
                 </button>
                 <button
                   type="button"
@@ -1095,7 +1105,7 @@ export default function TaxPage() {
                   }`}
                 >
                   <TreePine size={13} />
-                  แปลงที่ดิน ({consolidatedStats.allItems.filter((i) => i.type === "land").length})
+                  {t("landFilter")} ({consolidatedStats.allItems.filter((i) => i.type === "land").length})
                 </button>
                 <button
                   type="button"
@@ -1107,7 +1117,7 @@ export default function TaxPage() {
                   }`}
                 >
                   <Building2 size={13} />
-                  สิ่งปลูกสร้าง ({consolidatedStats.allItems.filter((i) => i.type === "building").length})
+                  {t("bldgFilter")} ({consolidatedStats.allItems.filter((i) => i.type === "building").length})
                 </button>
               </div>
 
@@ -1116,7 +1126,7 @@ export default function TaxPage() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="ค้นหารหัส, ชื่อ, โฉนด, สถานที่/ที่อยู่, ประเภท..."
+                  placeholder={t("searchPlaceholder")}
                   value={searchConsolidated}
                   onChange={(e) => setSearchConsolidated(e.target.value)}
                   className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-govblue-500 bg-white"
@@ -1138,24 +1148,24 @@ export default function TaxPage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-y border-gray-200 text-gray-700 font-semibold">
-                    <th className="py-2.5 px-3">ลำดับ</th>
-                    <th className="py-2.5 px-3">ประเภท</th>
-                    <th className="py-2.5 px-3">รหัส / ชื่อทรัพย์สิน</th>
-                    <th className="py-2.5 px-3">สถานที่ / ที่อยู่</th>
-                    <th className="py-2.5 px-3">เอกสารสิทธิ์ / แปลงอ้างอิง</th>
-                    <th className="py-2.5 px-3">การใช้ประโยชน์</th>
-                    <th className="py-2.5 px-3 text-right">ขนาดพื้นที่</th>
-                    <th className="py-2.5 px-3 text-right">ฐานภาษีประเมิน (บาท)</th>
-                    <th className="py-2.5 px-3 text-center">อัตราภาษี</th>
-                    <th className="py-2.5 px-3 text-right font-bold text-govblue-900">ภาษีประจำปี (บาท)</th>
-                    <th className="py-2.5 px-3 text-center">จัดการ</th>
+                    <th className="py-2.5 px-3">{t("colNo")}</th>
+                    <th className="py-2.5 px-3">{t("colType")}</th>
+                    <th className="py-2.5 px-3">{t("colCodeName")}</th>
+                    <th className="py-2.5 px-3">{t("colAddress")}</th>
+                    <th className="py-2.5 px-3">{t("colRefInfo")}</th>
+                    <th className="py-2.5 px-3">{t("colUseType")}</th>
+                    <th className="py-2.5 px-3 text-right">{t("colArea")}</th>
+                    <th className="py-2.5 px-3 text-right">{t("colBaseValue")}</th>
+                    <th className="py-2.5 px-3 text-center">{t("colTaxRate")}</th>
+                    <th className="py-2.5 px-3 text-right font-bold text-govblue-900">{t("colAnnualTax")}</th>
+                    <th className="py-2.5 px-3 text-center">{t("colAction")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredConsolidatedItems.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="py-8 text-center text-gray-500">
-                        ไม่พบข้อมูลทรัพย์สินที่ตรงกับเงื่อนไขการค้นหา
+                        {t("noMatchAssets")}
                       </td>
                     </tr>
                   ) : (
@@ -1166,12 +1176,12 @@ export default function TaxPage() {
                           {it.type === "land" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
                               <TreePine size={11} />
-                              ที่ดิน
+                              {lang === "en" ? "Land" : "ที่ดิน"}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
                               <Building2 size={11} />
-                              สิ่งปลูกสร้าง
+                              {lang === "en" ? "Building" : "สิ่งปลูกสร้าง"}
                             </span>
                           )}
                         </td>
@@ -1221,28 +1231,28 @@ export default function TaxPage() {
                               type="button"
                               onClick={() => handleOpenSurveyModal(it)}
                               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition cursor-pointer shadow-2xs"
-                              title="ดูพื้นที่รังวัดและรูปภาพสำรวจบน Google Maps"
+                              title={lang === "en" ? "View survey polygon and photos on Google Maps" : "ดูพื้นที่รังวัดและรูปภาพสำรวจบน Google Maps"}
                             >
                               <Compass size={12} />
-                              ดูพื้นที่
+                              {t("btnViewArea")}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenDetail(it)}
                               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-govblue-700 bg-govblue-50 hover:bg-govblue-100 rounded transition cursor-pointer"
-                              title="ดูรายละเอียดทรัพย์สิน"
+                              title={lang === "en" ? "View property details" : "ดูรายละเอียดทรัพย์สิน"}
                             >
                               <Eye size={12} />
-                              ดูรายละเอียด
+                              {t("btnViewDetails")}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenInvoice(it)}
                               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded transition cursor-pointer"
-                              title="พิมพ์ใบกำกับภาษี / ภ.ด.ส. 3"
+                              title={lang === "en" ? "Print Tax Notice / P.D.S. 3" : "พิมพ์ใบกำกับภาษี / ภ.ด.ส. 3"}
                             >
                               <Printer size={12} />
-                              ใบภาษี
+                              {t("btnTaxInvoice")}
                             </button>
                           </div>
                         </td>
@@ -1253,7 +1263,9 @@ export default function TaxPage() {
                 <tfoot>
                   <tr className="bg-govblue-50/70 border-t-2 border-govblue-200 font-bold text-govblue-950 text-xs">
                     <td colSpan={7} className="py-3 px-3">
-                      รวมยอดตามที่แสดง ({filteredConsolidatedItems.length} รายการ จากทั้งหมด {consolidatedStats.allItems.length} รายการในพอร์ต)
+                      {lang === "en"
+                        ? `Total displayed (${filteredConsolidatedItems.length} items of ${consolidatedStats.allItems.length} total items in portfolio)`
+                        : `รวมยอดตามที่แสดง (${filteredConsolidatedItems.length} รายการ จากทั้งหมด ${consolidatedStats.allItems.length} รายการในพอร์ต)`}
                     </td>
                     <td className="py-3 px-3 text-right font-mono">
                       {fmtCurrency(filteredTotals.totalBase)}
@@ -1272,7 +1284,7 @@ export default function TaxPage() {
             <div className="md:hidden space-y-3">
               {filteredConsolidatedItems.length === 0 ? (
                 <div className="py-8 text-center text-gray-500 text-xs bg-gray-50 rounded-xl">
-                  ไม่พบข้อมูลทรัพย์สินที่ตรงกับเงื่อนไขการค้นหา
+                  {t("noMatchAssets")}
                 </div>
               ) : (
                 filteredConsolidatedItems.map((it) => (
@@ -1286,12 +1298,12 @@ export default function TaxPage() {
                         {it.type === "land" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
                             <TreePine size={11} />
-                            ที่ดิน
+                            {lang === "en" ? "Land" : "ที่ดิน"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">
                             <Building2 size={11} />
-                            สิ่งปลูกสร้าง
+                            {lang === "en" ? "Building" : "สิ่งปลูกสร้าง"}
                           </span>
                         )}
                         <span className="font-bold text-xs text-govblue-900">{it.code}</span>
@@ -1319,26 +1331,26 @@ export default function TaxPage() {
                         <span className="truncate">{it.address}</span>
                       </div>
                       <div className="text-[10px] text-gray-400 mt-0.5">
-                        อ้างอิง: {it.refInfo} • {it.srtType}
+                        {lang === "en" ? "Ref:" : "อ้างอิง:"} {it.refInfo} • {it.srtType}
                       </div>
                     </div>
 
                     {/* Tax & Value Box */}
                     <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
                       <div>
-                        <div className="text-[10px] text-gray-500">ขนาดพื้นที่</div>
+                        <div className="text-[10px] text-gray-500">{lang === "en" ? "Area" : "ขนาดพื้นที่"}</div>
                         <div className="font-mono font-medium text-gray-800">{it.areaFormatted}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-gray-500">ฐานประเมินทุนทรัพย์</div>
+                        <div className="text-[10px] text-gray-500">{lang === "en" ? "Assessed Base" : "ฐานประเมินทุนทรัพย์"}</div>
                         <div className="font-mono font-medium text-gray-800">{fmtCurrency(it.baseValue)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-gray-500">อัตราภาษี</div>
+                        <div className="text-[10px] text-gray-500">{lang === "en" ? "Tax Rate" : "อัตราภาษี"}</div>
                         <div className="font-mono text-gray-700">{(it.ratePercent).toFixed(2)}%</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-gray-500">ภาษีประจำปี</div>
+                        <div className="text-[10px] text-gray-500">{lang === "en" ? "Annual Tax" : "ภาษีประจำปี"}</div>
                         <div className="font-mono font-bold text-rose-700">{fmtCurrency(it.tax)}</div>
                       </div>
                     </div>
@@ -1351,7 +1363,7 @@ export default function TaxPage() {
                         className="py-1.5 px-1 rounded-lg text-xs font-medium text-govblue-800 bg-govblue-50 hover:bg-govblue-100 flex items-center justify-center gap-1 transition cursor-pointer"
                       >
                         <Eye size={12} />
-                        <span className="truncate">รายละเอียด</span>
+                        <span className="truncate">{t("btnViewDetails")}</span>
                       </button>
                       <button
                         type="button"
@@ -1359,7 +1371,7 @@ export default function TaxPage() {
                         className="py-1.5 px-1 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center gap-1 transition cursor-pointer shadow-2xs"
                       >
                         <Compass size={12} />
-                        <span className="truncate">ดูพื้นที่</span>
+                        <span className="truncate">{t("btnViewArea")}</span>
                       </button>
                       <button
                         type="button"
@@ -1367,7 +1379,7 @@ export default function TaxPage() {
                         className="py-1.5 px-1 rounded-lg text-xs font-medium text-white bg-govblue-800 hover:bg-govblue-700 flex items-center justify-center gap-1 transition shadow-xs cursor-pointer"
                       >
                         <Printer size={12} />
-                        <span className="truncate">พิมพ์ภาษี</span>
+                        <span className="truncate">{t("btnTaxInvoice")}</span>
                       </button>
                     </div>
                   </div>
@@ -1377,15 +1389,15 @@ export default function TaxPage() {
               {/* Mobile Summary Footer Card */}
               <div className="p-3 bg-govblue-50 border border-govblue-200 rounded-xl space-y-1 text-xs text-govblue-900">
                 <div className="flex justify-between">
-                  <span>รวมรายการที่แสดง:</span>
-                  <span className="font-semibold">{filteredConsolidatedItems.length} รายการ</span>
+                  <span>{lang === "en" ? "Items displayed:" : "รวมรายการที่แสดง:"}</span>
+                  <span className="font-semibold">{filteredConsolidatedItems.length} {lang === "en" ? "items" : "รายการ"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>ฐานภาษีประเมินรวม:</span>
+                  <span>{lang === "en" ? "Total assessed base:" : "ฐานภาษีประเมินรวม:"}</span>
                   <span className="font-mono font-semibold">{fmtCurrency(filteredTotals.totalBase)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-rose-700 pt-1 border-t border-govblue-200">
-                  <span>ภาษีรวมทั้งสิ้น:</span>
+                  <span>{lang === "en" ? "Total tax payable:" : "ภาษีรวมทั้งสิ้น:"}</span>
                   <span className="font-mono">{fmtCurrency(filteredTotals.totalTx)}</span>
                 </div>
               </div>
@@ -1478,10 +1490,12 @@ export default function TaxPage() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-gray-900">
-                  ทำเรื่องขอแก้ไข / สำรวจใหม่
+                  {lang === "en" ? "Request Revision / Re-survey" : "ทำเรื่องขอแก้ไข / สำรวจใหม่"}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  ส่งคำร้องจากฝ่ายบัญชีเพื่อขอให้หัวหน้างานสั่งสำรวจตรวจสอบทรัพย์สิน
+                  {lang === "en"
+                    ? "Submit request from accounting to supervisor for property verification"
+                    : "ส่งคำร้องจากฝ่ายบัญชีเพื่อขอให้หัวหน้างานสั่งสำรวจตรวจสอบทรัพย์สิน"}
                 </p>
               </div>
             </div>
@@ -1490,17 +1504,17 @@ export default function TaxPage() {
               {/* Target Property Badge */}
               <div className="p-3 bg-slate-50 border border-gray-200 rounded-xl text-xs space-y-1">
                 <div className="text-[10px] text-gray-500 font-semibold uppercase">
-                  ทรัพย์สินที่ต้องการขอแก้ไข / สำรวจใหม่
+                  {lang === "en" ? "Target Property for Revision / Re-survey" : "ทรัพย์สินที่ต้องการขอแก้ไข / สำรวจใหม่"}
                 </div>
                 <div className="flex items-center justify-between font-bold text-govblue-900">
                   <span className="flex items-center gap-1.5">
                     {reqTargetType === "land" ? (
                       <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800">
-                        แปลงที่ดิน
+                        {lang === "en" ? "Land" : "แปลงที่ดิน"}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800">
-                        สิ่งปลูกสร้าง
+                        {lang === "en" ? "Building" : "สิ่งปลูกสร้าง"}
                       </span>
                     )}
                     <span>{reqTargetCode}</span>
@@ -1512,7 +1526,7 @@ export default function TaxPage() {
               {/* Request Type Selector */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  ประเภทคำร้อง <span className="text-rose-500">*</span>
+                  {lang === "en" ? "Request Type" : "ประเภทคำร้อง"} <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1524,9 +1538,9 @@ export default function TaxPage() {
                         : "border-gray-200 hover:bg-gray-50 text-gray-700"
                     }`}
                   >
-                    <div className="font-bold">ขอแก้ไขข้อมูลเดิม</div>
+                    <div className="font-bold">{lang === "en" ? "Revise Existing Data" : "ขอแก้ไขข้อมูลเดิม"}</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">
-                      ข้อมูลผิดพลาด, ขนาดเนื้อที่ไม่ตรง, สิทธิประโยชน์ผิด
+                      {lang === "en" ? "Data mismatch, size error, incorrect exemption" : "ข้อมูลผิดพลาด, ขนาดเนื้อที่ไม่ตรง, สิทธิประโยชน์ผิด"}
                     </div>
                   </button>
 
@@ -1539,9 +1553,9 @@ export default function TaxPage() {
                         : "border-gray-200 hover:bg-gray-50 text-gray-700"
                     }`}
                   >
-                    <div className="font-bold">ขอให้ลงสำรวจใหม่</div>
+                    <div className="font-bold">{lang === "en" ? "Request Re-survey" : "ขอให้ลงสำรวจใหม่"}</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">
-                      รังวัดแนวเขตใหม่, สำรวจอาคารภาคสนามจริง
+                      {lang === "en" ? "Re-measure boundary, physical field inspection" : "รังวัดแนวเขตใหม่, สำรวจอาคารภาคสนามจริง"}
                     </div>
                   </button>
                 </div>
@@ -1550,18 +1564,24 @@ export default function TaxPage() {
               {/* Remarks */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  รายละเอียด / หมายเหตุคำร้อง <span className="text-rose-500">*</span>
+                  {lang === "en" ? "Details / Remarks" : "รายละเอียด / หมายเหตุคำร้อง"} <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   rows={3}
                   value={reqRemarks}
                   onChange={(e) => setReqRemarks(e.target.value)}
-                  placeholder="ระบุสิ่งที่พบ เช่น เนื้อที่ดินในระบบไม่ตรงกับเอกสารสิทธิ์ หรือขอให้วัดพิกัดแนวเขตใหม่..."
+                  placeholder={
+                    lang === "en"
+                      ? "Describe the issue, e.g. deed area mismatch or re-measure perimeter coordinates..."
+                      : "ระบุสิ่งที่พบ เช่น เนื้อที่ดินในระบบไม่ตรงกับเอกสารสิทธิ์ หรือขอให้วัดพิกัดแนวเขตใหม่..."
+                  }
                   className="w-full text-xs p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 focus:outline-none"
                   required
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
-                  คำร้องนี้จะถูกส่งไปยังหน้าตรวจสอบคำร้องของหัวหน้างาน เพื่อสั่งงานลูกน้องลงสำรวจต่อไป
+                  {lang === "en"
+                    ? "This request will be sent to the supervisor review queue to dispatch surveyors."
+                    : "คำร้องนี้จะถูกส่งไปยังหน้าตรวจสอบคำร้องของหัวหน้างาน เพื่อสั่งงานลูกน้องลงสำรวจต่อไป"}
                 </p>
               </div>
 
@@ -1571,14 +1591,16 @@ export default function TaxPage() {
                   onClick={() => setRequestModalOpen(false)}
                   className="px-4 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
                 >
-                  ยกเลิก
+                  {t("cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={reqSending}
                   className="px-4 py-2 text-xs font-semibold text-white bg-govblue-800 hover:bg-govblue-900 rounded-xl shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {reqSending ? "กำลังส่งคำร้อง..." : "ส่งคำร้องไปยังหัวหน้างาน"}
+                  {reqSending
+                    ? (lang === "en" ? "Submitting..." : "กำลังส่งคำร้อง...")
+                    : (lang === "en" ? "Submit to Supervisor" : "ส่งคำร้องไปยังหัวหน้างาน")}
                 </button>
               </div>
             </form>
