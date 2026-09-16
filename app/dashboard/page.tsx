@@ -8,7 +8,7 @@ import { api, API_CONFIGURED, getAccessToken, getCurrentUser, type AppUser } fro
 import {
   MapPin, Building2, CircleDollarSign, Database,
   ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText,
-  Calendar, AlertCircle, Users, CheckCircle2, Clock, CloudOff,
+  Calendar, AlertCircle, Users, CircleCheck, Clock, CloudOff,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -238,7 +238,7 @@ export default function Dashboard() {
                   </div>
                   {r.status === "synced" && (
                     <Tag tone="green">
-                      <CheckCircle2 size={10} className="mr-0.5" />
+                      <CircleCheck size={10} className="mr-0.5" />
                     </Tag>
                   )}
                   {r.status === "pending" && (
