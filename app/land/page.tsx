@@ -359,10 +359,33 @@ export default function LandPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!landCode.trim()) {
+    const cleanLandCode = landCode.trim();
+    if (!cleanLandCode) {
       alert("กรุณาระบุรหัสแปลงที่ดิน");
       return;
     }
+
+    // ตรวจสอบความซ้ำซ้อนของรหัสแปลงที่ดิน (Uniqueness Check)
+    const dupCode = lands.find(
+      (l) => l.land_code.trim().toLowerCase() === cleanLandCode.toLowerCase() && l.public_id !== editingId
+    );
+    if (dupCode) {
+      alert(`รหัสแปลงที่ดิน "${cleanLandCode}" มีอยู่ในระบบแล้ว กรุณาระบุรหัสอื่น`);
+      return;
+    }
+
+    // ตรวจสอบเลขที่โฉนดที่ดินซ้ำ (กรณีมีการระบุ)
+    const cleanDeedNo = deedNo.trim();
+    if (cleanDeedNo) {
+      const dupDeed = lands.find(
+        (l) => (l.deed_no || "").trim() === cleanDeedNo && l.public_id !== editingId
+      );
+      if (dupDeed) {
+        alert(`เลขที่โฉนดที่ดิน "${cleanDeedNo}" ซ้ำกับแปลง "${dupDeed.land_code}" ในระบบ`);
+        return;
+      }
+    }
+
     setSaving(true);
 
     const r = rai === "" ? 0 : Number(rai);

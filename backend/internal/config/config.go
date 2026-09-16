@@ -42,8 +42,8 @@ func Load() Config {
 		LiffID:                 os.Getenv("LIFF_ID"),
 		DBMaxConns:             int32(getEnvInt("DB_MAX_CONNS", 10)),
 		DBMinConns:             int32(getEnvInt("DB_MIN_CONNS", 2)),
-		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 60),
-		RateLimitBurst:         getEnvInt("RATE_LIMIT_BURST", 20),
+		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 240),
+		RateLimitBurst:         getEnvInt("RATE_LIMIT_BURST", 60),
 		MaxBodySizeBytes:       int64(getEnvInt("MAX_BODY_SIZE_BYTES", 10*1024*1024)), // 10MB
 	}
 	if cfg.Port == "" {

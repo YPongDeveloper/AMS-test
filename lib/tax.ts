@@ -3,6 +3,13 @@
 
 import { LandParcel, Building } from "./api";
 
+export interface TaxTierBreakdown {
+  bracket: string;
+  taxableAmount: number;
+  ratePercent: number;
+  tax: number;
+}
+
 export interface LandTaxResult {
   totalWah: number;
   totalSqm: number;
@@ -14,6 +21,7 @@ export interface LandTaxResult {
   taxPayable: number;
   formattedBaseValue: string;
   formattedTaxPayable: string;
+  tierBreakdown?: TaxTierBreakdown[];
 }
 
 export interface BuildingTaxResult {
@@ -26,10 +34,94 @@ export interface BuildingTaxResult {
   taxPayable: number;
   formattedBaseValue: string;
   formattedTaxPayable: string;
+  tierBreakdown?: TaxTierBreakdown[];
 }
 
 export const DEFAULT_APPRAISAL_LAND_PER_WAH = 25000; // 25,000 THB / sq.wah
 export const DEFAULT_APPRAISAL_BLDG_PER_SQM = 12000; // 12,000 THB / sq.m
+
+export interface TaxTierBracket {
+  min: number;
+  max: number | null;
+  ratePercent: number;
+}
+
+// ตารางอัตราภาษีที่ดินและสิ่งปลูกสร้างแบบขั้นบันไดตาม พ.ร.บ. 2562
+export const STATUTORY_TAX_TIERS: Record<string, TaxTierBracket[]> = {
+  agriculture: [
+    { min: 0, max: 75_000_000, ratePercent: 0.01 },
+    { min: 75_000_000, max: 100_000_000, ratePercent: 0.03 },
+    { min: 100_000_000, max: 500_000_000, ratePercent: 0.05 },
+    { min: 500_000_000, max: 1_000_000_000, ratePercent: 0.07 },
+    { min: 1_000_000_000, max: null, ratePercent: 0.10 },
+  ],
+  residential: [
+    { min: 0, max: 50_000_000, ratePercent: 0.02 },
+    { min: 50_000_000, max: 75_000_000, ratePercent: 0.03 },
+    { min: 75_000_000, max: 100_000_000, ratePercent: 0.05 },
+    { min: 100_000_000, max: null, ratePercent: 0.10 },
+  ],
+  commercial: [
+    { min: 0, max: 50_000_000, ratePercent: 0.30 },
+    { min: 50_000_000, max: 200_000_000, ratePercent: 0.40 },
+    { min: 200_000_000, max: 1_000_000_000, ratePercent: 0.50 },
+    { min: 1_000_000_000, max: 5_000_000_000, ratePercent: 0.60 },
+    { min: 5_000_000_000, max: null, ratePercent: 0.70 },
+  ],
+  vacant: [
+    { min: 0, max: 50_000_000, ratePercent: 0.30 },
+    { min: 50_000_000, max: 200_000_000, ratePercent: 0.40 },
+    { min: 200_000_000, max: 1_000_000_000, ratePercent: 0.50 },
+    { min: 1_000_000_000, max: 5_000_000_000, ratePercent: 0.60 },
+    { min: 5_000_000_000, max: null, ratePercent: 0.70 },
+  ],
+};
+
+/**
+ * คำนวณภาษีอัตราก้าวหน้าแบบขั้นบันไดตามกฎหมาย พ.ร.บ. 2562
+ */
+export function calculateProgressiveTax(
+  baseValue: number,
+  categoryKey: "agriculture" | "residential" | "commercial" | "vacant"
+): { taxPayable: number; effectiveRatePercent: number; breakdown: TaxTierBreakdown[] } {
+  if (baseValue <= 0) {
+    return { taxPayable: 0, effectiveRatePercent: 0, breakdown: [] };
+  }
+
+  const brackets = STATUTORY_TAX_TIERS[categoryKey] || STATUTORY_TAX_TIERS.commercial;
+  let totalTax = 0;
+  const breakdown: TaxTierBreakdown[] = [];
+
+  for (const b of brackets) {
+    if (baseValue <= b.min) break;
+    const taxableInThisBracket =
+      b.max !== null
+        ? Math.min(baseValue, b.max) - b.min
+        : baseValue - b.min;
+
+    if (taxableInThisBracket > 0) {
+      const tax = (taxableInThisBracket * b.ratePercent) / 100;
+      totalTax += tax;
+      breakdown.push({
+        bracket:
+          b.max !== null
+            ? `${formatCurrency(b.min)} - ${formatCurrency(b.max)}`
+            : `มากกว่า ${formatCurrency(b.min)}`,
+        taxableAmount: taxableInThisBracket,
+        ratePercent: b.ratePercent,
+        tax: Math.round(tax),
+      });
+    }
+  }
+
+  const roundedTax = Math.round(totalTax);
+  const effectiveRate = baseValue > 0 ? (roundedTax / baseValue) * 100 : 0;
+  return {
+    taxPayable: roundedTax,
+    effectiveRatePercent: Number(effectiveRate.toFixed(4)),
+    breakdown,
+  };
+}
 
 /**
  * คำนวณเนื้อที่ดินเป็นตารางวา
@@ -62,22 +154,22 @@ export function calculateLandTax(
   const baseValue = totalWah * appraisalPerWah;
 
   let useType = "พาณิชยกรรม / อื่นๆ";
-  let taxRatePercent = 0.3; // 0.3%
+  let categoryKey: "agriculture" | "residential" | "commercial" | "vacant" = "commercial";
 
   const rawUse = (l.land_use || "").toLowerCase();
   if (rawUse.includes("เกษตร") || rawUse.includes("agri")) {
     useType = "เกษตรกรรม";
-    taxRatePercent = 0.01; // 0.01%
+    categoryKey = "agriculture";
   } else if (rawUse.includes("อาศัย") || rawUse.includes("resident")) {
     useType = "ที่อยู่อาศัย";
-    taxRatePercent = 0.02; // 0.02%
+    categoryKey = "residential";
   } else if (rawUse.includes("รกร้าง") || rawUse.includes("ว่างเปล่า")) {
     useType = "ที่ดินรกร้างว่างเปล่า";
-    taxRatePercent = 0.3;
+    categoryKey = "vacant";
   }
 
-  const taxRateDecimal = taxRatePercent / 100;
-  const taxPayable = Math.round(baseValue * taxRateDecimal);
+  const { taxPayable, effectiveRatePercent, breakdown } = calculateProgressiveTax(baseValue, categoryKey);
+  const taxRateDecimal = effectiveRatePercent / 100;
 
   return {
     totalWah,
@@ -85,11 +177,12 @@ export function calculateLandTax(
     appraisalPerWah,
     baseValue,
     useType,
-    taxRatePercent,
+    taxRatePercent: effectiveRatePercent,
     taxRateDecimal,
     taxPayable,
     formattedBaseValue: formatCurrency(baseValue),
     formattedTaxPayable: formatCurrency(taxPayable),
+    tierBreakdown: breakdown,
   };
 }
 
@@ -119,29 +212,30 @@ export function calculateBuildingTax(
   // Use primary usage from floor 1 or building name
   const primaryUse = b.floors?.[0]?.bldg_use || b.name || "";
   let useType = "พาณิชยกรรม / อื่นๆ";
-  let taxRatePercent = 0.3;
+  let categoryKey: "agriculture" | "residential" | "commercial" | "vacant" = "commercial";
 
   if (primaryUse.includes("อาศัย") || primaryUse.includes("บ้าน") || primaryUse.includes("หอพัก")) {
     useType = "ที่อยู่อาศัย";
-    taxRatePercent = 0.02;
+    categoryKey = "residential";
   } else if (primaryUse.includes("เกษตร") || primaryUse.includes("เพาะปลูก") || primaryUse.includes("เลี้ยงสัตว์")) {
     useType = "เกษตรกรรม";
-    taxRatePercent = 0.01;
+    categoryKey = "agriculture";
   }
 
-  const taxRateDecimal = taxRatePercent / 100;
-  const taxPayable = Math.round(baseValue * taxRateDecimal);
+  const { taxPayable, effectiveRatePercent, breakdown } = calculateProgressiveTax(baseValue, categoryKey);
+  const taxRateDecimal = effectiveRatePercent / 100;
 
   return {
     totalUsableSqm,
     appraisalPerSqm,
     baseValue,
     useType,
-    taxRatePercent,
+    taxRatePercent: effectiveRatePercent,
     taxRateDecimal,
     taxPayable,
     formattedBaseValue: formatCurrency(baseValue),
     formattedTaxPayable: formatCurrency(taxPayable),
+    tierBreakdown: breakdown,
   };
 }
 

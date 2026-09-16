@@ -1,4 +1,4 @@
-﻿import { ApiError, Envelope, TokenPair, AppUser } from "./types";
+import { ApiError, Envelope, TokenPair, AppUser } from "./types";
 import {
   getAccessToken,
   getRefreshToken,
@@ -22,7 +22,7 @@ export async function refreshTokens(): Promise<boolean> {
     const rt = getRefreshToken();
     if (!rt) return false;
     try {
-      const res = await fetch("/api/gateway", {
+      let res = await fetch("/api/gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -33,6 +33,15 @@ export async function refreshTokens(): Promise<boolean> {
           }),
         }),
       });
+
+      // Fallback to direct API_URL if gateway route returns 404 (e.g. Next.js static export)
+      if (res.status === 404 && API_URL) {
+        res = await fetch(`${API_URL}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: rt }),
+        });
+      }
 
       if (res.status === 401) {
         clearTokens();
@@ -89,7 +98,7 @@ export async function api<T>(
     }
   }
 
-  const doFetch = async (): Promise<Response> => {
+  const doFetch = async (forceDirect = false): Promise<Response> => {
     const headers: Record<string, string> = {
       ...(init?.headers as Record<string, string> | undefined),
     };
@@ -99,6 +108,25 @@ export async function api<T>(
     const method = init?.method || (init?.json !== undefined ? "POST" : "GET");
     const body = init?.json !== undefined ? init.json : init?.body;
 
+    // Direct mode if gateway is not reachable or static export
+    if (forceDirect && API_URL) {
+      if (body !== undefined && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+      const fetchBody =
+        body !== undefined && method !== "GET" && method !== "HEAD"
+          ? typeof body === "string"
+            ? body
+            : JSON.stringify(body)
+          : undefined;
+      const cleanPath = path.startsWith("/") ? path : `/${path}`;
+      return fetch(`${API_URL}${cleanPath}`, {
+        method,
+        headers,
+        body: fetchBody,
+      });
+    }
+
     // Send through BFF Gateway with encrypted payload (hiding URL & content in DevTools)
     const securePayload = encryptPayload({
       path,
@@ -107,14 +135,34 @@ export async function api<T>(
       body,
     });
 
-    return fetch("/api/gateway", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload: securePayload }),
-    });
+    try {
+      const gRes = await fetch("/api/gateway", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: securePayload }),
+      });
+      // If gateway returns 404 (static export) and backend is configured, direct fallback
+      if (gRes.status === 404 && API_URL) {
+        return doFetch(true);
+      }
+      return gRes;
+    } catch (gErr) {
+      if (API_URL) {
+        return doFetch(true);
+      }
+      throw gErr;
+    }
   };
 
   let res = await doFetch();
+
+  // Retry on 429 (Rate Limit Exceeded) with exponential backoff
+  if (res.status === 429) {
+    const retryHeader = res.headers.get("Retry-After");
+    const waitSec = retryHeader ? Math.min(parseInt(retryHeader, 10) || 1, 3) : 1;
+    await new Promise((r) => setTimeout(r, waitSec * 1000));
+    res = await doFetch();
+  }
 
   // Retry once on 401
   if (res.status === 401 && getRefreshToken()) {

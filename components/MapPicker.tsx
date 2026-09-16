@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
   X,
+  WifiOff,
 } from "lucide-react";
 
 interface MapPickerProps {
@@ -106,6 +107,20 @@ export default function MapPicker({
   const [searching, setSearching] = useState(false);
   const [searchMsg, setSearchMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   const [gpsLocating, setGpsLocating] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const defaultCenter = { lat: 13.7563, lng: 100.5018 };
   const currentLat = lat ?? defaultCenter.lat;
@@ -550,6 +565,19 @@ export default function MapPicker({
 
   return (
     <div className="space-y-3">
+      {/* แจ้งเตือนเมื่ออยู่ในโหมดออฟไลน์ */}
+      {!isOnline && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 flex items-start gap-2 shadow-xs">
+          <WifiOff size={15} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="leading-snug">
+            <span className="font-bold text-amber-900">โหมดออฟไลน์ (ไม่มีสัญญาณอินเทอร์เน็ต): </span>
+            <span className="text-amber-800">
+              ภาพแผนที่ดาวเทียมอาจไม่แสดงผล ท่านสามารถพิมพ์ตัวเลขพิกัด ละติจูด / ลองจิจูด ในช่องด้านล่างเพื่อบันทึกพิกัดได้ตามปกติ
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Map Container Wrapper: เมื่อเป็น Fullscreen จะกลายเป็น Fixed Modal คลุมทั้งหน้าจอ */}
       <div
         className={

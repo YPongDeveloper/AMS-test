@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { decryptPayload, encryptPayload } from "@/lib/api/crypto";
 
 // Private server-side backend URL (never exposed to client browser)
@@ -6,7 +6,7 @@ const BACKEND_URL = (
   process.env.BACKEND_API_URL ||
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:8080"
+  (process.env.NODE_ENV === "production" ? "https://srt-ams-api.onrender.com" : "http://localhost:8080")
 ).replace(/\/+$/, "");
 
 interface GatewayRequest {
