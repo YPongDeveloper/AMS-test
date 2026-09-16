@@ -30,8 +30,9 @@ export async function showMobileNotification(
   }
 
   const defaultOptions: NotificationOptions = {
-    icon: "/icon-192.png",
+    // สัญลักษณ์แจ้งเตือนบนแถบสถานะ (Status Bar Icon / Badge) เป็นรูปโลโก้
     badge: "/icon-192.png",
+    // ไม่ใส่ icon หรือ image เพื่อไม่ให้มีรูปโลโก้ขนาดใหญ่แสดงซ้ำในกล่องข้อความแจ้งเตือน
     ...options,
   };
 

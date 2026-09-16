@@ -1,4 +1,12 @@
-import { api, submitTaskData, type TaskStatus, type TaskSubmissionPayload, notifyDataUpdated } from "./api";
+import {
+  api,
+  submitTaskData,
+  type TaskStatus,
+  type TaskSubmissionPayload,
+  notifyDataUpdated,
+  getAccessToken,
+  API_URL,
+} from "./api";
 
 export interface OfflineQueueItem {
   id: string;
@@ -8,9 +16,75 @@ export interface OfflineQueueItem {
   status?: TaskStatus;
   submissionPayload?: TaskSubmissionPayload;
   timestamp: number;
+  token?: string | null;
+  apiUrl?: string;
 }
 
 const OFFLINE_QUEUE_KEY = "ams_offline_task_queue_v1";
+const DB_NAME = "ams_offline_db";
+const STORE_NAME = "offline_queue";
+
+function openIdb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB not available"));
+      return;
+    }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e: any) => {
+      const db = e.target.result as IDBDatabase;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveItemToIdb(item: OfflineQueueItem): Promise<void> {
+  try {
+    const db = await openIdb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).put(item);
+  } catch (err) {
+    console.warn("saveItemToIdb failed:", err);
+  }
+}
+
+export async function removeItemFromIdb(id: string): Promise<void> {
+  try {
+    const db = await openIdb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(id);
+  } catch (err) {
+    console.warn("removeItemFromIdb failed:", err);
+  }
+}
+
+export async function clearIdbQueue(): Promise<void> {
+  try {
+    const db = await openIdb();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+  } catch (err) {
+    console.warn("clearIdbQueue failed:", err);
+  }
+}
+
+export async function getAllIdbQueue(): Promise<OfflineQueueItem[]> {
+  try {
+    const db = await openIdb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const req = tx.objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
 
 export function isDeviceOnline(): boolean {
   if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
@@ -44,11 +118,16 @@ export function saveOfflineQueue(queue: OfflineQueueItem[]): void {
 }
 
 export async function registerBackgroundSync(): Promise<void> {
-  if (typeof window !== "undefined" && "serviceWorker" in navigator && "SyncManager" in window) {
+  if (typeof window !== "undefined" && "serviceWorker" in navigator) {
     try {
       const reg = await navigator.serviceWorker.ready;
       if (reg && "sync" in reg) {
         await (reg as any).sync.register("ams-sync-tasks");
+      }
+      if (reg && "periodicSync" in reg) {
+        await (reg as any).periodicSync
+          .register("ams-sync-tasks-periodic", { minInterval: 60 * 1000 })
+          .catch(() => {});
       }
     } catch (err) {
       console.warn("Background Sync registration failed:", err);
@@ -67,9 +146,12 @@ export function enqueueOfflineItem(item: Omit<OfflineQueueItem, "id" | "timestam
     ...item,
     id: `off_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     timestamp: Date.now(),
+    token: item.token || getAccessToken(),
+    apiUrl: API_URL,
   };
   updated.push(newItem);
   saveOfflineQueue(updated);
+  saveItemToIdb(newItem).catch(() => {});
   registerBackgroundSync().catch(() => {});
   return newItem;
 }
@@ -78,10 +160,12 @@ export function removeOfflineItem(id: string): void {
   const current = getOfflineQueue();
   const filtered = current.filter((q) => q.id !== id);
   saveOfflineQueue(filtered);
+  removeItemFromIdb(id).catch(() => {});
 }
 
 export function clearOfflineQueue(): void {
   saveOfflineQueue([]);
+  clearIdbQueue().catch(() => {});
 }
 
 let syncing = false;
@@ -105,12 +189,15 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
           method: "PATCH",
           json: { status: item.status },
         });
+        await removeItemFromIdb(item.id);
         synced++;
       } else if (item.type === "submission" && item.submissionPayload) {
         await submitTaskData(item.taskId, item.submissionPayload);
+        await removeItemFromIdb(item.id);
         synced++;
       } else {
         // Invalid item format, drop it
+        await removeItemFromIdb(item.id);
       }
     } catch (err) {
       console.warn(`Failed to sync offline item ${item.id} for task ${item.taskId}:`, err);
@@ -134,4 +221,23 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
   }
 
   return { synced, failed };
+}
+
+// ตรวจจับเมื่อ Service Worker ทำการซิงค์ข้อมูลสำเร็จในเบื้องหลัง (แม้ตอนผู้ใช้ออกจากแอปไปแล้ว)
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "AMS_OFFLINE_SYNCED") {
+      getAllIdbQueue().then((remaining) => {
+        saveOfflineQueue(remaining);
+        notifyDataUpdated();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("ams_offline_synced", {
+              detail: { synced: event.data.synced || 1, remainingCount: remaining.length },
+            })
+          );
+        }
+      });
+    }
+  });
 }
