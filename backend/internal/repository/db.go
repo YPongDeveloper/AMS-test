@@ -10,7 +10,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+type PoolStats struct {
+	TotalConns    int32 `json:"total_conns"`
+	IdleConns     int32 `json:"idle_conns"`
+	AcquiredConns int32 `json:"acquired_conns"`
+	MaxConns      int32 `json:"max_conns"`
+}
+
+func GetPoolStats(pool *pgxpool.Pool) PoolStats {
+	if pool == nil {
+		return PoolStats{}
+	}
+	s := pool.Stat()
+	return PoolStats{
+		TotalConns:    s.TotalConns(),
+		IdleConns:     s.IdleConns(),
+		AcquiredConns: s.AcquiredConns(),
+		MaxConns:      s.MaxConns(),
+	}
+}
+
+func Open(ctx context.Context, dsn string, maxConns, minConns int32) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, err
@@ -21,8 +41,26 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 		cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 		log.Println("DB: Supabase pooler detected → simple protocol")
 	}
-	cfg.MaxConns = 5
+
+	if maxConns <= 0 {
+		maxConns = 10
+	}
+	if minConns < 0 {
+		minConns = 2
+	}
+	if minConns > maxConns {
+		minConns = maxConns
+	}
+
+	// Server Pool (Connection Pool) Settings เพื่อความเสถียร ไม่ให้ฐานข้อมูลล่ม
+	cfg.MaxConns = maxConns
+	cfg.MinConns = minConns
 	cfg.MaxConnLifetime = 30 * time.Minute
+	cfg.MaxConnIdleTime = 5 * time.Minute
+	cfg.HealthCheckPeriod = 1 * time.Minute
+	cfg.ConnConfig.ConnectTimeout = 5 * time.Second
+
+	log.Printf("DB Server Pool configured: MaxConns=%d, MinConns=%d, IdleTimeout=5m, HealthCheck=1m", maxConns, minConns)
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

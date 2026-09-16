@@ -3,6 +3,8 @@ package router
 import (
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"ams-backend/internal/handler"
 	"ams-backend/internal/middleware"
 	"ams-backend/internal/repository"
@@ -11,8 +13,12 @@ import (
 )
 
 type Deps struct {
-	Secret         string
-	AllowedOrigins []string
+	Secret          string
+	AllowedOrigins  []string
+	Pool            *pgxpool.Pool
+	RateLimitPerMin int
+	RateLimitBurst  int
+	MaxBodySize     int64
 }
 
 func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks *service.TaskService, team *service.TeamService, reqs *service.RequestService, hub *ws.Hub, dash *repository.DashboardRepository, lands *service.LandService, bldgs *service.BuildingService) http.Handler {
@@ -44,7 +50,11 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		handler.WriteOK(w, http.StatusOK, "ok", nil)
+		stats := repository.GetPoolStats(deps.Pool)
+		handler.WriteOK(w, http.StatusOK, "ok", map[string]any{
+			"status":     "healthy",
+			"pool_stats": stats,
+		})
 	})
 	mux.HandleFunc("POST /api/auth/login", authH.LoginPassword)
 	mux.HandleFunc("POST /api/auth/refresh", authH.Refresh)
@@ -94,6 +104,19 @@ func New(deps Deps, auth *service.AuthService, users *service.UserService, tasks
 
 	mux.HandleFunc("GET /ws", wsH.Serve)
 
-	return middleware.RequestLogging(middleware.CORS(deps.AllowedOrigins, mux))
+	// Rate Limiter for DDoS mitigation
+	rateLimiter := middleware.NewRateLimiter(deps.RateLimitPerMin, deps.RateLimitBurst)
+
+	// Pipeline: Recoverer -> RequestLogging -> CORS -> SecurityHeaders -> MaxBodySize -> RateLimiter -> SQLInjectionSanitizer -> Mux
+	var chain http.Handler = mux
+	chain = middleware.SQLInjectionSanitizer(chain)
+	chain = rateLimiter.Middleware(chain)
+	chain = middleware.MaxBodySize(deps.MaxBodySize)(chain)
+	chain = middleware.SecurityHeaders(chain)
+	chain = middleware.CORS(deps.AllowedOrigins, chain)
+	chain = middleware.RequestLogging(chain)
+	chain = middleware.Recoverer(chain)
+
+	return chain
 }
 

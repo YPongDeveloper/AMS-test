@@ -19,7 +19,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pool, err := repository.Open(ctx, cfg.DatabaseURL)
+	pool, err := repository.Open(ctx, cfg.DatabaseURL, cfg.DBMaxConns, cfg.DBMinConns)
 	if err != nil {
 		log.Fatal("DB: ", err)
 	}
@@ -49,8 +49,12 @@ func main() {
 	reqSvc := service.NewRequestService(reqRepo, taskRepo, hub)
 
 	handler := router.New(router.Deps{
-		Secret:         cfg.JWTSecret,
-		AllowedOrigins: cfg.AllowedOrigins,
+		Secret:          cfg.JWTSecret,
+		AllowedOrigins:  cfg.AllowedOrigins,
+		Pool:            pool,
+		RateLimitPerMin: cfg.RateLimitPerMin,
+		RateLimitBurst:  cfg.RateLimitBurst,
+		MaxBodySize:     cfg.MaxBodySizeBytes,
 	}, authSvc, userSvc, taskSvc, teamSvc, reqSvc, hub, dashRepo, landSvc, bldgSvc)
 
 	log.Println("AMS backend listening on :" + cfg.Port)
@@ -58,6 +62,9 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	log.Fatal(srv.ListenAndServe())
 }

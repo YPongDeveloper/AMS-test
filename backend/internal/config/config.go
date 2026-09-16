@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,20 @@ type Config struct {
 	LineChannelAccessToken string
 	LiffID                 string
 	AllowedOrigins         []string
+	DBMaxConns             int32
+	DBMinConns             int32
+	RateLimitPerMin        int
+	RateLimitBurst         int
+	MaxBodySizeBytes       int64
+}
+
+func getEnvInt(key string, def int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil && i > 0 {
+			return i
+		}
+	}
+	return def
 }
 
 func Load() Config {
@@ -25,6 +40,11 @@ func Load() Config {
 		LineChannelID:          os.Getenv("LINE_CHANNEL_ID"),
 		LineChannelAccessToken: os.Getenv("LINE_CHANNEL_ACCESS_TOKEN"),
 		LiffID:                 os.Getenv("LIFF_ID"),
+		DBMaxConns:             int32(getEnvInt("DB_MAX_CONNS", 10)),
+		DBMinConns:             int32(getEnvInt("DB_MIN_CONNS", 2)),
+		RateLimitPerMin:        getEnvInt("RATE_LIMIT_PER_MIN", 60),
+		RateLimitBurst:         getEnvInt("RATE_LIMIT_BURST", 20),
+		MaxBodySizeBytes:       int64(getEnvInt("MAX_BODY_SIZE_BYTES", 10*1024*1024)), // 10MB
 	}
 	if cfg.Port == "" {
 		cfg.Port = "8080"
