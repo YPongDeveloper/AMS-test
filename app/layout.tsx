@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "@/lib/i18n";
 import { RegisterSW } from "@/components/RegisterSW";
 import { Analytics } from "@vercel/analytics/react";
+import { AppSplashScreen } from "@/components/AppSplashScreen";
 
 export const metadata: Metadata = {
   title: "ระบบจัดการคำนวนภาษี",
@@ -32,8 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen antialiased bg-[#0f2052]">
         <I18nProvider>
+          <AppSplashScreen />
           {children}
           <RegisterSW />
           <Analytics />

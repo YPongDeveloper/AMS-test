@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [isFetchError, setIsFetchError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reasonMsg, setReasonMsg] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
 
@@ -48,6 +49,7 @@ export default function LoginPage() {
     if (getAccessToken()) {
       const u = getCurrentUser();
       if (u) {
+        setIsRedirecting(true);
         routeByRole(u);
       }
     }
@@ -98,6 +100,10 @@ export default function LoginPage() {
 
   const inputCls =
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";
+
+  if (isRedirecting) {
+    return <div className="min-h-screen bg-[#0f2052]" />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-govblue-50 via-white to-govgold-50 p-4">

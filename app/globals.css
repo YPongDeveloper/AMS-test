@@ -37,6 +37,34 @@ html, body {
   }
 }
 
+@keyframes splash-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 10px rgba(200, 150, 31, 0.35));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 22px rgba(200, 150, 31, 0.7));
+  }
+}
+
+@keyframes splash-track {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-splash-logo {
+  animation: splash-pulse 1.8s ease-in-out infinite;
+}
+
+.animate-splash-track {
+  animation: splash-track 1.2s ease-in-out infinite;
+}
+
 /* =========================================================================
    Print Styles: ใบแจ้งการประเมินภาษีที่ดินและสิ่งปลูกสร้าง (แบบ ภ.ด.ส.)
    ซ่อนแถบเมนู หน้าเว็บ และฟอร์มกรอกข้อมูลทั้งหมดเมื่อสั่งพิมพ์เอกสาร
