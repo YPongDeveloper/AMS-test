@@ -31,6 +31,11 @@ import {
   enqueueOfflineItem,
   syncOfflineQueue,
 } from "@/lib/offlineSync";
+import {
+  notifyTaskAssigned,
+  notifySyncComplete,
+  requestNotificationPermission,
+} from "@/lib/notifications";
 import { connectTaskWS } from "@/lib/ws";
 import { useMe } from "@/lib/useMe";
 import { Page } from "@/components/Page";
@@ -765,6 +770,11 @@ export default function TasksPage() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
   const [isSyncingOffline, setIsSyncingOffline] = useState<boolean>(false);
+
+  // ขอสิทธิ์การแจ้งเตือนบนมือถือ/PWA เมื่อเข้าใช้งานหน้านี้
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   // Custom Confirmation & Alert Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -1699,6 +1709,51 @@ export default function TasksPage() {
     }
   }, []);
 
+  // ตรวจสอบว่า task นี้มอบหมายให้ฉันหรือไม่ (รองรับทั้งผู้รับงานเดี่ยวและผู้รับงานร่วมหลายคน)
+  const isTaskAssignedToMe = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    const myUname = me.username ? me.username.toLowerCase() : "";
+    return Boolean(
+      task.assignee_public_id === me.public_id ||
+      (Array.isArray(task.assignee_public_ids) && task.assignee_public_ids.includes(me.public_id)) ||
+      (Array.isArray(task.assignee_names) && (
+        task.assignee_names.includes(me.display_name) ||
+        (myUname && task.assignee_names.some((name) => Boolean(name && name.toLowerCase().includes(myUname))))
+      )) ||
+      task.assignee_name === me.display_name ||
+      (myUname && task.assignee_name?.toLowerCase().includes(myUname)) ||
+      (task.assignee_name && task.assignee_name.split(",").some((part) => {
+        const p = part.trim();
+        return p === me.display_name || Boolean(myUname && p.toLowerCase().includes(myUname));
+      }))
+    );
+  }, [me]);
+
+  // ตรวจสอบว่า task นี้เป็นงานที่ฉันสั่งหรือไม่
+  const isTaskAssignedByMe = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    return Boolean(
+      task.assigner_public_id === me.public_id ||
+      task.assigner_name === me.display_name ||
+      (me.username && task.assigner_name?.toLowerCase().includes(me.username.toLowerCase()))
+    );
+  }, [me]);
+
+  // ตรวจสอบว่า task นี้มอบหมายให้ลูกน้องในสังกัดของฉันหรือไม่ (รองรับ multi-assignee)
+  const isTaskInMyTeam = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    return (Array.isArray(myTeam) ? myTeam : []).some((m) => {
+      if (m.status !== "accepted") return false;
+      return (
+        m.subordinate_public_id === task.assignee_public_id ||
+        (Array.isArray(task.assignee_public_ids) && task.assignee_public_ids.includes(m.subordinate_public_id)) ||
+        m.subordinate_name === task.assignee_name ||
+        (Array.isArray(task.assignee_names) && m.subordinate_name && task.assignee_names.includes(m.subordinate_name)) ||
+        Boolean(m.subordinate_username && task.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
+      );
+    });
+  }, [me, myTeam]);
+
   useEffect(() => {
     if (!me) return;
     let mounted = true;
@@ -1723,6 +1778,11 @@ export default function TasksPage() {
               : `New task assigned: ${e.task.title}`
           );
           noticeTimer.current = setTimeout(() => setNotice(""), 6000);
+
+          // แจ้งเตือน Notification บนมือถือเฉพาะเมื่อเป็นงานที่ตนเองได้รับมอบหมาย
+          if (isTaskAssignedToMe(e.task)) {
+            notifyTaskAssigned(e.task.title, e.task.assigner_name || undefined);
+          }
         }
         // ไม่ต้องแสดงข้อความแจ้งเตือนเปลี่ยนสถานะทุกครั้ง เพื่อความสะอาดของหน้าจอ
       },
@@ -1764,6 +1824,7 @@ export default function TasksPage() {
         const res = await syncOfflineQueue();
         if (res.synced > 0) {
           await loadTasks();
+          notifySyncComplete(res.synced);
         }
       } finally {
         setIsSyncingOffline(false);
@@ -1785,6 +1846,8 @@ export default function TasksPage() {
         setNotice(`ซิงค์ข้อมูลที่บันทึกไว้ในโหมดออฟไลน์เข้าสู่ระบบสำเร็จ (${detail.synced} รายการ)`);
         if (noticeTimer.current) clearTimeout(noticeTimer.current);
         noticeTimer.current = setTimeout(() => setNotice(""), 5000);
+        // ส่งการแจ้งเตือน Notification บนมือถือเมื่องานซิงค์สำเร็จ
+        notifySyncComplete(detail.synced);
       }
     };
 
@@ -2047,38 +2110,6 @@ export default function TasksPage() {
     }
   }
 
-  // ตรวจสอบว่า task นี้มอบหมายให้ฉันหรือไม่
-  const isTaskAssignedToMe = useCallback((task: Task): boolean => {
-    if (!task || !me) return false;
-    return Boolean(
-      task.assignee_public_id === me.public_id ||
-      task.assignee_name === me.display_name ||
-      (me.username && task.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
-    );
-  }, [me]);
-
-  // ตรวจสอบว่า task นี้เป็นงานที่ฉันสั่งหรือไม่
-  const isTaskAssignedByMe = useCallback((task: Task): boolean => {
-    if (!task || !me) return false;
-    return Boolean(
-      task.assigner_public_id === me.public_id ||
-      task.assigner_name === me.display_name ||
-      (me.username && task.assigner_name?.toLowerCase().includes(me.username.toLowerCase()))
-    );
-  }, [me]);
-
-  // ตรวจสอบว่า task นี้มอบหมายให้ลูกน้องในสังกัดของฉันหรือไม่
-  const isTaskInMyTeam = useCallback((task: Task): boolean => {
-    if (!task || !me) return false;
-    return (Array.isArray(myTeam) ? myTeam : []).some((m) => {
-      if (m.status !== "accepted") return false;
-      return (
-        m.subordinate_public_id === task.assignee_public_id ||
-        m.subordinate_name === task.assignee_name ||
-        Boolean(m.subordinate_username && task.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
-      );
-    });
-  }, [me, myTeam]);
 
   // ตรวจสอบว่า task นี้อยู่ในสังกัด/ขอบเขตสิทธิ์ของฉันหรือไม่
   const isTaskInMyScope = useCallback((task: Task): boolean => {
@@ -2235,12 +2266,7 @@ export default function TasksPage() {
 
     const curIdx = getStepIndex(selectedTask.status);
 
-    const isAssignee = Boolean(
-      me && (
-        selectedTask.assignee_public_id === me.public_id ||
-        selectedTask.assignee_name === me.display_name
-      )
-    );
+    const isAssignee = isTaskAssignedToMe(selectedTask);
 
     // ตรวจสอบสิทธิ์: ขั้นตอน 0 -> 1, 1 -> 2, 2 -> 3 (รับงาน, ลงพื้นที่, ส่งตรวจ) เฉพาะผู้รับมอบหมายงาน (เจ้าของงาน) เท่านั้น
     if (!isAssignee && targetIdx < 4) {
@@ -2447,29 +2473,6 @@ export default function TasksPage() {
 
       {me && (
         <div className="max-w-6xl mx-auto space-y-5 w-full min-w-0">
-          {serverDown && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:px-4 flex items-center justify-between text-xs text-amber-800 shadow-xs">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                </span>
-                <span>
-                  {t(
-                    "เซิร์ฟเวอร์หลังบ้านกำลังเริ่มต้นทำงาน (ระบบกำลังเชื่อมต่อใหม่อัตโนมัติ...)",
-                    "Server is waking up (auto-reconnecting...)"
-                  )}
-                </span>
-              </div>
-              <button
-                onClick={retry}
-                className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-medium transition shrink-0 ml-2"
-              >
-                {t("ลองใหม่", "Retry")}
-              </button>
-            </div>
-          )}
-
           {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm w-full min-w-0">
             <div>
@@ -2482,6 +2485,12 @@ export default function TasksPage() {
                     ? t("ระบบมอบหมายและติดตามงาน", "Task Management & Assignment")
                     : t("งานของฉัน", "My Tasks")}
                 </h1>
+                {!isOnline && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    offline
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-gray-700">{me.display_name}</span>
@@ -2566,25 +2575,6 @@ export default function TasksPage() {
             </div>
           )}
 
-          {/* Offline Mode Banner */}
-          {!isOnline && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50/90 text-amber-950 text-xs sm:text-sm p-3.5 flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <WifiOff size={18} className="text-amber-600 shrink-0" />
-                <div className="leading-relaxed">
-                  <strong className="font-bold">โหมดออฟไลน์ (ไม่มีสัญญาณอินเทอร์เน็ต):</strong>{" "}
-                  <span className="text-amber-900">
-                    ท่านสามารถรับงาน บันทึกผลสำรวจ และส่งมอบงานได้ตามปกติ ระบบจะจัดเก็บไว้ในเครื่องและซิงค์ข้อมูลให้อัตโนมัติเมื่อต่อเน็ต
-                  </span>
-                </div>
-              </div>
-              {offlineQueueCount > 0 && (
-                <span className="px-2.5 py-1 bg-amber-200 text-amber-900 rounded-full font-bold text-xs shrink-0 whitespace-nowrap">
-                  รอซิงค์ {offlineQueueCount} รายการ
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Pending Sync Banner (เมื่อออนไลน์แล้วแต่ยังมีคิวค้างอยู่) */}
           {isOnline && offlineQueueCount > 0 && (
@@ -3242,27 +3232,13 @@ export default function TasksPage() {
                             ? "bg-rose-500"
                             : "bg-amber-400";
 
-                        const isCardTaskAssignee = Boolean(
-                          me && (
-                            task.assignee_public_id === me.public_id ||
-                            task.assignee_name === me.display_name ||
-                            (me.username && task.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
-                          )
-                        );
+                        const isCardTaskAssignee = isTaskAssignedToMe(task);
                         const canCancelCardTask = Boolean(
                           me && (
                             isCardTaskAssignee ||
-                            task.assigner_public_id === me.public_id ||
-                            task.assigner_name === me.display_name ||
+                            isTaskAssignedByMe(task) ||
                             me.role === "admin" ||
-                            (me.role === "supervisor" && (
-                              task.assigner_public_id === me.public_id ||
-                              (Array.isArray(myTeam) ? myTeam : []).some((m) => m.status === "accepted" && (
-                                m.subordinate_public_id === task.assignee_public_id ||
-                                m.subordinate_name === task.assignee_name ||
-                                (m.subordinate_username && task.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
-                              ))
-                            ))
+                            (me.role === "supervisor" && (isTaskAssignedByMe(task) || isTaskInMyTeam(task)))
                           )
                         );
 
@@ -3315,9 +3291,13 @@ export default function TasksPage() {
                                   <span className="text-gray-400">สั่งโดย: </span>
                                   <span className="font-medium text-gray-800">{task.assigner_name || "หัวหน้างาน"}</span>
                                 </div>
-                                <div className="truncate">
+                                <div className="truncate" title={Array.isArray(task.assignee_names) && task.assignee_names.length > 0 ? task.assignee_names.join(", ") : task.assignee_name || ""}>
                                   <span className="text-gray-400">ผู้รับ: </span>
-                                  <span className="font-medium text-govblue-700">{task.assignee_name || "เจ้าหน้าที่"}</span>
+                                  <span className="font-medium text-govblue-700">
+                                    {Array.isArray(task.assignee_names) && task.assignee_names.length > 0
+                                      ? task.assignee_names.join(", ")
+                                      : task.assignee_name || "เจ้าหน้าที่"}
+                                  </span>
                                 </div>
                                 {(task.address || task.place_name) && (
                                   <div className="col-span-2 flex items-center gap-1 text-xs text-gray-600 truncate mt-0.5">
@@ -3399,13 +3379,7 @@ export default function TasksPage() {
                                       const curIdx = getStepIndex(task.status);
                                       const targetIdx = getStepIndex(nextSt);
 
-                                      // ตรวจสอบสิทธิ์: ผู้รับมอบหมายเท่านั้นที่เปลี่ยนสถานะการลงพื้นที่ได้
-                                      const isTaskAssignee = Boolean(
-                                        me && (
-                                          task.assignee_public_id === me.public_id ||
-                                          task.assignee_name === me.display_name
-                                        )
-                                      );
+                                      const isTaskAssignee = isTaskAssignedToMe(task);
 
                                       if (!isTaskAssignee && (nextSt === "accepted" || nextSt === "in_progress" || nextSt === "submitted")) {
                                         setConfirmDialog({
@@ -3646,12 +3620,7 @@ export default function TasksPage() {
 
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
-                  const isTaskAssignee = Boolean(
-                    me && (
-                      selectedTask.assignee_public_id === me.public_id ||
-                      selectedTask.assignee_name === me.display_name
-                    )
-                  );
+                  const isTaskAssignee = isTaskAssignedToMe(selectedTask);
                   return (
                     <>
                       {/* Mobile View: เรียง Status ละ 1 แถว สบายตา ไม่เบียด Text กระชับ (ตามคำขอของผู้ใช้) */}
@@ -3926,27 +3895,13 @@ export default function TasksPage() {
                 {/* Contextual Action Box (กล่องแนะนำและดำเนินการขั้นตอนถัดไป + ปุ่มยกเลิกงาน) */}
                 {(() => {
                   const curIdx = getStepIndex(selectedTask.status);
-                  const isTaskAssignee = Boolean(
-                    me && (
-                      selectedTask.assignee_public_id === me.public_id ||
-                      selectedTask.assignee_name === me.display_name ||
-                      (me.username && selectedTask.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
-                    )
-                  );
+                  const isTaskAssignee = isTaskAssignedToMe(selectedTask);
                   const canCancelTask = Boolean(
                     me && (
                       isTaskAssignee ||
-                      selectedTask.assigner_public_id === me.public_id ||
-                      selectedTask.assigner_name === me.display_name ||
+                      isTaskAssignedByMe(selectedTask) ||
                       me.role === "admin" ||
-                      (me.role === "supervisor" && (
-                        selectedTask.assigner_public_id === me.public_id ||
-                        (Array.isArray(myTeam) ? myTeam : []).some((m) => m.status === "accepted" && (
-                          m.subordinate_public_id === selectedTask.assignee_public_id ||
-                          m.subordinate_name === selectedTask.assignee_name ||
-                          (m.subordinate_username && selectedTask.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
-                        ))
-                      ))
+                      (me.role === "supervisor" && (isTaskAssignedByMe(selectedTask) || isTaskInMyTeam(selectedTask)))
                     )
                   );
 
@@ -4254,7 +4209,11 @@ export default function TasksPage() {
                 </div>
                 <div>
                   <span className="text-gray-400 block mb-0.5 text-[11px]">ผู้รับมอบหมาย</span>
-                  <span className="font-semibold text-govblue-700">{selectedTask.assignee_name || "เจ้าหน้าที่สำรวจ"}</span>
+                  <span className="font-semibold text-govblue-700">
+                    {Array.isArray(selectedTask.assignee_names) && selectedTask.assignee_names.length > 0
+                      ? selectedTask.assignee_names.join(", ")
+                      : selectedTask.assignee_name || "เจ้าหน้าที่สำรวจ"}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-400 block mb-0.5 text-[11px]">กำหนดเสร็จ</span>

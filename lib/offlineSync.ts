@@ -43,6 +43,19 @@ export function saveOfflineQueue(queue: OfflineQueueItem[]): void {
   }
 }
 
+export async function registerBackgroundSync(): Promise<void> {
+  if (typeof window !== "undefined" && "serviceWorker" in navigator && "SyncManager" in window) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && "sync" in reg) {
+        await (reg as any).sync.register("ams-sync-tasks");
+      }
+    } catch (err) {
+      console.warn("Background Sync registration failed:", err);
+    }
+  }
+}
+
 export function enqueueOfflineItem(item: Omit<OfflineQueueItem, "id" | "timestamp">): OfflineQueueItem {
   const current = getOfflineQueue();
   // ถ้าเป็น status ของ taskId เดียวกันที่ค้างอยู่ ให้ update หรือแทนที่ด้วยอันล่าสุด
@@ -57,6 +70,7 @@ export function enqueueOfflineItem(item: Omit<OfflineQueueItem, "id" | "timestam
   };
   updated.push(newItem);
   saveOfflineQueue(updated);
+  registerBackgroundSync().catch(() => {});
   return newItem;
 }
 

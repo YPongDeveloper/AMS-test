@@ -32,7 +32,7 @@ function NewTaskContent() {
   const [title, setTitle] = useState("");
   const [taskType, setTaskType] = useState<"survey_new" | "revision" | "batch_entry">("survey_new");
   const [batchTargetType, setBatchTargetType] = useState<"land" | "building">("land");
-  const [assignee, setAssignee] = useState<string | null>(null);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [dueLocal, setDueLocal] = useState("");
   const [lat, setLat] = useState<number | null>(null);
@@ -150,9 +150,11 @@ function NewTaskContent() {
         const combined = [selfOption, ...teamUsers];
         setUsers(combined);
         if (qAssignee && combined.some((u) => u.public_id === qAssignee)) {
-          setAssignee(qAssignee);
-        } else {
-          setAssignee(teamUsers[0]?.public_id || selfOption.public_id);
+          setSelectedAssignees([qAssignee]);
+        } else if (teamUsers[0]?.public_id) {
+          setSelectedAssignees([teamUsers[0].public_id]);
+        } else if (selfOption.public_id) {
+          setSelectedAssignees([selfOption.public_id]);
         }
       });
     }
@@ -215,10 +217,16 @@ function NewTaskContent() {
       setErr(t("กรุณากรอกชื่องาน", "Task title is required"));
       return;
     }
-    if (!assignee) {
-      setErr(t("กรุณาเลือกผู้รับงาน", "Select an assignee"));
+    if (selectedAssignees.length === 0) {
+      setErr(t("กรุณาเลือกผู้รับงานอย่างน้อย 1 คน", "Select at least one assignee"));
       return;
     }
+
+    const selectedUsers = users.filter((u) => selectedAssignees.includes(u.public_id));
+    const assigneeNames = selectedUsers.map((u) => u.display_name.replace(" (ฉันเอง - ลงพื้นที่สำรวจเอง)", ""));
+    const combinedAssigneeName = assigneeNames.join(", ");
+    const primaryAssigneeId = selectedAssignees[0] || "";
+
     setSaving(true);
     try {
       const res = await api<{ public_id?: string; id?: string }>("/api/tasks", {
@@ -228,7 +236,10 @@ function NewTaskContent() {
           task_type: taskType,
           target_type: taskType === "batch_entry" ? batchTargetType : null,
           description: description.trim(),
-          assignee_public_id: assignee,
+          assignee_public_id: primaryAssigneeId,
+          assignee_public_ids: selectedAssignees,
+          assignee_name: combinedAssigneeName,
+          assignee_names: assigneeNames,
           due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
           lat: taskType === "batch_entry" ? null : lat,
           lng: taskType === "batch_entry" ? null : lng,
@@ -245,7 +256,6 @@ function NewTaskContent() {
       router.push("/tasks");
     } catch (e) {
       if (!API_CONFIGURED) {
-        const foundAssignee = users.find((u) => u.public_id === assignee);
         const newTask = {
           public_id: "mock-" + Date.now(),
           code: "TSK-" + String(Math.floor(100000 + Math.random() * 900000)),
@@ -253,10 +263,12 @@ function NewTaskContent() {
           task_type: taskType,
           description: description.trim(),
           status: "pending",
-          assignee_public_id: assignee,
+          assignee_public_id: primaryAssigneeId,
+          assignee_public_ids: selectedAssignees,
           assignee_name:
-            foundAssignee?.display_name.replace(" (ฉันเอง - ลงพื้นที่สำรวจเอง)", "") ||
-            (assignee === me?.public_id ? me?.display_name || "หัวหน้างานสำรวจ" : "เจ้าหน้าที่สำรวจ"),
+            combinedAssigneeName ||
+            (primaryAssigneeId === me?.public_id ? me?.display_name || "หัวหน้างานสำรวจ" : "เจ้าหน้าที่สำรวจ"),
+          assignee_names: assigneeNames,
           assigner_public_id: me?.public_id || "mock-leader",
           assigner_name: me?.display_name || "หัวหน้างานสำรวจ",
           due_at: dueLocal ? new Date(dueLocal).toISOString() : null,
@@ -351,27 +363,71 @@ function NewTaskContent() {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className={labelCls}>
-            {t("ผู้รับงาน (พนักงานสำรวจในทีม) *", "Assignee *")}
-            {isTeamAssignee && (
-              <span className="ml-1.5 text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                ทีมของคุณ
-              </span>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className={labelCls}>
+              {t("ผู้รับงาน (เลือกได้มากกว่า 1 คน) *", "Assignees (Select 1 or more) *")}
+              {isTeamAssignee && (
+                <span className="ml-1.5 text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                  ทีมของคุณ
+                </span>
+              )}
+            </label>
+            <span className="text-[11px] text-govblue-700 font-semibold">
+              {selectedAssignees.length > 0
+                ? t(`เลือกแล้ว ${selectedAssignees.length} คน`, `Selected ${selectedAssignees.length}`)
+                : t("ยังไม่ได้เลือก", "None selected")}
+            </span>
+          </div>
+
+          <div className="border border-gray-300 rounded-xl p-2 max-h-48 overflow-y-auto space-y-1.5 bg-gray-50/50">
+            {users.length === 0 ? (
+              <div className="text-xs text-gray-400 py-3 text-center">
+                {t("— ยังไม่มีลูกน้องในระบบหรือในทีม —", "— no subordinates yet —")}
+              </div>
+            ) : (
+              users.map((u) => {
+                const isSelected = selectedAssignees.includes(u.public_id);
+                return (
+                  <label
+                    key={u.public_id}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-xs transition border ${
+                      isSelected
+                        ? "bg-govblue-50 border-govblue-300 text-govblue-900 font-semibold shadow-2xs"
+                        : "bg-white border-gray-200 hover:bg-gray-100 text-gray-700 font-normal"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAssignees((prev) => [...prev, u.public_id]);
+                        } else {
+                          setSelectedAssignees((prev) => prev.filter((id) => id !== u.public_id));
+                        }
+                      }}
+                      className="w-4 h-4 text-govblue-600 rounded border-gray-300 focus:ring-govblue-500 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                      <span className="truncate">{u.display_name}</span>
+                      <span className="text-[10px] text-gray-400 font-normal shrink-0">@{u.username}</span>
+                    </div>
+                  </label>
+                );
+              })
             )}
-          </label>
-          <select className={inputCls} value={assignee ?? ""} onChange={(e) => setAssignee(e.target.value || null)}>
-            {users.length === 0 && <option value="">{t("— ยังไม่มีลูกน้องในระบบหรือในทีม —", "— no subordinates yet —")}</option>}
-            {users.map((u) => (
-              <option key={u.public_id} value={u.public_id}>
-                {u.display_name} ({u.username})
-              </option>
-            ))}
-          </select>
+          </div>
           {users.length === 0 && (
             <p className="text-[11px] text-amber-600 mt-1">
               ยังไม่มีลูกน้องในทีม กรุณาไปที่หน้ารายการงาน แล้วกดปุ่ม "จัดการทีม" เพื่อเชิญลูกน้องเข้าทีม
             </p>
           )}
+          <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+            💡 {t(
+              "เลือกผู้รับงานได้มากกว่า 1 คน — ทุกคนจะเห็นงานใน 'งานของฉัน' และคนใดคนหนึ่งกดยอมรับงาน ระบบจะถือว่ารับงานแล้วทั้งทีม",
+              "Select 1 or more assignees. Any assigned member can accept the task, marking it accepted for all."
+            )}
+          </p>
         </div>
 
         <div>

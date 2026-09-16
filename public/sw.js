@@ -64,3 +64,34 @@ self.addEventListener('fetch', (e) => {
       .catch(() => caches.match(request).then((c) => c || Response.error()))
   );
 });
+
+// 4) Background Sync: ซิงค์ข้อมูลงานที่ค้างไว้ในเบื้องหลังเมื่อมีอินเทอร์เน็ต
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'ams-sync-tasks') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'TRIGGER_OFFLINE_SYNC' });
+        });
+      })
+    );
+  }
+});
+
+// 5) Notification Click: เมื่อผู้ใช้กดที่การแจ้งเตือน ให้เปิดหรือสลับมาที่แอป
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('/tasks');
+      }
+    })
+  );
+});
+

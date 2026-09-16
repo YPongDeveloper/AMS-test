@@ -43,6 +43,8 @@ export interface Task {
   status: TaskStatus;
   assignee_public_id: string;
   assignee_name: string;
+  assignee_public_ids?: string[];
+  assignee_names?: string[];
   assigner_public_id: string;
   assigner_name: string;
   due_at: string | null;
