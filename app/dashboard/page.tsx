@@ -8,7 +8,7 @@ import { api, API_CONFIGURED, getAccessToken, getCurrentUser, type AppUser } fro
 import {
   MapPin, Building2, CircleDollarSign, Database,
   ArrowRight, ArrowUpRight, ArrowDownRight, Plus, FileText,
-  Calendar, AlertCircle, Users,
+  Calendar, AlertCircle, Users, CheckCircle2, Clock, CloudOff,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -148,7 +148,10 @@ export default function Dashboard() {
                   {s.delta}
                 </span>
               </div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-wider text-gray-500 leading-tight">
+              <div
+                title={s.label}
+                className="text-[10px] sm:text-xs uppercase tracking-wider text-gray-500 leading-tight truncate"
+              >
                 {s.label}
               </div>
               <div className="text-xl sm:text-2xl font-bold text-govblue-800 leading-tight mt-1">
@@ -233,9 +236,21 @@ export default function Dashboard() {
                       <span className="text-[11px] text-gray-500 tabular-nums">{r.progress}%</span>
                     </div>
                   </div>
-                  {r.status === "synced" && <Tag tone="green">✓</Tag>}
-                  {r.status === "pending" && <Tag tone="gold">⏳</Tag>}
-                  {r.status === "offline" && <Tag tone="gray">☁️</Tag>}
+                  {r.status === "synced" && (
+                    <Tag tone="green">
+                      <CheckCircle2 size={10} className="mr-0.5" />
+                    </Tag>
+                  )}
+                  {r.status === "pending" && (
+                    <Tag tone="gold">
+                      <Clock size={10} className="mr-0.5" />
+                    </Tag>
+                  )}
+                  {r.status === "offline" && (
+                    <Tag tone="gray">
+                      <CloudOff size={10} className="mr-0.5" />
+                    </Tag>
+                  )}
                 </div>
               ))}
             </div>
