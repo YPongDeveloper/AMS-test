@@ -1317,6 +1317,74 @@ export default function TasksPage() {
   const handleSubmitTaskData = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!submittingTask) return;
+
+    // ตรวจสอบข้อมูลที่จำเป็นก่อนกดส่งงาน
+    const summary = submissionSummary.trim();
+    if (!summary) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "กรุณาระบุข้อมูลที่จำเป็น",
+        message: "กรุณาระบุสรุปผลการปฏิบัติงาน / หมายเหตุสรุปผลการสำรวจก่อนส่งงานให้หัวหน้างาน",
+        tone: "warning",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    if (!batchItems || batchItems.length === 0) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "กรุณาระบุข้อมูลที่จำเป็น",
+        message: "กรุณาเพิ่มรายการข้อมูลทรัพย์สินอย่างน้อย 1 รายการก่อนส่งงาน",
+        tone: "warning",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
+    const isBldg = submittingTask.target_type === "building";
+    if (isBldg) {
+      const invalidBldg = batchItems.some((it) => !it.bldg_code?.trim() || !it.name?.trim());
+      if (invalidBldg) {
+        setConfirmDialog({
+          isOpen: true,
+          title: "กรุณาระบุข้อมูลที่จำเป็น",
+          message: "กรุณากรอกรหัสอาคารและชื่ออาคารในรายการทรัพย์สินให้ครบถ้วนก่อนส่งงาน",
+          tone: "warning",
+          confirmLabel: "ตกลง",
+          onConfirm: closeConfirmDialog,
+        });
+        return;
+      }
+    } else {
+      const invalidLand = batchItems.some((it) => !it.land_code?.trim());
+      if (invalidLand) {
+        setConfirmDialog({
+          isOpen: true,
+          title: "กรุณาระบุข้อมูลที่จำเป็น",
+          message: "กรุณากรอกรหัสแปลงที่ดินในรายการทรัพย์สินให้ครบถ้วนก่อนส่งงาน",
+          tone: "warning",
+          confirmLabel: "ตกลง",
+          onConfirm: closeConfirmDialog,
+        });
+        return;
+      }
+    }
+
+    if (!submissionPhotos || submissionPhotos.length === 0) {
+      setConfirmDialog({
+        isOpen: true,
+        title: "กรุณาแนบภาพถ่ายสำรวจ",
+        message: "กรุณาแนบภาพถ่ายการลงพื้นที่สำรวจอย่างน้อย 1 ภาพ เพื่อเป็นหลักฐานประกอบการตรวจงาน",
+        tone: "warning",
+        confirmLabel: "ตกลง",
+        onConfirm: closeConfirmDialog,
+      });
+      return;
+    }
+
     setSubmittingData(true);
     try {
       const isBldg = submittingTask.target_type === "building";
@@ -2239,7 +2307,7 @@ export default function TasksPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-govblue-900">
                   {isSup
                     ? t("ระบบมอบหมายและติดตามงาน", "Task Management & Assignment")
-                    : t("งานของฉัน (My Tasks)", "My Tasks")}
+                    : t("งานของฉัน", "My Tasks")}
                 </h1>
               </div>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
@@ -2710,7 +2778,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => setTeamModalOpen(true)}
-                  className="inline-flex items-center justify-center gap-1.5 bg-govblue-700 hover:bg-govblue-800 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg shadow-sm transition shrink-0"
+                  className="inline-flex items-center justify-center gap-1.5 bg-govblue-700 hover:bg-govblue-800 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg shadow-sm transition shrink-0 w-fit self-end sm:self-auto"
                 >
                   <Plus size={16} className="stroke-[2.5]" />
                   <span>{t("เพิ่มพนักงานเข้ากลุ่ม", "Add Member to Team")}</span>
@@ -2808,33 +2876,35 @@ export default function TasksPage() {
                             </div>
                           </div>
 
-                          {/* Actions: If pending, ONLY show "ยกเลิกคำขอ" button */}
-                          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end md:self-auto">
+                          {/* Actions */}
+                          <div className="w-full md:w-auto shrink-0 mt-2 md:mt-0">
                             {m.status === "pending" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleCancelInvitation(
-                                    m.subordinate_public_id,
-                                    m.subordinate_name || m.subordinate_username || "",
-                                    m.subordinate_username
-                                  )
-                                }
-                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-xs transition"
-                                title={t("ยกเลิกคำขอเชิญเข้าร่วมทีม", "Cancel invitation request")}
-                              >
-                                <X size={14} className="stroke-[2.5]" />
-                                <span>{t("ยกเลิกคำขอ", "Cancel Request")}</span>
-                              </button>
+                              <div className="flex justify-end w-full md:w-auto">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCancelInvitation(
+                                      m.subordinate_public_id,
+                                      m.subordinate_name || m.subordinate_username || "",
+                                      m.subordinate_username
+                                    )
+                                  }
+                                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-xs transition whitespace-nowrap"
+                                  title={t("ยกเลิกคำขอเชิญเข้าร่วมทีม", "Cancel invitation request")}
+                                >
+                                  <X size={14} className="stroke-[2.5]" />
+                                  <span>{t("ยกเลิกคำขอ", "Cancel Request")}</span>
+                                </button>
+                              </div>
                             ) : (
-                              <>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
                                 {/* 1. เพิ่มงาน */}
                                 <Link
                                   href={`/tasks/new?assignee=${encodeURIComponent(m.subordinate_public_id)}`}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-govblue-700 hover:bg-govblue-800 shadow-xs transition"
+                                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-govblue-700 hover:bg-govblue-800 shadow-xs transition w-full text-center whitespace-nowrap"
                                   title={t("มอบหมายงานใหม่ให้พนักงานคนนี้", "Assign new task")}
                                 >
-                                  <Plus size={14} className="stroke-[2.5]" />
+                                  <Plus size={14} className="stroke-[2.5] shrink-0" />
                                   <span>{t("เพิ่มงาน", "New Task")}</span>
                                 </Link>
 
@@ -2848,13 +2918,13 @@ export default function TasksPage() {
                                       mode: "active",
                                     })
                                   }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+                                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition w-full text-center whitespace-nowrap cursor-pointer"
                                   title={t("ดูงานที่กำลังทำอยู่", "View current tasks")}
                                 >
-                                  <Briefcase size={13} className="text-amber-700" />
+                                  <Briefcase size={13} className="text-amber-700 shrink-0" />
                                   <span>{t("งานที่ทำอยู่", "Active Tasks")}</span>
                                   {activeTasks.length > 0 && (
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white shrink-0">
                                       {activeTasks.length}
                                     </span>
                                   )}
@@ -2870,13 +2940,13 @@ export default function TasksPage() {
                                       mode: "history",
                                     })
                                   }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition"
+                                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition w-full text-center whitespace-nowrap cursor-pointer"
                                   title={t("ดูประวัติการทำงาน", "View work history")}
                                 >
-                                  <History size={13} className="text-gray-600" />
+                                  <History size={13} className="text-gray-600 shrink-0" />
                                   <span>{t("ประวัติงาน", "History")}</span>
                                   {historyTasks.length > 0 && (
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-600 text-white">
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-gray-600 text-white shrink-0">
                                       {historyTasks.length}
                                     </span>
                                   )}
@@ -2892,13 +2962,13 @@ export default function TasksPage() {
                                       m.subordinate_username
                                     )
                                   }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition w-full text-center whitespace-nowrap cursor-pointer"
                                   title={t("ลบออกจากทีมสังกัด", "Remove from team")}
                                 >
-                                  <UserMinus size={13} className="text-rose-600" />
+                                  <UserMinus size={13} className="text-rose-600 shrink-0" />
                                   <span>{t("ลบออกจากทีม", "Remove")}</span>
                                 </button>
-                              </>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -3827,20 +3897,6 @@ export default function TasksPage() {
                 </div>
               )}
 
-              {/* Status Note when Submitted */}
-              {selectedTask.status === "submitted" && (
-                <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-1 text-xs text-purple-900 animate-in fade-in">
-                  <div className="font-bold flex items-center gap-1.5 text-purple-800">
-                    <Clock size={16} className="text-purple-600" />
-                    <span>งานนี้ส่งผลงานแล้ว — อยู่ระหว่างรอหัวหน้างานตรวจสอบและอนุมัติ</span>
-                  </div>
-                  <p className="leading-relaxed pl-5 text-purple-700">
-                    เมื่อหัวหน้างานอนุมัติ ข้อมูลทรัพย์สินจะถูกบันทึกเข้าสู่ระบบจริงทันที
-                  </p>
-                </div>
-              )}
-
-              {/* Submitted Data Preview (ถ้ามี) */}
               {/* Submitted Data Preview (ถ้ามี) */}
               {(() => {
                 if (!selectedTask.submission_data) return null;
@@ -3868,14 +3924,14 @@ export default function TasksPage() {
 
                 return (
                   <div className="p-4 bg-slate-50 border border-govblue-200/80 rounded-2xl space-y-3 text-xs shadow-2xs">
-                    <div className="font-bold text-govblue-900 flex items-center justify-between border-b border-govblue-100 pb-2">
-                      <div className="flex items-center gap-1.5">
-                        <FileCheck2 size={16} className="text-emerald-600" />
-                        <span className="text-sm">ผลงานและข้อมูลที่บันทึกส่งมอบ (Submission Data)</span>
+                    <div className="font-bold text-govblue-900 flex items-center justify-between gap-2 border-b border-govblue-100 pb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <FileCheck2 size={16} className="text-emerald-600 shrink-0" />
+                        <span className="text-sm font-bold truncate">{t("ข้อมูลที่บันทึก", "Recorded Data")}</span>
                       </div>
                       {selectedTask.target_type && (
-                        <span className="text-[11px] font-semibold text-govblue-700 bg-govblue-100/60 px-2.5 py-0.5 rounded-full">
-                          {selectedTask.target_type === "land" ? "ข้อมูลแปลงที่ดิน" : "ข้อมูลสิ่งปลูกสร้าง"}
+                        <span className="text-xs font-semibold text-govblue-700 bg-govblue-100 px-3 py-1 rounded-full whitespace-nowrap shrink-0">
+                          {selectedTask.target_type === "land" ? t("ข้อมูลแปลงที่ดิน", "Land Parcel") : t("ข้อมูลสิ่งปลูกสร้าง", "Building")}
                         </span>
                       )}
                     </div>

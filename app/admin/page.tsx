@@ -16,7 +16,6 @@ import { Page } from "@/components/Page";
 import {
   Users,
   UserPlus,
-  ShieldCheck,
   KeyRound,
   Edit2,
   Search,
@@ -447,20 +446,6 @@ export default function AdminPage() {
               })}
             </div>
           )}
-        </div>
-
-        {/* Security & Integrity Note */}
-        <div className="rounded-xl border border-govblue-200 bg-govblue-50/70 p-4 text-xs text-govblue-900 flex items-start gap-3">
-          <ShieldCheck size={20} className="text-govblue-700 flex-shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <div className="font-semibold">{t("มาตรฐานความปลอดภัยของข้อมูล (Security Standards)", "Security Standards")}</div>
-            <p className="text-govblue-800 leading-relaxed">
-              {t(
-                "ระบบใช้การควบคุมสิทธิ์ตามบทบาท (Role-Based Access Control) เพื่อความปลอดภัยและการเข้าถึงข้อมูลตามขอบเขตหน้าที่อย่างรัดกุม รหัสผ่านทั้งหมดได้รับการเข้ารหัสความปลอดภัยระดับสูง",
-                "The system enforces Role-Based Access Control (RBAC) to ensure secure access to data based on organizational responsibilities. All passwords are encrypted using high-standard security algorithms.",
-              )}
-            </p>
-          </div>
         </div>
       </div>
 
