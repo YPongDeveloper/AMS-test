@@ -38,8 +38,11 @@ type CreateTaskInput struct {
 }
 
 func (s *TaskService) ListFor(ctx context.Context, c *Claims, status *string) ([]model.Task, error) {
-	if c.Role == string(model.RoleSupervisor) || c.Role == string(model.RoleAdmin) {
+	if c.Role == string(model.RoleAdmin) {
 		return s.tasks.ListAll(ctx, status)
+	}
+	if c.Role == string(model.RoleSupervisor) {
+		return s.tasks.ListForSupervisor(ctx, c.UserID, status)
 	}
 	return s.tasks.ListMine(ctx, c.UserID, status)
 }
@@ -81,8 +84,20 @@ func (s *TaskService) UpdateStatus(ctx context.Context, actor *Claims, publicID,
 	if err != nil {
 		return nil, err
 	}
-	if actor.UserID != assigneeID && actor.UserID != assignerID && actor.Role != string(model.RoleSupervisor) && actor.Role != string(model.RoleAdmin) {
+
+	isAssignee := actor.UserID == assigneeID
+	isAssigner := actor.UserID == assignerID
+	isAdmin := actor.Role == string(model.RoleAdmin)
+	isSupervisor := actor.Role == string(model.RoleSupervisor)
+
+	// สิทธิ์ทั่วไปในการเปลี่ยนสถานะ
+	if !isAssignee && !isAssigner && !isSupervisor && !isAdmin {
 		return nil, ErrForbidden
+	}
+
+	// เงื่อนไขพิเศษสำหรับการยกเลิกงาน: ต้องเป็นผู้รับมอบหมาย หรือผู้สั่งงาน/หัวหน้า หรือ Admin เท่านั้น
+	if status == "cancelled" && !isAssignee && !isAssigner && !isSupervisor && !isAdmin {
+		return nil, errors.New("เฉพาะผู้ได้รับมอบหมายงานหรือหัวหน้างานในสังกัดเท่านั้นที่มีสิทธิ์ยกเลิกงานนี้")
 	}
 
 	if err := s.tasks.UpdateStatus(ctx, task.ID, status); err != nil {

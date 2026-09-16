@@ -84,10 +84,31 @@ func (r *TaskRepository) ListMine(ctx context.Context, userID int64, status *str
 	return collectTasks(rows)
 }
 
-// ListAll — หัวหน้าเห็นทุกงาน
+// ListAll — ผู้ดูแลระบบสูงสุด (Admin) เห็นทุกงาน
 func (r *TaskRepository) ListAll(ctx context.Context, status *string) ([]model.Task, error) {
 	q := `SELECT ` + taskCols + taskFrom + ` WHERE true`
 	args := []any{}
+	q += statusClause(status, &args)
+	q += ` ORDER BY t.created_at DESC LIMIT 200`
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectTasks(rows)
+}
+
+// ListForSupervisor — หัวหน้าเห็นเฉพาะงานที่ตนเองสั่ง, งานของตนเอง, หรืองานของลูกน้องในสังกัด
+func (r *TaskRepository) ListForSupervisor(ctx context.Context, supervisorID int64, status *string) ([]model.Task, error) {
+	q := `SELECT ` + taskCols + taskFrom + `
+		WHERE (
+			t.assigned_by = $1
+			OR t.assigned_to = $1
+			OR t.assigned_to IN (
+				SELECT subordinate_id FROM team_members WHERE supervisor_id = $1 AND status = 'accepted'
+			)
+		)`
+	args := []any{supervisorID}
 	q += statusClause(status, &args)
 	q += ` ORDER BY t.created_at DESC LIMIT 200`
 	rows, err := r.db.Query(ctx, q, args...)

@@ -1806,27 +1806,78 @@ export default function TasksPage() {
     }
   }
 
-  // คัดกรองงานตามแท็บที่เลือก
+  // ตรวจสอบว่า task นี้มอบหมายให้ฉันหรือไม่
+  const isTaskAssignedToMe = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    return Boolean(
+      task.assignee_public_id === me.public_id ||
+      task.assignee_name === me.display_name ||
+      (me.username && task.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
+    );
+  }, [me]);
+
+  // ตรวจสอบว่า task นี้เป็นงานที่ฉันสั่งหรือไม่
+  const isTaskAssignedByMe = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    return Boolean(
+      task.assigner_public_id === me.public_id ||
+      task.assigner_name === me.display_name ||
+      (me.username && task.assigner_name?.toLowerCase().includes(me.username.toLowerCase()))
+    );
+  }, [me]);
+
+  // ตรวจสอบว่า task นี้มอบหมายให้ลูกน้องในสังกัดของฉันหรือไม่
+  const isTaskInMyTeam = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    return (Array.isArray(myTeam) ? myTeam : []).some((m) => {
+      if (m.status !== "accepted") return false;
+      return (
+        m.subordinate_public_id === task.assignee_public_id ||
+        m.subordinate_name === task.assignee_name ||
+        Boolean(m.subordinate_username && task.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
+      );
+    });
+  }, [me, myTeam]);
+
+  // ตรวจสอบว่า task นี้อยู่ในสังกัด/ขอบเขตสิทธิ์ของฉันหรือไม่
+  const isTaskInMyScope = useCallback((task: Task): boolean => {
+    if (!task || !me) return false;
+    // 1. Admin เห็นงานทั้งหมดในระบบ
+    if (me.role === "admin") return true;
+    // 2. พนักงาน (Subordinate) เห็นเฉพาะงานของตัวเองเท่านั้น
+    if (me.role === "subordinate") {
+      return isTaskAssignedToMe(task);
+    }
+    // 3. หัวหน้างาน (Supervisor) เห็นเฉพาะงานที่ตนเองสั่ง, งานของตนเอง, หรืองานของลูกน้องในสังกัด
+    if (me.role === "supervisor") {
+      return isTaskAssignedToMe(task) || isTaskAssignedByMe(task) || isTaskInMyTeam(task);
+    }
+    return isTaskAssignedToMe(task) || isTaskAssignedByMe(task);
+  }, [me, isTaskAssignedToMe, isTaskAssignedByMe, isTaskInMyTeam]);
+
+  // คัดกรองงานตามแท็บที่เลือก โดยต้องอยู่ในขอบเขตสิทธิ์ของผู้ใช้งานเสมอ
   const currentTabTasks = useMemo(() => {
-    return (tasks || []).filter((task) => {
+    // 1. กรองเฉพาะงานในขอบเขตสิทธิ์ของตนเองก่อนเสมอ
+    const scopedTasks = (tasks || []).filter(isTaskInMyScope);
+
+    // 2. สำหรับพนักงาน (Subordinate): เห็นเฉพาะงานของตนเองเสมอ
+    if (!isSup) {
+      return scopedTasks.filter(isTaskAssignedToMe);
+    }
+
+    // 3. สำหรับหัวหน้างาน (Supervisor / Admin)
+    return scopedTasks.filter((task) => {
       if (!task) return false;
       if (activeTab === "assigned_by_me") {
-        return (
-          task.assigner_public_id === me?.public_id ||
-          task.assigner_name === me?.display_name ||
-          isSup
-        );
+        return isTaskAssignedByMe(task) || me?.role === "admin";
       }
       if (activeTab === "my_tasks") {
-        return (
-          task.assignee_public_id === me?.public_id ||
-          task.assignee_name === me?.display_name ||
-          !isSup
-        );
+        return isTaskAssignedToMe(task);
       }
-      return true; // all
+      // activeTab === "all": คืนเฉพาะงานในสังกัดและของตนเอง
+      return true;
     });
-  }, [tasks, activeTab, me?.public_id, me?.display_name, isSup]);
+  }, [tasks, isTaskInMyScope, isSup, isTaskAssignedToMe, isTaskAssignedByMe, activeTab, me?.role]);
 
   // คัดกรองงานตามวันที่เลือก
   const dateFilteredTasks = useMemo(() => {
@@ -2449,7 +2500,7 @@ export default function TasksPage() {
                     <ClipboardList size={15} />
                     {t("งานที่ฉันสั่ง", "Tasks I Assigned")}
                     <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-white/20">
-                      {(Array.isArray(tasks) ? tasks : []).filter((t) => t && (t.assigner_public_id === me?.public_id || isSup)).length}
+                      {(Array.isArray(tasks) ? tasks : []).filter((t) => t && (isTaskAssignedByMe(t) || me?.role === "admin")).length}
                     </span>
                   </button>
 
@@ -2464,6 +2515,9 @@ export default function TasksPage() {
                   >
                     <Users size={15} />
                     {t("งานของฉัน", "Assigned to Me")}
+                    <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-white/20">
+                      {(Array.isArray(tasks) ? tasks : []).filter(isTaskAssignedToMe).length}
+                    </span>
                   </button>
 
                   <button
@@ -2475,7 +2529,10 @@ export default function TasksPage() {
                         : "text-gray-600 hover:bg-gray-100"
                     }`}
                   >
-                    {t("งานทั้งหมด", "All Tasks")}
+                    {t("งานทั้งหมดในสังกัด", "All Team Tasks")}
+                    <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-white/20">
+                      {(Array.isArray(tasks) ? tasks : []).filter(isTaskInMyScope).length}
+                    </span>
                   </button>
 
                   <button
@@ -2503,9 +2560,12 @@ export default function TasksPage() {
                   </button>
                 </>
               ) : (
-                <div className="flex items-center gap-1.5 text-sm font-semibold text-govblue-900 px-1 py-1">
+                <div className="flex items-center gap-2 text-sm font-semibold text-govblue-900 px-1 py-1">
                   <ClipboardList size={16} />
-                  <span>{t("รายการงานที่ได้รับมอบหมาย", "Assigned Tasks List")}</span>
+                  <span>{t("งานที่ได้รับมอบหมายของฉัน", "My Assigned Tasks")}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-govblue-100 text-govblue-800 font-bold">
+                    {(Array.isArray(tasks) ? tasks : []).filter(isTaskAssignedToMe).length}
+                  </span>
                 </div>
               )}
             </div>
@@ -2872,6 +2932,30 @@ export default function TasksPage() {
                             ? "bg-rose-500"
                             : "bg-amber-400";
 
+                        const isCardTaskAssignee = Boolean(
+                          me && (
+                            task.assignee_public_id === me.public_id ||
+                            task.assignee_name === me.display_name ||
+                            (me.username && task.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
+                          )
+                        );
+                        const canCancelCardTask = Boolean(
+                          me && (
+                            isCardTaskAssignee ||
+                            task.assigner_public_id === me.public_id ||
+                            task.assigner_name === me.display_name ||
+                            me.role === "admin" ||
+                            (me.role === "supervisor" && (
+                              task.assigner_public_id === me.public_id ||
+                              (Array.isArray(myTeam) ? myTeam : []).some((m) => m.status === "accepted" && (
+                                m.subordinate_public_id === task.assignee_public_id ||
+                                m.subordinate_name === task.assignee_name ||
+                                (m.subordinate_username && task.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
+                              ))
+                            ))
+                          )
+                        );
+
                         return (
                           <div
                             key={task.public_id}
@@ -2950,8 +3034,32 @@ export default function TasksPage() {
                                       const nextSt = e.target.value as TaskStatus;
                                       if (nextSt === task.status) return;
 
-                                      // ข้อยกเว้น: ยกเลิกงานได้เสมอทุกขั้นตอน พร้อมกล่องยืนยัน
+                                      // ข้อยกเว้น: ยกเลิกงานได้เสมอทุกขั้นตอน พร้อมกล่องยืนยัน (เฉพาะผู้มีสิทธิ์)
                                       if (nextSt === "cancelled") {
+                                        if (!canCancelCardTask) {
+                                          setConfirmDialog({
+                                            isOpen: true,
+                                            title: "ไม่มีสิทธิ์ยกเลิกงานนี้",
+                                            message: (
+                                              <div className="space-y-2 text-left">
+                                                <p className="text-gray-700 text-center">
+                                                  ท่านไม่มีสิทธิ์ยกเลิกงาน "{task.title}"
+                                                </p>
+                                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                                                  <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                                                  <span>เฉพาะผู้ได้รับมอบหมายงานหรือหัวหน้างานในสังกัดเท่านั้นที่มีสิทธิ์ยกเลิกงานนี้ได้</span>
+                                                </div>
+                                              </div>
+                                            ),
+                                            tone: "warning",
+                                            confirmLabel: "รับทราบ",
+                                            cancelLabel: "ปิด",
+                                            onCancel: closeConfirmDialog,
+                                            onConfirm: closeConfirmDialog,
+                                          });
+                                          return;
+                                        }
+
                                         setConfirmDialog({
                                           isOpen: true,
                                           title: "ยืนยันการยกเลิกงานสำรวจ",
@@ -3094,7 +3202,9 @@ export default function TasksPage() {
                                     <option value="submitted">ส่งตรวจแล้ว</option>
                                     <option value="revision_requested">ส่งกลับแก้ไข</option>
                                     <option value="done">เสร็จสิ้น</option>
-                                    <option value="cancelled">ยกเลิก</option>
+                                    {(canCancelCardTask || task.status === "cancelled") && (
+                                      <option value="cancelled">ยกเลิก</option>
+                                    )}
                                   </select>
                                   <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-current" />
                                 </div>
@@ -3188,7 +3298,7 @@ export default function TasksPage() {
             </div>
 
             {/* Modal Body (Scrollable) */}
-            <div className="p-6 space-y-5 overflow-y-auto flex-1 text-gray-800">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 text-gray-800">
               {/* Modern Delivery Tracker Pipeline Stepper (รองรับมือถือแบบเรียงสถานะละ 1 แถว และ Desktop แบบ Tracker แนวนอน) */}
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-sm space-y-3 sm:space-y-4">
                 {/* Header */}
@@ -3509,12 +3619,30 @@ export default function TasksPage() {
                   const isTaskAssignee = Boolean(
                     me && (
                       selectedTask.assignee_public_id === me.public_id ||
-                      selectedTask.assignee_name === me.display_name
+                      selectedTask.assignee_name === me.display_name ||
+                      (me.username && selectedTask.assignee_name?.toLowerCase().includes(me.username.toLowerCase()))
                     )
                   );
+                  const canCancelTask = Boolean(
+                    me && (
+                      isTaskAssignee ||
+                      selectedTask.assigner_public_id === me.public_id ||
+                      selectedTask.assigner_name === me.display_name ||
+                      me.role === "admin" ||
+                      (me.role === "supervisor" && (
+                        selectedTask.assigner_public_id === me.public_id ||
+                        (Array.isArray(myTeam) ? myTeam : []).some((m) => m.status === "accepted" && (
+                          m.subordinate_public_id === selectedTask.assignee_public_id ||
+                          m.subordinate_name === selectedTask.assignee_name ||
+                          (m.subordinate_username && selectedTask.assignee_name?.toLowerCase().includes(m.subordinate_username.toLowerCase()))
+                        ))
+                      ))
+                    )
+                  );
+
                   return (
-                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50/70 p-2.5 sm:p-3 rounded-xl">
-                      <div className="flex items-center gap-2 min-w-0">
+                    <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-50/70 p-2.5 sm:p-3 rounded-xl overflow-hidden max-w-full">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
                           selectedTask.status === "cancelled"
                             ? "bg-rose-100 text-rose-700"
@@ -3534,7 +3662,7 @@ export default function TasksPage() {
                             <ArrowRight size={15} />
                           )}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-gray-900 truncate">
                             {selectedTask.status === "pending" && (isTaskAssignee ? "ขั้นตอนถัดไป: ยืนยันการรับงาน" : "อยู่ระหว่างรอผู้รับมอบหมายยืนยันรับงาน")}
                             {selectedTask.status === "accepted" && (isTaskAssignee ? "ขั้นตอนถัดไป: เริ่มลงพื้นที่สำรวจรังวัด" : "อยู่ระหว่างรอผู้รับมอบหมายเริ่มลงพื้นที่")}
@@ -3555,15 +3683,15 @@ export default function TasksPage() {
                       </div>
 
                       {/* Buttons: Next Step Action & Cancel Button */}
-                      <div className="flex items-center gap-2 justify-end shrink-0">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-end w-full sm:w-auto shrink-0 min-w-0">
                         {/* Primary Next Action Button */}
                         {selectedTask.status !== "cancelled" && curIdx < 4 && (
                           <>
                             {/* สำหรับขั้นตอนที่ 0, 1, 2: หากไม่ใช่ผู้รับมอบหมายงาน ให้แสดงสถานะรอผู้รับงาน */}
                             {curIdx < 3 && !isTaskAssignee && (
-                              <div className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap">
-                                <Clock size={13} className="text-amber-600" />
-                                <span>
+                              <div className="px-2.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold rounded-lg flex items-center justify-center sm:justify-start gap-1.5 w-full sm:w-auto text-center sm:text-left min-w-0">
+                                <Clock size={13} className="text-amber-600 shrink-0" />
+                                <span className="truncate max-w-full">
                                   {curIdx === 0 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} รับงาน`}
                                   {curIdx === 1 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} ลงพื้นที่`}
                                   {curIdx === 2 && `รอ ${selectedTask.assignee_name || "เจ้าหน้าที่"} ส่งงาน`}
@@ -3576,35 +3704,35 @@ export default function TasksPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAdvancePipeline(curIdx + 1)}
-                                className="px-3 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap"
+                                className="px-3 py-1.5 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 whitespace-nowrap w-full sm:w-auto"
                               >
                                 {curIdx === 0 && (
                                   <>
-                                    <CheckCircle2 size={13} className="text-govgold-400" />
+                                    <CheckCircle2 size={13} className="text-govgold-400 shrink-0" />
                                     <span>ยืนยันรับงาน</span>
                                   </>
                                 )}
                                 {curIdx === 1 && (
                                   <>
-                                    <MapPin size={13} className="text-govgold-400" />
+                                    <MapPin size={13} className="text-govgold-400 shrink-0" />
                                     <span>เริ่มลงพื้นที่</span>
                                   </>
                                 )}
                                 {curIdx === 2 && (
                                   <>
-                                    <FileCheck2 size={13} className="text-govgold-400" />
+                                    <FileCheck2 size={13} className="text-govgold-400 shrink-0" />
                                     <span>ส่งผลงานให้ตรวจ</span>
                                   </>
                                 )}
                                 {curIdx === 3 && isSup && (
                                   <>
-                                    <Award size={13} className="text-govgold-400" />
+                                    <Award size={13} className="text-govgold-400 shrink-0" />
                                     <span>ตรวจและอนุมัติ</span>
                                   </>
                                 )}
                                 {curIdx === 3 && !isSup && (
                                   <>
-                                    <Clock size={13} />
+                                    <Clock size={13} className="shrink-0" />
                                     <span>รอหัวหน้าอนุมัติ</span>
                                   </>
                                 )}
@@ -3613,52 +3741,54 @@ export default function TasksPage() {
                           </>
                         )}
 
-                        {/* ยกเว้น ยกเลิก (Cancel Exception Button) */}
-                        {selectedTask.status !== "cancelled" ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmDialog({
-                                isOpen: true,
-                                title: "ยืนยันการยกเลิกงานสำรวจ",
-                                message: (
-                                  <div className="text-left space-y-2">
-                                    <p className="text-center text-gray-700">
-                                      ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{selectedTask.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
-                                    </p>
-                                    <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                                      งานที่ถูกยกเลิกจะไม่ปรากฏในรายการปฏิบัติงานประจำวัน แต่ท่านสามารถกู้คืนสถานะกลับมาได้ในภายหลัง
-                                    </p>
-                                  </div>
-                                ),
-                                tone: "warning",
-                                confirmLabel: "ยืนยันยกเลิกงาน",
-                                cancelLabel: "ย้อนกลับ",
-                                onCancel: closeConfirmDialog,
-                                onConfirm: () => {
-                                  setStatus(selectedTask, "cancelled");
-                                  setSelectedTask({ ...selectedTask, status: "cancelled" });
-                                  closeConfirmDialog();
-                                },
-                              });
-                            }}
-                            className="px-2.5 py-1.5 text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition font-medium flex items-center gap-1"
-                          >
-                            <X size={13} />
-                            <span>ยกเลิกงานนี้</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStatus(selectedTask, "pending");
-                              setSelectedTask({ ...selectedTask, status: "pending" });
-                            }}
-                            className="px-3 py-1.5 text-xs text-govblue-800 hover:bg-govblue-50 border border-govblue-300 rounded-lg transition font-semibold flex items-center gap-1"
-                          >
-                            <RotateCcw size={13} />
-                            <span>กู้คืนสถานะกลับมา</span>
-                          </button>
+                        {/* ยกเว้น ยกเลิก (เฉพาะผู้ได้รับมอบหมายงาน หรือหัวหน้าในสังกัดเท่านั้นที่มีสิทธิ์กด) */}
+                        {canCancelTask && (
+                          selectedTask.status !== "cancelled" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmDialog({
+                                  isOpen: true,
+                                  title: "ยืนยันการยกเลิกงานสำรวจ",
+                                  message: (
+                                    <div className="text-left space-y-2">
+                                      <p className="text-center text-gray-700">
+                                        ท่านต้องการเปลี่ยนสถานะงาน <strong className="text-gray-900 font-semibold">"{selectedTask.title}"</strong> เป็น <span className="text-rose-600 font-semibold">"ยกเลิก"</span> ใช่หรือไม่?
+                                      </p>
+                                      <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                                        งานที่ถูกยกเลิกจะไม่ปรากฏในรายการปฏิบัติงานประจำวัน แต่ท่านสามารถกู้คืนสถานะกลับมาได้ในภายหลัง
+                                      </p>
+                                    </div>
+                                  ),
+                                  tone: "warning",
+                                  confirmLabel: "ยืนยันยกเลิกงาน",
+                                  cancelLabel: "ย้อนกลับ",
+                                  onCancel: closeConfirmDialog,
+                                  onConfirm: () => {
+                                    setStatus(selectedTask, "cancelled");
+                                    setSelectedTask({ ...selectedTask, status: "cancelled" });
+                                    closeConfirmDialog();
+                                  },
+                                });
+                              }}
+                              className="px-2.5 py-1.5 text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition font-medium flex items-center justify-center gap-1 w-full sm:w-auto shrink-0 whitespace-nowrap"
+                            >
+                              <X size={13} />
+                              <span>ยกเลิกงานนี้</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStatus(selectedTask, "pending");
+                                setSelectedTask({ ...selectedTask, status: "pending" });
+                              }}
+                              className="px-3 py-1.5 text-xs text-govblue-800 hover:bg-govblue-50 border border-govblue-300 rounded-lg transition font-semibold flex items-center justify-center gap-1 w-full sm:w-auto shrink-0 whitespace-nowrap"
+                            >
+                              <RotateCcw size={13} />
+                              <span>กู้คืนสถานะกลับมา</span>
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
