@@ -2577,12 +2577,7 @@ export default function TasksPage() {
           {activeTab !== "members" && (
             <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 w-full min-w-0">
               {/* Date Navigator */}
-              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 shrink-0">
-                  <Calendar size={15} className="text-govblue-700" />
-                  <span>{t("ภารกิจประจำวัน:", "Daily Tasks:")}</span>
-                </span>
-
+              <div className="flex items-center gap-2 min-w-0 shrink-0">
                 <div className="inline-flex items-center bg-gray-50 border border-gray-300 rounded-lg overflow-hidden shadow-xs shrink-0">
                   {/* Prev Day Button */}
                   <button
@@ -2623,7 +2618,7 @@ export default function TasksPage() {
                     setSelectedDate(getTodayStr());
                     setFilterByDate(true);
                   }}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition shrink-0 ${
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition shrink-0 whitespace-nowrap ${
                     selectedDate === getTodayStr() && filterByDate
                       ? "bg-govblue-50 border-govblue-300 text-govblue-800 font-semibold shadow-2xs"
                       : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
