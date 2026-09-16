@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
-      <body className="min-h-screen antialiased bg-[#0f2052]">
+      <body className="min-h-screen antialiased">
         <I18nProvider>
           <AppSplashScreen />
           {children}

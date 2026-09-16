@@ -102,7 +102,7 @@ export default function LoginPage() {
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";
 
   if (isRedirecting) {
-    return <div className="min-h-screen bg-[#0f2052]" />;
+    return null;
   }
 
   return (

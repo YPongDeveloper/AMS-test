@@ -48,21 +48,8 @@ html, body {
   }
 }
 
-@keyframes splash-track {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(200%);
-  }
-}
-
 .animate-splash-logo {
   animation: splash-pulse 1.8s ease-in-out infinite;
-}
-
-.animate-splash-track {
-  animation: splash-track 1.2s ease-in-out infinite;
 }
 
 /* =========================================================================
