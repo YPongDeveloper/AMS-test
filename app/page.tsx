@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
-import { Languages, ChevronRight, AlertCircle, ShieldCheck, UserCheck, Users, Calculator, ShieldAlert } from "lucide-react";
+import { Languages, ChevronRight, AlertCircle, ShieldAlert } from "lucide-react";
 import { API_CONFIGURED, getAccessToken, getCurrentUser, loginWithPassword, loginDemo, type AppUser } from "@/lib/api";
 import Logo from "@/components/Logo";
 
@@ -91,12 +91,6 @@ export default function LoginPage() {
     }
     await handleLogin(username, password);
   }
-
-  const quickLogin = async (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    await handleLogin(u, p);
-  };
 
   const inputCls =
     "w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-govblue-500/20 focus:border-govblue-500 transition";
@@ -216,58 +210,6 @@ export default function LoginPage() {
               <ChevronRight size={16} />
             </button>
           </form>
-
-          {/* Quick Login Options */}
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <div className="text-[11px] font-medium text-gray-500 mb-2.5 text-center">
-              เข้าสู่ระบบด่วนสำหรับการทดสอบ (Quick Sign-in)
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => quickLogin("admin", "admin")}
-                disabled={busy}
-                className="flex flex-col items-center p-2 rounded-lg border border-purple-200 bg-purple-50/50 hover:bg-purple-100/70 text-purple-800 transition text-center"
-              >
-                <ShieldCheck size={16} className="text-purple-600 mb-1" />
-                <span className="text-[11px] font-semibold">แอดมิน</span>
-                <span className="text-[9px] text-purple-600/80">Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => quickLogin("leader", "leader")}
-                disabled={busy}
-                className="flex flex-col items-center p-2 rounded-lg border border-blue-200 bg-blue-50/50 hover:bg-blue-100/70 text-govblue-800 transition text-center"
-              >
-                <UserCheck size={16} className="text-govblue-600 mb-1" />
-                <span className="text-[11px] font-semibold">หัวหน้างาน</span>
-                <span className="text-[9px] text-govblue-600/80">Supervisor</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => quickLogin("normal", "normal")}
-                disabled={busy}
-                className="flex flex-col items-center p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/70 text-emerald-800 transition text-center"
-              >
-                <Users size={16} className="text-emerald-600 mb-1" />
-                <span className="text-[11px] font-semibold">เจ้าหน้าที่</span>
-                <span className="text-[9px] text-emerald-600/80">Field Officer</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => quickLogin("accountant", "accountant")}
-                disabled={busy}
-                className="flex flex-col items-center p-2 rounded-lg border border-teal-200 bg-teal-50/50 hover:bg-teal-100/70 text-teal-800 transition text-center"
-              >
-                <Calculator size={16} className="text-teal-600 mb-1" />
-                <span className="text-[11px] font-semibold">พนักงานบัญชี</span>
-                <span className="text-[9px] text-teal-600/80">Accountant</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
