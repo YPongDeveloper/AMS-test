@@ -3852,34 +3852,22 @@ export default function TasksPage() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {/* ปุ่มนำทาง (GPS Navigation Button) */}
+                        {/* รวมเป็นปุ่มเดียว: UI Google Maps พร้อมความสามารถนำทาง GPS */}
                         <button
                           type="button"
                           onClick={() => handleStartNavigation(selectedTask.lat!, selectedTask.lng!)}
                           disabled={navigatingGps}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg shadow-2xs font-bold text-xs transition active:scale-95 cursor-pointer"
-                          title="เริ่มนำทางด้วย GPS ระหว่างตำแหน่งของคุณกับพิกัดปลายทาง"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg shadow-2xs font-semibold text-xs transition shrink-0 hover:border-slate-400 hover:text-govblue-900 group active:scale-95 disabled:opacity-60 cursor-pointer"
+                          title="นำทางไปยังพิกัดนี้บน Google Maps (คำนวณเส้นทางจากตำแหน่ง GPS ปัจจุบัน)"
                         >
-                          <Navigation size={13} className={navigatingGps ? "animate-spin" : ""} />
-                          <span>{navigatingGps ? "กำลังคำนวณ..." : "🧭 นำทาง (เริ่มเดินทาง)"}</span>
-                        </button>
-
-                        {/* Google Maps Button */}
-                        <a
-                          href={`https://www.google.com/maps?q=${selectedTask.lat},${selectedTask.lng}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg shadow-2xs font-semibold text-[11px] transition shrink-0 hover:border-slate-400 hover:text-govblue-900 group"
-                          title="เปิดตำแหน่งนี้บน Google Maps"
-                        >
-                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform">
+                          <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 shrink-0 ${navigatingGps ? "animate-spin" : "group-hover:scale-110"} transition-transform`}>
                             <path fill="#EA4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                             <circle cx="12" cy="9" r="2.8" fill="#FFFFFF"/>
                             <circle cx="12" cy="9" r="1.5" fill="#4285F4"/>
                           </svg>
-                          <span>Google Maps</span>
-                          <ExternalLink size={11} className="text-slate-400" />
-                        </a>
+                          <span>{navigatingGps ? "กำลังเชื่อมต่อ GPS..." : "Google Maps"}</span>
+                          <ExternalLink size={12} className="text-slate-400" />
+                        </button>
                       </div>
                     </div>
                   </div>
