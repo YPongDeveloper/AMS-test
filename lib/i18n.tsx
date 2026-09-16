@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 type Lang = "th" | "en";
 
@@ -154,8 +154,48 @@ interface Ctx {
 
 const I18nContext = createContext<Ctx | null>(null);
 
+const STORAGE_KEY = "ams_language";
+
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("th");
+  const [lang, setLangState] = useState<Lang>("th");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
+      if (saved === "th" || saved === "en") {
+        setLangState(saved);
+        if (typeof document !== "undefined") {
+          document.documentElement.lang = saved;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && (e.newValue === "th" || e.newValue === "en")) {
+        setLangState(e.newValue as Lang);
+        if (typeof document !== "undefined") {
+          document.documentElement.lang = e.newValue;
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    try {
+      localStorage.setItem(STORAGE_KEY, l);
+      if (typeof document !== "undefined") {
+        document.documentElement.lang = l;
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const t = (k: string) => dict[k]?.[lang] ?? k;
   return <I18nContext.Provider value={{ lang, setLang, t }}>{children}</I18nContext.Provider>;
 }
