@@ -1458,8 +1458,13 @@ export default function TaxPage() {
 
       {/* Revision Request Modal (หน้าต่างทำเรื่องขอแก้ไข / สำรวจใหม่) */}
       {requestModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-gray-200 relative">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setRequestModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-gray-200 relative max-h-[90vh] overflow-y-auto my-auto">
             <button
               onClick={() => setRequestModalOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition"
