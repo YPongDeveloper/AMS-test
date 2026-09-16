@@ -1,0 +1,42 @@
+name: Keep Backend Alive (Render Free Tier)
+
+# Ping /health endpoint ทุก 5 นาที เพื่อป้องกัน Render free tier หลับ (cold start)
+# Render free tier จะ sleep หลัง 15 นาทีไม่มี traffic — ping ทุก 5 นาทีจึงปลอดภัย
+
+on:
+  schedule:
+    # ทุก 5 นาที (GitHub Actions cron format)
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # ให้กด trigger manual ได้
+
+jobs:
+  ping:
+    name: Ping Backend Health
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Ping /health endpoint
+        run: |
+          RESPONSE=$(curl -sS -o /tmp/health.json -w "%{http_code}" \
+            "https://srt-ams-api.onrender.com/health" \
+            --max-time 60 \
+            --retry 3 \
+            --retry-delay 5)
+          echo "HTTP Status: $RESPONSE"
+          echo "Response body:"
+          cat /tmp/health.json
+
+      - name: Report status
+        if: steps.ping.outputs.status != '200'
+        run: |
+          echo "::warning::Backend not responding — status ${{ steps.ping.outputs.status }}"
+          # Optional: ส่ง email/Slack notification ผ่าน marketplace action
+        continue-on-error: true
+
+      - name: Ping /api/me (with timeout)
+        run: |
+          RESPONSE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "https://srt-ams-api.onrender.com/api/me" \
+            --max-time 30)
+          echo "/api/me HTTP Status: $RESPONSE (expected 401 — auth gate works)"
