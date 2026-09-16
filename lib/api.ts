@@ -386,7 +386,7 @@ export async function createUser(data: { username: string; password: string; dis
   return api<AppUser>("/api/users", { method: "POST", json: data });
 }
 
-export async function updateUser(public_id: string, data: { display_name: string; role: Role; status: "active" | "resigned" }): Promise<void> {
+export async function updateUser(public_id: string, data: { display_name: string; role: Role; status?: "active" | "resigned" }): Promise<void> {
   if (!API_CONFIGURED) {
     const all = getLocalUsers();
     const idx = all.findIndex((u) => u.public_id === public_id);

@@ -20,7 +20,7 @@ export default function LoginPage() {
   const t2 = (thTxt: string, enTxt: string) => (lang === "th" ? thTxt : enTxt);
 
   function routeByRole(u: AppUser) {
-    if (u.role === "admin") router.replace("/dashboard");
+    if (u.role === "admin") router.replace("/admin");
     else if (u.role === "supervisor") router.replace("/tasks");
     else if (u.role === "accountant") router.replace("/tax");
     else router.replace("/tasks");

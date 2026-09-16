@@ -80,20 +80,11 @@ export function Topbar() {
   const tasksLabel = isOfficer ? t("navMyTasks") : t("navTasks");
 
   const homeHref =
-    user?.role === "accountant"
-      ? "/tax"
-      : user?.role === "subordinate" || user?.role === "supervisor"
-        ? "/tasks"
-        : "/dashboard";
-
-  const navItems = [
-    { href: "/dashboard", label: t("navDashboard"), roles: ["admin", "supervisor"] },
-    { href: "/tasks", label: tasksLabel, roles: ["admin", "supervisor", "subordinate"] },
-    { href: "/land", label: t("navLand"), roles: ["admin"] },
-    { href: "/building", label: t("navBuilding"), roles: ["admin"] },
-    { href: "/tax", label: t("navTax"), roles: ["admin", "accountant"] },
-    { href: "/admin", label: t("navAdmin"), roles: ["admin"] },
-  ].filter((it) => user && it.roles.includes(user.role));
+    user?.role === "admin"
+      ? "/admin"
+      : user?.role === "accountant"
+        ? "/tax"
+        : "/tasks";
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -322,18 +313,6 @@ export function Topbar() {
                       <span>{th ? "จัดการรหัสผ่าน" : "Change Password"}</span>
                     </button>
 
-                    {/* จัดการผู้ใช้ (Admin Only) */}
-                    {user?.role === "admin" && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-xs sm:text-sm text-gray-700 hover:bg-govblue-50 hover:text-govblue-900 transition"
-                      >
-                        <Settings size={15} className="text-govblue-700" />
-                        <span>{t("manageUsers")}</span>
-                      </Link>
-                    )}
-
                     {canInstall && (
                       <button
                         onClick={handleInstall}
@@ -358,30 +337,6 @@ export function Topbar() {
             </div>
           </div>
         </div>
-
-        {/* Row 2: nav menu (ซ่อนเมื่อมีเพียงเมนูเดียว หรือสำหรับพนักงานบัญชี) */}
-        {user?.role !== "accountant" && navItems.length > 1 && (
-          <nav className="bg-govblue-950/70 border-t border-white/10">
-            <div className="mx-auto max-w-7xl px-2 sm:px-6 flex overflow-x-auto">
-              {navItems.map((it) => {
-                const active = pathname?.startsWith(it.href);
-                return (
-                  <Link
-                    key={it.href}
-                    href={it.href}
-                    className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition whitespace-nowrap ${
-                      active
-                        ? "border-govgold-400 text-white font-semibold bg-white/10"
-                        : "border-transparent text-blue-200 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {it.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
-        )}
       </header>
 
       {/* ========================================================= */}

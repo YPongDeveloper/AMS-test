@@ -13,9 +13,9 @@ interface PageProps {
 }
 
 export function getRoleHomeHref(role?: Role): string {
+  if (role === "admin") return "/admin";
   if (role === "accountant") return "/tax";
-  if (role === "subordinate" || role === "supervisor") return "/tasks";
-  return "/dashboard";
+  return "/tasks";
 }
 
 export function Page({ children, allowedRoles }: PageProps) {
