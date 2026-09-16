@@ -156,41 +156,39 @@ const I18nContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = "ams_language";
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("th");
+function getInitialLang(): Lang {
+  if (typeof window === "undefined") return "th";
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === "th" || saved === "en") return saved;
+  } catch {
+    // ignore – SSR or private browsing
+  }
+  return "th";
+}
 
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>(getInitialLang);
+
+  // Sync <html lang="..."> on mount & listen for cross-tab changes
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
-      if (saved === "th" || saved === "en") {
-        setLangState(saved);
-        if (typeof document !== "undefined") {
-          document.documentElement.lang = saved;
-        }
-      }
-    } catch {
-      // ignore
-    }
+    document.documentElement.lang = lang;
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && (e.newValue === "th" || e.newValue === "en")) {
         setLangState(e.newValue as Lang);
-        if (typeof document !== "undefined") {
-          document.documentElement.lang = e.newValue;
-        }
+        document.documentElement.lang = e.newValue;
       }
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  }, [lang]);
 
   const setLang = (l: Lang) => {
     setLangState(l);
     try {
       localStorage.setItem(STORAGE_KEY, l);
-      if (typeof document !== "undefined") {
-        document.documentElement.lang = l;
-      }
+      document.documentElement.lang = l;
     } catch {
       // ignore
     }
