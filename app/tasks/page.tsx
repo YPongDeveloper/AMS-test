@@ -2886,13 +2886,13 @@ export default function TasksPage() {
 
                             {/* Footer Action Bar */}
                             <div
-                              className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2"
+                              className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {/* Modern Dropdown Status Selector with Dot Indicator */}
-                              <div className="relative inline-flex items-center">
-                                <span className="text-xs text-gray-400 mr-1.5">สถานะ:</span>
-                                <div className="relative flex items-center">
+                              <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto">
+                                <span className="text-xs text-gray-400 shrink-0">สถานะ:</span>
+                                <div className="relative flex items-center flex-1 sm:flex-initial">
                                   <span className={`w-2 h-2 rounded-full absolute left-2.5 z-10 pointer-events-none ${statusDot}`} />
                                   <select
                                     value={task.status}
@@ -3051,12 +3051,12 @@ export default function TasksPage() {
                               </div>
 
                               {/* Action buttons */}
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-end gap-2 w-full sm:w-auto shrink-0">
                                 {isSup && task.status === "submitted" && (
                                   <button
                                     type="button"
                                     onClick={() => openReviewModal(task)}
-                                    className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
+                                    className="flex-1 sm:flex-initial text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center justify-center gap-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
                                   >
                                     <CheckCircle2 size={13} />
                                     <span>ตรวจงาน</span>
@@ -3066,7 +3066,7 @@ export default function TasksPage() {
                                   <button
                                     type="button"
                                     onClick={() => openSubmissionModal(task)}
-                                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
+                                    className="flex-1 sm:flex-initial text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition shadow-2xs whitespace-nowrap cursor-pointer"
                                   >
                                     <Plus size={13} />
                                     <span>ส่งผลงาน</span>
@@ -3075,7 +3075,7 @@ export default function TasksPage() {
                                 <button
                                   type="button"
                                   onClick={() => setSelectedTask(task)}
-                                  className="text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3 py-1.5 rounded-lg transition"
+                                  className="flex-1 sm:flex-initial text-xs font-semibold text-govblue-700 hover:text-govblue-900 flex items-center justify-center gap-1 bg-govblue-50 hover:bg-govblue-100 px-3.5 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer"
                                 >
                                   <span>ดูรายละเอียด</span>
                                   <ArrowRight size={13} />
@@ -4286,18 +4286,18 @@ export default function TasksPage() {
             </div>
 
             {/* Step Progress Stepper Bar */}
-            <div className="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-gray-200 flex items-center justify-between text-xs font-semibold overflow-x-auto gap-2 shrink-0">
+            <div className="px-3 sm:px-6 py-2 bg-slate-50 border-b border-gray-200 flex items-center justify-between text-xs font-semibold overflow-x-auto gap-1.5 sm:gap-2 shrink-0">
               {[
-                { step: 1, title: "1. กรอกข้อมูลทั่วไป", icon: ClipboardList },
-                { step: 2, title: `2. ใส่รูปภาพ (${submissionPhotos.length})`, icon: Camera },
-                { step: 3, title: "3. วาดพื้นที่ดาวเทียม", icon: Layers },
-                { step: 4, title: "4. ตรวจสอบก่อนส่ง", icon: FileCheck2 },
+                { step: 1, title: "1. กรอกข้อมูลทั่วไป", shortTitle: "1. ข้อมูล", icon: ClipboardList },
+                { step: 2, title: `2. ใส่รูปภาพ (${submissionPhotos.length})`, shortTitle: `2. รูปภาพ (${submissionPhotos.length})`, icon: Camera },
+                { step: 3, title: "3. วาดพื้นที่ดาวเทียม", shortTitle: "3. แผนที่", icon: Layers },
+                { step: 4, title: "4. ตรวจสอบก่อนส่ง", shortTitle: "4. ตรวจสอบ", icon: FileCheck2 },
               ].map((s) => (
                 <button
                   key={s.step}
                   type="button"
                   onClick={() => setSubmissionStep(s.step as any)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer text-xs ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer text-xs shrink-0 ${
                     submissionStep === s.step
                       ? "bg-govblue-800 text-white shadow-xs font-bold"
                       : submissionStep > s.step
@@ -4315,7 +4315,8 @@ export default function TasksPage() {
                         : "text-gray-400"
                     }
                   />
-                  <span>{s.title}</span>
+                  <span className="hidden sm:inline">{s.title}</span>
+                  <span className="sm:hidden">{s.shortTitle}</span>
                 </button>
               ))}
             </div>
@@ -4960,13 +4961,13 @@ export default function TasksPage() {
             </div>
 
             {/* Modal Bottom Footer (Navigation Controls) */}
-            <div className="px-6 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
+            <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
               {/* Left Back / Cancel Button */}
               {submissionStep === 1 ? (
                 <button
                   type="button"
                   onClick={() => setSubmissionModalOpen(false)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                  className="px-3.5 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition whitespace-nowrap cursor-pointer"
                 >
                   ยกเลิก
                 </button>
@@ -4974,7 +4975,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => setSubmissionStep((prev) => (prev - 1) as any)}
-                  className="px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  className="px-3.5 sm:px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-semibold rounded-lg transition flex items-center gap-1 sm:gap-1.5 shadow-2xs whitespace-nowrap cursor-pointer"
                 >
                   <ChevronLeft size={14} />
                   <span>ย้อนกลับ</span>
@@ -4987,14 +4988,25 @@ export default function TasksPage() {
                   <button
                     type="button"
                     onClick={() => setSubmissionStep((prev) => (prev + 1) as any)}
-                    className="px-5 py-2 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 sm:px-5 py-2 bg-govblue-800 hover:bg-govblue-900 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
                   >
                     <span>
-                      {submissionStep === 1
-                        ? "ถัดไป: ใส่รูปภาพสำรวจ"
-                        : submissionStep === 2
-                        ? "ถัดไป: วาดพื้นที่บน Google Map"
-                        : "ถัดไป: ตรวจเช็คข้อมูลก่อนส่ง"}
+                      {submissionStep === 1 ? (
+                        <>
+                          <span className="hidden sm:inline">ถัดไป: ใส่รูปภาพสำรวจ</span>
+                          <span className="sm:hidden">ถัดไป: รูปภาพ</span>
+                        </>
+                      ) : submissionStep === 2 ? (
+                        <>
+                          <span className="hidden sm:inline">ถัดไป: วาดพื้นที่บน Google Map</span>
+                          <span className="sm:hidden">ถัดไป: วาดพื้นที่</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="hidden sm:inline">ถัดไป: ตรวจเช็คข้อมูลก่อนส่ง</span>
+                          <span className="sm:hidden">ถัดไป: ตรวจสอบ</span>
+                        </>
+                      )}
                     </span>
                     <ChevronRight size={14} />
                   </button>
@@ -5003,10 +5015,19 @@ export default function TasksPage() {
                     type="button"
                     onClick={() => handleSubmitTaskData()}
                     disabled={submittingData}
-                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-md transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 sm:px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-md transition disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
                   >
                     <CheckCircle2 size={15} />
-                    <span>{submittingData ? "กำลังส่งข้อมูล..." : "✓ ยืนยันส่งให้หัวหน้าตรวจสอบ"}</span>
+                    <span>
+                      {submittingData ? (
+                        "กำลังส่ง..."
+                      ) : (
+                        <>
+                          <span className="hidden sm:inline">✓ ยืนยันส่งให้หัวหน้าตรวจสอบ</span>
+                          <span className="sm:hidden">✓ ยืนยันส่งงาน</span>
+                        </>
+                      )}
+                    </span>
                   </button>
                 )}
               </div>

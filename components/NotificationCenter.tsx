@@ -595,8 +595,15 @@ export function NotificationCenter({
 
       {/* Notifications Dropdown Card */}
       {open && (
-        <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm sm:max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-          {/* Header */}
+        <>
+          {/* Backdrop for Mobile */}
+          <div
+            className="fixed inset-0 bg-black/25 backdrop-blur-[2px] z-40 sm:hidden animate-in fade-in duration-150"
+            onClick={() => setOpen(false)}
+          />
+
+          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 max-w-sm sm:max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 mx-auto">
+            {/* Header */}
           <div className="p-3.5 sm:p-4 bg-gradient-to-r from-govblue-900 via-govblue-800 to-indigo-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Bell size={17} className="text-govblue-200" />
@@ -648,7 +655,7 @@ export function NotificationCenter({
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-gray-100">
+          <div className="max-h-[60vh] sm:max-h-[380px] overflow-y-auto divide-y divide-gray-100">
             {filteredNotifications.length === 0 ? (
               <div className="p-8 text-center text-gray-400 space-y-2">
                 <div className="w-12 h-12 mx-auto rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
@@ -766,7 +773,8 @@ export function NotificationCenter({
             </button>
           </div>
         </div>
-      )}
+      </>
+    )}
     </div>
   );
 }
